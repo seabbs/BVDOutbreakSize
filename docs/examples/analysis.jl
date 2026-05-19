@@ -88,7 +88,6 @@ using Turing: to_submodel
 using Distributions
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
-import SpecialFunctions
 using DataFrames: DataFrame
 using Random
 using BVDOutbreakSize
@@ -269,8 +268,9 @@ end
 # Imperial use the closed-form approximation
 # `D_T ≈ CFR · C_T · (1 + r/β)^{−α}` (valid for
 # `T ⪞ 12 / (β + r)`); we evaluate the exact integral so the delay
-# family stays a runtime parameter and the approximation error is
-# avoided.
+# family stays a runtime parameter — swapping `Gamma(α, θ)` for any
+# other continuous distribution in `delay_model` requires no
+# changes to the quadrature.
 
 const DEATH_INTEGRAL_ALG = GaussLegendre(; n = 64)
 
@@ -278,17 +278,15 @@ function _death_integrand(u, p)
     s = p.halfwidth * (u + 1)
     τ = p.T - s
     τ <= 0 && return zero(p.r)
-    return exp(p.r * s) * τ^(p.α - 1) * exp(-τ / p.θ)
+    return exp(p.r * s) * pdf(p.delay_dist, τ)
 end
 
-function expected_deaths(CFR, r, T, α, θ;
+function expected_deaths(CFR, r, T, delay_dist;
         alg = DEATH_INTEGRAL_ALG)
     halfwidth = T / 2
-    params = (; r, T, α, θ, halfwidth)
+    params = (; r, T, halfwidth, delay_dist)
     prob = IntegralProblem(_death_integrand, (-1.0, 1.0), params)
-    integral = halfwidth * solve(prob, alg).u
-    log_norm = -α * log(θ) - SpecialFunctions.loggamma(α)
-    return CFR * exp(log_norm) * integral
+    return CFR * halfwidth * solve(prob, alg).u
 end
 
 # Numerical integral of the cumulative-incidence trajectory `C(s)`
@@ -406,11 +404,9 @@ end
     delay_state ~ to_submodel(delay, false)
     cfr_state   ~ to_submodel(cfr, false)
 
-    α   = delay_state.α
-    θ   = delay_state.θ
     CFR = cfr_state.CFR
 
-    raw_deaths         = expected_deaths(CFR, r, T, α, θ)
+    raw_deaths         = expected_deaths(CFR, r, T, delay_state.dist)
     expected_deaths_T := isfinite(raw_deaths) ?
         max(raw_deaths, eps(typeof(raw_deaths))) :
         eps(typeof(raw_deaths))
@@ -421,7 +417,7 @@ end
         eps(typeof(k))
     total_deaths ~ NegativeBinomial(k, p_nb_d)
 
-    return (; α, θ, CFR, expected_deaths_T)
+    return (; CFR, expected_deaths_T)
 end
 
 # ### Cases likelihood — Extension beyond Imperial (ascertainment)
