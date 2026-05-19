@@ -1,31 +1,24 @@
 # BVDOutbreakSize
 
-Joint forward generative Turing model for the 2026 Bundibugyo virus disease
-(BVD) outbreak in the Democratic Republic of the Congo, fitting both
-data sources from the Imperial / WHO report (McCabe et al.,
-[18 May 2026](https://doi.org/10.25560/130007)) in a single posterior.
+Joint forward generative Turing model for the 2026 Bundibugyo virus
+disease outbreak in DRC, fitting the data streams from the Imperial /
+WHO report (McCabe et al., [18 May 2026](https://doi.org/10.25560/130007))
+in a single posterior.
 
-The original report combines two independent methods (cases exported to
-Uganda; backcalculation from deaths) by running each as a sensitivity
-sweep over fixed nuisance parameters.
-Here we replace the sweep with priors and the closed-form approximation
-with the full convolution integral, fitted jointly to both likelihoods.
+The original report runs two independent analyses — geographic spread
+from cases detected in Uganda, and backcalculation from deaths — and
+reports a sensitivity sweep over fixed nuisance parameters. Here those
+nuisance parameters carry priors, all streams are conditioned on
+jointly, and the output is one posterior over cumulative cases `C_T`.
 
-## Model
-
-Latent total cases `C_T` to date are seeded by a single zoonotic case
-`T` days ago and grow exponentially at rate `r`, so `C_T = exp(r·T)`.
-
-Two observation models share that latent state:
-
-- **Exports**: cases detected in Uganda follow `NegBinomial(mean = C_T·p, k)`
-  with `p = (daily travellers / population) × detection window`.
-- **Deaths**: cumulative deaths follow `Poisson(CFR · ∫₀^T exp(r·s)·f(T−s) ds)`,
-  with `f` the gamma symptom-onset-to-death density.
-  The convolution is evaluated by Gauss–Legendre quadrature.
-
-Priors are placed on the growth rate `r`, outbreak age `T`, gamma delay
-shape and scale, CFR, NegBinomial dispersion, and detection window.
+What it does differently: replaces Imperial's sensitivity sweep
+over fixed nuisance parameters with priors, replaces the closed-form
+deaths approximation with the full gamma convolution, replaces the
+small-growth-rate exports simplification with the exact cumulative
+integral, and adds a reported-case ascertainment extension and a
+no-onward-transmission projected-deaths counterfactual. The
+[analysis walkthrough](docs/examples/analysis.jl) lays out each
+deviation alongside the matching Imperial method.
 
 ## Running
 
@@ -36,24 +29,34 @@ julia --project=. -e 'using Pkg; Pkg.instantiate()'
 julia --project=. docs/examples/analysis.jl
 ```
 
-Or render the docs page:
+Render the docs page (executes the literate and produces HTML at
+`docs/build/`):
 
 ```bash
+julia --project=docs -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
 julia --project=docs docs/make.jl
 ```
+
+Updating the observation counts for a new sitrep is a single-file
+edit of `data/observations.toml`; the literate picks the new numbers
+up automatically.
 
 ## Submodules
 
 - `external/bdbv-linelist-analysis` — Bayesian reanalysis of the 2012
   Isiro BDBV line list (Rosello et al. 2015). Source of the
-  informative onset-to-death gamma prior.
+  informative onset-to-death gamma shape and scale priors.
 
 ## References
 
 - McCabe et al., *Estimation of the size of the outbreak of Ebola
-  disease caused by Bundibugyo virus in the Democratic Republic of the
-  Congo*, Imperial College London, 18 May 2026.
-  DOI: [10.25560/130007](https://doi.org/10.25560/130007).
-- Rosello et al., *Ebola virus disease in the Democratic Republic of
-  the Congo, 1976–2014*, eLife 2015. Used for the symptom-onset-to-death
-  delay prior mean.
+  disease caused by Bundibugyo virus in DRC*, Imperial College
+  London, 18 May 2026. DOI: [10.25560/130007](https://doi.org/10.25560/130007).
+- Rosello et al., *Ebola virus disease in DRC, 1976–2014*, eLife
+  2015. Source of the original onset-to-death gamma point estimate.
+- Imai et al., *Estimating the potential total number of novel
+  coronavirus cases in Wuhan City*, Imperial COVID-19 Response Team
+  Report 1, 17 January 2020. Methodological template for Method 1.
+- Charniga et al., *Best practices for estimating and reporting
+  epidemiological delay distributions*, PLOS Computational Biology
+  2024. Followed for the delay-distribution reporting here.
