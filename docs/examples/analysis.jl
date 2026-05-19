@@ -1,7 +1,7 @@
 # # Joint estimation of BVD outbreak size
 #
 # A single joint Bayesian model fits the two data streams used by
-# McCabe et al. [@mccabe2026]
+# McCabe et al. [mccabe2026](@cite)
 # to estimate the size of the 2026 Bundibugyo virus disease (BVD)
 # outbreak in the Democratic Republic of the Congo:
 #
@@ -58,7 +58,7 @@ const TOTAL_DEATHS        = obs.total_deaths
 # structure. The code conventions used here (Mooncake AD,
 # `Integrals.jl` integrand pattern, NB safe-clamp, FlexiChains,
 # PairPlots `plot_pair`, AlgebraOfGraphics density layouts) follow
-# the hantavirus modelling project [@hantavirus_2026].
+# the hantavirus modelling project [hantavirus_2026](@cite).
 
 # ### Growth — exponential
 #
@@ -89,17 +89,18 @@ end
 #
 # Returns any continuous distribution; the numerical convolution
 # downstream doesn't care which family it is. The Imperial report
-# uses Rosello et al. [@rosello2015]'s point estimate
+# uses Rosello et al. [rosello2015](@cite)'s point estimate
 # (α = 4.42, θ ≈ 2.58 d).
 # The Bayesian reanalysis of the same line list
-# [@bdbv_linelist_analysis_2026], vendored as a submodule, gives an
-# `onset → death` marginal of
-# mean 11.7 d (95% CrI 9.4-14.6), P95 24.0 d, implying α ≈ 2.4,
-# θ ≈ 4.8 — the priors here.
+# [bdbv_linelist_analysis_2026](@cite), vendored as a submodule, fits a
+# single Gamma to the 27 Isiro onset-to-death observations and
+# reports a posterior on shape `α = 4.3 (2.4 - 7.2)` and scale
+# `θ = 2.6 (1.6 - 4.8)`. We use those credible intervals directly
+# to set the priors here.
 
 @model function delay_model(;
-        alpha_prior = truncated(Normal(2.4, 0.7); lower = 0.5),
-        theta_prior = truncated(Normal(4.8, 1.2); lower = 0.2))
+        alpha_prior = truncated(Normal(4.3, 1.22); lower = 0.5),
+        theta_prior = truncated(Normal(2.6, 0.82); lower = 0.2))
     α ~ alpha_prior
     θ ~ theta_prior
     return (; α, θ, dist = Gamma(α, θ))
@@ -142,8 +143,8 @@ end
 # ```
 # with variance `μ + μ²/k`. `1/√k ~ Exponential(1)` follows Stan's
 # prior-choice guidance and places ~68% mass on `k > 0.18`,
-# consistent with Lloyd-Smith et al. [@lloydsmith2005] SARS (0.16)
-# and Althaus [@althaus2015] West Africa Ebola (0.18). With only two
+# consistent with Lloyd-Smith et al. [lloydsmith2005](@cite) SARS (0.16)
+# and Althaus [althaus2015](@cite) West Africa Ebola (0.18). With only two
 # observed exports the prior dominates.
 
 @model function nb_dispersion_model(; inv_sqrt_k_prior = Exponential(1.0))
@@ -185,7 +186,7 @@ end
 # ## Method 1 — exports-only model
 #
 # Method 1 of the report (geographic spread) as a stand-alone Turing
-# model, mirroring the approach of Imai et al. [@imai2020]. Only
+# model, mirroring the approach of Imai et al. [imai2020](@cite). Only
 # growth, detection-window and NB dispersion submodels are invoked
 # because the exports likelihood does not depend on the delay or
 # CFR. `C_T` is identified through the product `r · T`, so the
@@ -364,7 +365,7 @@ plot_pair(chn, [:cumulative_cases, :r, :T, :CFR, :α, :θ, :w, :k])
 
 # ### Comparison to the published report
 #
-# McCabe et al. [@mccabe2026] report 15 point estimates of `C_T` across the two
+# McCabe et al. [mccabe2026](@cite) report 15 point estimates of `C_T` across the two
 # methods and their sensitivity sweeps (Tables 1 and 2). The joint
 # posterior collapses those 15 numbers to a single distribution. The
 # table below shows the narrowest joint credible interval (30, 60 or
@@ -407,7 +408,7 @@ comparison_table(vec(Array(chn[:cumulative_cases])))
 #   fit (n=22 onset → death observations). The prior widens this
 #   but cannot reflect cross-outbreak variation.
 # - *Deaths likelihood is Poisson.* The line of work in
-#   [@funk2018] uses NegBinomial for both reported cases and
+#   [funk2018](@cite) uses NegBinomial for both reported cases and
 #   deaths. Switching to NegBinomial for deaths is a reasonable
 #   robustness check.
 # - *Detection-window definition is loose.* `w` lumps incubation and
@@ -424,7 +425,7 @@ comparison_table(vec(Array(chn[:cumulative_cases])))
 #
 # - Doubling time `τ = 14 d`, so `r = ln(2) / 14 ≈ 0.0495 / day`.
 # - CFR = 30% (the middle of the report's CFR sweep).
-# - Onset-to-death gamma = Rosello et al. [@rosello2015] point estimate
+# - Onset-to-death gamma = Rosello et al. [rosello2015](@cite) point estimate
 #   (shape `α = 4.42`, rate `β = 0.388 / day`, hence scale
 #   `θ ≈ 2.578 day`), the exact distribution the report uses.
 #
