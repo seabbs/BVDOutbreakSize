@@ -79,6 +79,8 @@ using Turing: to_submodel
 using Distributions
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
+import SpecialFunctions
+using DataFrames: DataFrame
 using Random
 using BVDOutbreakSize
 
@@ -102,7 +104,7 @@ println("  daily_outbound_travellers    = ",
         " (sd = ", obs.daily_outbound_travellers_sd, ")")
 println("  source_population            = ", obs.source_population)
 
-const ITURI_POPULATION    = obs.source_population_size
+const ITURI_POPULATION    = obs.source_population
 const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
 const EXPORTED_CASES      = obs.exported_cases
 const TOTAL_DEATHS        = obs.total_deaths
@@ -136,7 +138,7 @@ const TOTAL_DEATHS        = obs.total_deaths
 @model function exponential_growth_model(;
         log_τ_prior = Normal(log(14), 0.4),
         m_prior     = truncated(Normal(7.0, 2.5);
-                                lower = 0.5, upper = 13.0))
+                                lower = 0, upper = 13.0))
     log_τ ~ log_τ_prior
     m     ~ m_prior
     τ   := exp(log_τ)
@@ -200,7 +202,7 @@ end
 # and detectable abroad (incubation + onset-to-detection).
 
 @model function detection_window_model(;
-        window_prior = truncated(Normal(15.0, 5.0); lower = 2.0))
+        window_prior = truncated(Normal(15.0, 5.0); lower = 0))
     w ~ window_prior
     return (; w)
 end
@@ -257,70 +259,14 @@ end
 function expected_deaths(CFR, r, T, α, θ;
         alg = DEATH_INTEGRAL_ALG)
     halfwidth = T / 2
-    params = (; T, halfwidth,
-              cumulative = growth_state.cumulative,
-              delay_dist)
+    params = (; r, T, α, θ, halfwidth)
     prob = IntegralProblem(_death_integrand, (-1.0, 1.0), params)
-    return CFR * halfwidth * solve(prob, alg).u
+    integral = halfwidth * solve(prob, alg).u
+    log_norm = -α * log(θ) - SpecialFunctions.loggamma(α)
+    return CFR * exp(log_norm) * integral
 end
 
 # ## Method 1 — exports-only model
-#
-# Method 1 of the report (geographic spread) as a stand-alone Turing
-# model, mirroring the approach of Imai et al. [imai2020](@cite). Only
-# growth, detection-window and NB dispersion submodels are invoked
-# because the exports likelihood does not depend on the delay or
-# CFR. `C_T` is identified through the product `r · T`, so the
-# marginals on `r` and `T` separately stay close to their priors.
-
-@model function exports_only_model(
-        exported_cases::Union{Missing, Integer};
-        daily_travellers::Real  = ITURI_DAILY_TRAVEL,
-        source_population::Real = ITURI_POPULATION,
-        growth     = exponential_growth_model(),
-        window     = detection_window_model(),
-        dispersion = nb_dispersion_model())
-
-    growth_state     ~ to_submodel(growth, false)
-    window_state     ~ to_submodel(window, false)
-    dispersion_state ~ to_submodel(dispersion, false)
-
-    C_T = growth_state.C_T
-    w   = window_state.w
-    k   = dispersion_state.k
-
-    p_detect         := (daily_travellers / source_population) * w
-    expected_exports := C_T * p_detect
-    cumulative_cases := C_T
-
-    p_nb = max(k / (k + expected_exports), eps(typeof(k)))
-    exported_cases ~ NegativeBinomial(k, p_nb)
-end
-
-# ## Method 2 — deaths-only model
-#
-# Method 2 of the report (backcalculation from deaths) as a
-# stand-alone Turing model. Growth, delay and CFR submodels are
-# invoked; the detection window and dispersion submodels are not.
-
-@model function deaths_only_model(
-        total_deaths::Union{Missing, Integer};
-        growth = exponential_growth_model(),
-        delay  = delay_model(),
-        cfr    = cfr_model())
-
-    growth_state ~ to_submodel(growth, false)
-    delay_state  ~ to_submodel(delay,  false)
-    cfr_state    ~ to_submodel(cfr,    false)
-
-    raw_deaths        = expected_deaths(cfr_state.CFR, growth_state,
-                                        delay_state.dist)
-    expected_deaths_T := max(raw_deaths, eps(typeof(raw_deaths)))
-    cumulative_cases  := growth_state.C_T
-
-    total_deaths ~ Poisson(expected_deaths_T)
-end
-
 # ## Observation submodels
 #
 # Two observation submodels take the latent `C_T` (and `r`, `T` for
@@ -361,7 +307,7 @@ end
 
     daily_travellers ~ truncated(
         Normal(travellers_mean, travellers_sd);
-        lower = travellers_mean * 0.3)
+        lower = 0)
 
     window_start      = max(T - w, zero(T))
     cumulative_window := cumulative(T) - cumulative(window_start)
@@ -395,10 +341,14 @@ end
     k_d = dispersion_state.k_d
 
     raw_deaths         = expected_deaths(CFR, r, T, α, θ)
-    expected_deaths_T := max(raw_deaths, eps(typeof(raw_deaths)))
+    expected_deaths_T := isfinite(raw_deaths) ?
+        max(raw_deaths, eps(typeof(raw_deaths))) :
+        eps(typeof(raw_deaths))
 
-    p_nb_d = max(k_d / (k_d + expected_deaths_T),
-                 eps(typeof(k_d)))
+    p_nb_d_raw = k_d / (k_d + expected_deaths_T)
+    p_nb_d = isfinite(p_nb_d_raw) ?
+        clamp(p_nb_d_raw, eps(typeof(k_d)), one(k_d) - eps(typeof(k_d))) :
+        eps(typeof(k_d))
     total_deaths ~ NegativeBinomial(k_d, p_nb_d)
 
     return (; α, θ, CFR, k_d, expected_deaths_T)
@@ -421,12 +371,6 @@ end
                 growth_state.cumulative, growth_state.T), false)
 
     cumulative_cases := growth_state.C_T
-    return (; r = growth_state.r, m = growth_state.m,
-              T = growth_state.T, C_T = growth_state.C_T,
-              w = exports_state.w,
-              daily_travellers = exports_state.daily_travellers,
-              cumulative_cases,
-              expected_exports = exports_state.expected_exports)
 end
 
 @model function deaths_only_model(
@@ -440,12 +384,6 @@ end
                growth_state.r,  growth_state.T), false)
 
     cumulative_cases := growth_state.C_T
-    return (; r = growth_state.r, m = growth_state.m,
-              T = growth_state.T, C_T = growth_state.C_T,
-              α = deaths_state.α, θ = deaths_state.θ,
-              CFR = deaths_state.CFR, k_d = deaths_state.k_d,
-              cumulative_cases,
-              expected_deaths_T = deaths_state.expected_deaths_T)
 end
 
 @model function bvd_joint(
@@ -464,15 +402,6 @@ end
                growth_state.r,  growth_state.T), false)
 
     cumulative_cases := growth_state.C_T
-    return (; r = growth_state.r, m = growth_state.m,
-              T = growth_state.T, C_T = growth_state.C_T,
-              w = exports_state.w,
-              daily_travellers = exports_state.daily_travellers,
-              α = deaths_state.α, θ = deaths_state.θ,
-              CFR = deaths_state.CFR, k_d = deaths_state.k_d,
-              cumulative_cases,
-              expected_exports = exports_state.expected_exports,
-              expected_deaths_T = deaths_state.expected_deaths_T)
 end
 
 # ## Prior predictive check
@@ -581,7 +510,7 @@ plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS)
 
 imperial_growth = exponential_growth_model(
     m_prior = truncated(Normal(8.0, 2.0);
-                        lower = 0.5, upper = 13.0),
+                        lower = 0, upper = 13.0),
 )
 
 imperial_fixed = Turing.fix(
@@ -596,8 +525,43 @@ println("Imperial sense check (r and delays fixed):")
 println(summary_table(chn_imperial,
         [:m, :T, :cumulative_cases]; digits = 1))
 
+# ### Side-by-side: Imperial reported vs our two analogues
+#
+# Compare what Imperial *actually reported* for their two main
+# scenarios (Method 1 Ituri w=15 d, and Method 2 τ=14 d / CFR 30%)
+# against the two `C_T` estimates we derive: the model conditioned
+# on Imperial's central assumptions, and the full joint posterior.
+# Imperial's 95% intervals are the exact NegBinomial CIs (Method 1)
+# and Poisson CIs (Method 2) reported in Tables 1 and 2 of the
+# report.
+
+posterior_C_joint    = vec(Array(chn_joint[:cumulative_cases]))
+joint_summary        = posterior_summary(posterior_C_joint)
+imperial_fit_summary = posterior_summary(posterior_C_imperial)
+
+main_comparison = DataFrame(
+    source = [
+        "Imperial Method 1 (Ituri, w=15 d)",
+        "Imperial Method 2 (τ=14 d, CFR=30%)",
+        "Our model | Imperial main assumptions",
+        "Our joint posterior",
+    ],
+    C_T_central = [313.0, 501.0,
+                   round(quantile(posterior_C_imperial, 0.5); digits = 0),
+                   round(quantile(posterior_C_joint,    0.5); digits = 0)],
+    CrI_lower = [39.0, 402.0,
+                 round(imperial_fit_summary.lo90; digits = 0),
+                 round(joint_summary.lo90;        digits = 0)],
+    CrI_upper = [870.0, 612.0,
+                 round(imperial_fit_summary.hi90; digits = 0),
+                 round(joint_summary.hi90;        digits = 0)],
+)
 println()
-println("Comparison to published scenarios (joint model):")
+println("Main comparison vs Imperial:")
+println(main_comparison)
+
+println()
+println("Joint posterior coverage of all 15 published scenarios:")
 println(comparison_table(posterior_C_joint))
 
 # ## Notes
