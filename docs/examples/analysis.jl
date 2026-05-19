@@ -81,8 +81,6 @@
 # - *Detection-window definition is loose.* `w` lumps incubation
 #   and onset-to-detection together — both poorly characterised
 #   for BVD.
-# - *Convolution numerics.* `GaussLegendre(n = 64)` is accurate
-#   for `T ≲ 200 d`.
 
 using Turing
 using Turing: to_submodel
