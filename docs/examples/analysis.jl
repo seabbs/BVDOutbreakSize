@@ -1,78 +1,87 @@
 # # Joint estimation of BVD outbreak size
 #
-# This walkthrough fits a single joint Bayesian model to the two data
-# streams used by McCabe et al. ([Imperial College London, 18 May 2026](https://doi.org/10.25560/130007))
+# This walkthrough fits a single joint Bayesian model to the data
+# used by McCabe et al. ([Imperial College London, 18 May 2026](https://doi.org/10.25560/130007))
 # to estimate the size of the 2026 Bundibugyo virus disease (BVD)
-# outbreak in the Democratic Republic of the Congo:
+# outbreak in the Democratic Republic of the Congo. The Imperial
+# report runs two independent analyses — geographic spread from
+# cases detected in Uganda, and back-calculation from suspected
+# deaths in DRC — and reports a sensitivity sweep over the nuisance
+# parameters. Here those streams are combined in one model, the
+# nuisance parameters are given priors, and the output is a single
+# posterior over the latent cumulative case count `C_T`.
 #
-# 1. Two BVD cases detected in Uganda, with population movement data
-#    from Ituri Province across seven points of entry.
-# 2. Suspected BVD deaths reported in DRC.
-#
-# The report runs each stream through an independent estimator
-# and reports a sensitivity sweep over detection windows, doubling
-# times and case fatality ratios. Here those nuisance parameters are
-# given priors and fitted jointly, returning a single posterior over
-# the latent cumulative case count `C_T`. The closed-form deaths
-# approximation `D_T = CFR · C_T · (1 + r/β)^(-α)` is replaced by
-# the full convolution integral evaluated numerically, so the delay
-# family is a runtime parameter rather than a baked-in analytic form.
+# An ascertainment extension takes the reported suspected-case
+# count as a third data stream, sharing the surveillance NegBinomial
+# dispersion with the deaths likelihood.
 #
 # **→ Jump to the [joint posterior results](#Joint-model-and-results).**
 #
-# !!! warning
-#     This is an LLM-driven reimplementation as a methodological
-#     experiment. It is not intended to inform public health decisions.
+# ## What we do differently from Imperial
 #
-# ## Summary and limitations
-#
-# **What this does.** A single Turing model fits the two data streams
-# in the report — exported cases in Uganda and suspected BVD deaths in
-# DRC — to a shared latent total case count `C_T`. The death stream
-# uses the full convolution of exponential growth with the
-# onset-to-death gamma, not the report's closed-form approximation.
-# Uncertainty in the doubling time, CFR, onset-to-death delay,
-# detection window and daily traveller volume is expressed through
-# priors rather than scenario sweeps, so there is a single posterior
-# over `C_T` rather than 15 scenario-conditional point estimates.
-#
-# **Limitations.**
-#
-# - *LLM-driven reimplementation.* The model code, priors, convolution
-#   implementation and walkthrough were drafted by a language model
-#   from the published Imperial report and the companion delay
-#   reanalysis. It has not been independently replicated against the
-#   authors' code. It should not inform public-health decisions.
-# - *Prior-driven inference where data is scarce.* Two exports and
-#   ~10² deaths give almost no information about the dispersion or
-#   about `r` and the doubling-time multiplier `m` separately.
-#   Posteriors on these parameters will track their priors closely.
-# - *Inherits the report's epidemiological assumptions.* Exponential
-#   growth from a single seeding case, no spatial structure beyond
-#   the Ituri / Nord Kivu split, no time series of cases or deaths.
-# - *Onset-to-death delay prior anchored on Isiro 2012.* Centred on
-#   the [bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis)
-#   posterior, which is a single-outbreak fit. The delay distribution
-#   reporting here follows the recommendations in [charniga2024](@cite),
-#   but cross-outbreak heterogeneity remains unmodelled.
-# - *Deaths likelihood is NegBinomial; exports likelihood is Poisson.*
-#   Imperial uses Poisson for both. Here cumulative deaths are given
-#   a NegBinomial likelihood to absorb passive-surveillance
-#   overdispersion; exports stay Poisson because two observations do
-#   not identify an extra dispersion parameter.
-# - *Exact convolution for exports.* Imperial / Imai 2020 use the
-#   small-`rw` approximation
-#   `expected_exports ≈ C_T · w · daily_travellers / source_pop`.
-#   We use the exact cumulative integral
-#   `(daily_travellers / source_pop) · ∫_{T−w}^{T} C(s) ds`, which
-#   reduces to the Imperial form as `r → 0`. Over the BVD prior
-#   range `rw ∈ 0.33-2.0`, the approximation under-estimates `C_T`
+# - *Joint posterior, not 15 scenario estimates.* The doubling time
+#   `τ`, CFR, onset-to-death shape and scale, detection window `w`,
+#   daily traveller volume and surveillance dispersion all have
+#   priors and are sampled jointly. Imperial fixes each and sweeps.
+# - *Exact cumulative integral for exports* —
+#   `(daily_travellers / source_pop) · ∫_{T−w}^{T} C(s) ds` — rather
+#   than Imperial's small-`rw` simplification `q · w · C(T)`. The
+#   two forms agree as `r → 0`; over the BVD prior range
+#   `rw ∈ 0.33-2.0` Imperial's approximation under-estimates `C_T`
 #   by 15-57%.
-# - *Detection-window definition is loose.* `w` lumps incubation and
-#   onset-to-detection into one delay; both are poorly characterised
-#   for Bundibugyo virus.
-# - *Convolution numerics.* `GaussLegendre(n = 64)` on `[0, T]` is
-#   accurate for `T ≲ 200 d`.
+# - *Exact gamma convolution for deaths.* Imperial uses the
+#   closed-form approximation `D_T ≈ CFR · C_T · (1 + r/β)^{−α}`;
+#   we evaluate the integral numerically so the delay family
+#   stays a runtime parameter.
+# - *Reparameterise growth.* Sampling `log τ` (doubling time) and
+#   `m = T / τ` (number of doublings since seeding), with
+#   `C_T := 2^m` and `r := log(2) / τ` as deterministics,
+#   decorrelates `r` from `T` (the natural ridge in `C_T = e^{rT}`).
+# - *Onset-to-death prior anchored on the Bayesian reanalysis* of
+#   the same Isiro 2012 line list Imperial cites for its point
+#   estimates ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis)),
+#   so the priors carry the published 95% credible intervals on
+#   `α` and `θ` rather than collapsing onto Rosello's point
+#   estimate.
+# - *NegBinomial likelihood on deaths and reported cases* with a
+#   single shared surveillance dispersion `k`, vs Imperial's
+#   Poisson on both. Exports stay Poisson because two observations
+#   would not identify a separate dispersion. Imperial's "exact
+#   NegBinomial CIs" on Method 1 are the conventional binomial-
+#   inversion procedure, not an estimated dispersion.
+# - *Ascertainment extension* (not in Imperial). A `Beta(2, 6)`
+#   prior on the reporting fraction, applied to the latent `C_T`,
+#   gives a joint posterior over the reported suspected-case
+#   count alongside deaths and exports.
+# - *No-onward-transmission counterfactual* (not in Imperial).
+#   Projects the committed deaths from cases already infected
+#   by `T`, integrating `i(s) · (1 − F(T − s))` per draw — a
+#   lower bound on the eventual death toll if every onward
+#   transmission stopped today.
+#
+# ## Limitations
+#
+# - *LLM-driven reimplementation.* The model code, priors,
+#   convolution implementation and walkthrough were drafted by a
+#   language model from the published Imperial report and the
+#   companion delay reanalysis. Not independently replicated
+#   against the authors' code; not for public-health decisions.
+# - *Prior-driven inference where data is scarce.* Two exports and
+#   ~10² deaths give little information about `τ`, `m`, the
+#   dispersion, or the reporting fraction individually.
+#   Posteriors track their priors closely.
+# - *Inherits Imperial's epidemiological assumptions.* Exponential
+#   growth from a single zoonotic seed, no spatial structure
+#   beyond the Ituri / Nord Kivu split, no time series.
+# - *Onset-to-death delay anchored on Isiro 2012.* A single-
+#   outbreak fit; the delay distribution reporting here follows
+#   [charniga2024](@cite) but cross-outbreak heterogeneity is
+#   unmodelled.
+# - *Detection-window definition is loose.* `w` lumps incubation
+#   and onset-to-detection together — both poorly characterised
+#   for BVD.
+# - *Convolution numerics.* `GaussLegendre(n = 64)` is accurate
+#   for `T ≲ 200 d`.
 
 using Turing
 using Turing: to_submodel
