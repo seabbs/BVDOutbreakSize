@@ -6,6 +6,7 @@
 /docs/Manifest.toml
 /docs/src/analysis.md
 /docs/src/index.md
+/docs/src/references.md
 /docs/node_modules/
 .DS_Store
 .claude/

@@ -11,67 +11,23 @@ using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using Turing
 using Turing.DynamicPPL: InitFromPrior
-using FlexiChains
+using MCMCChains: Chains
+using DocStringExtensions
 import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
 using CairoMakie: Figure, Axis, hist!, vlines!
 
-function __init__()
-    ## Activate CairoMakie so plots returned by the helpers below
-    ## render as PNG in Documenter / Literate without callers having
-    ## to `using CairoMakie` themselves.
-    CairoMakie.activate!()
-    return nothing
-end
-
 export REPORT_SCENARIOS,
-       load_observations, DEFAULT_OBSERVATIONS_PATH,
+       ITURI_POPULATION, ITURI_DAILY_TRAVEL,
+       ITURI_DAILY_TRAVEL_SD,
+       EXPORTED_CASES, TOTAL_DEATHS,
+       load_observations,
        summary_table, posterior_summary,
        streams_table, comparison_table,
        nuts_sample, default_adtype,
-       plot_cumulative_cases,
-       plot_prior_predictive, plot_posterior_predictive,
-       plot_pair
-
-"""
-    DEFAULT_OBSERVATIONS_PATH
-
-Path to the bundled `data/observations.toml`. Override
-[`load_observations`](@ref) to point at a different file.
-"""
-const DEFAULT_OBSERVATIONS_PATH = joinpath(@__DIR__, "..", "data",
-                                           "observations.toml")
-
-"""
-    load_observations(path = DEFAULT_OBSERVATIONS_PATH)
-
-Read the observations TOML and return a `NamedTuple` of named fields:
-
-- `exported_cases::Int`              cases detected in Uganda
-- `total_deaths::Int`                suspected BVD deaths in DRC
-- `as_of_date::String`               ISO 8601 cut-off
-- `source_population_label::String`  source-area label
-- `source_population_size::Int`      source-area population
-- `daily_outbound_travellers::Int`   mean daily PoE flow
-
-To update for a later sitrep, edit `data/observations.toml` rather
-than the model code; the literate walkthrough picks up the new
-numbers on the next build.
-"""
-function load_observations(path::AbstractString = DEFAULT_OBSERVATIONS_PATH)
-    cfg = TOML.parsefile(path)
-    obs = cfg["observations"]
-    pop = cfg["population"]
-    return (
-        exported_cases            = Int(obs["exported_cases"]),
-        total_deaths              = Int(obs["total_deaths"]),
-        as_of_date                = String(obs["as_of_date"]),
-        source_population_label   = String(pop["source"]),
-        source_population_size    = Int(pop["size"]),
-        daily_outbound_travellers = Int(pop["daily_outbound_travellers"]),
-    )
-end
+       plot_cumulative_cases, plot_prior_predictive,
+       plot_posterior_predictive, plot_pair
 
 """
     REPORT_SCENARIOS
@@ -99,7 +55,75 @@ const REPORT_SCENARIOS = [
 ]
 
 """
-    default_adtype()
+    ITURI_POPULATION
+
+Source population for the Ituri Province (McCabe et al., Table 1).
+"""
+const ITURI_POPULATION   = 4_392_200
+
+"""
+    ITURI_DAILY_TRAVEL
+
+Default prior mean for the daily outbound traveller volume from
+Ituri Province across seven points of entry.
+"""
+const ITURI_DAILY_TRAVEL = 1_871
+
+"""
+    ITURI_DAILY_TRAVEL_SD
+
+Default prior SD for the daily outbound traveller volume, covering
+point-of-entry-to-point-of-entry variation and reporting uncertainty
+in the underlying mobility survey.
+"""
+const ITURI_DAILY_TRAVEL_SD = 200
+
+"""
+    EXPORTED_CASES
+
+BVD cases detected in Uganda having travelled from Ituri Province.
+"""
+const EXPORTED_CASES = 2
+
+"""
+    TOTAL_DEATHS
+
+Suspected BVD deaths reported in DRC, taken from the most recent
+Guardian situation report (19 May 2026). Imperial's 18 May 2026
+report uses the earlier 16 May 2026 snapshot of 88 deaths.
+"""
+const TOTAL_DEATHS = 130
+
+"""
+$(TYPEDSIGNATURES)
+
+Load the observation block from `data/observations.toml` and return
+it as a `NamedTuple`. If `path` is omitted, the bundled TOML file
+shipped with the package is used. Expected fields:
+
+- `exported_cases::Int`
+- `total_deaths::Int`
+- `daily_outbound_travellers::Real`
+- `daily_outbound_travellers_sd::Real`
+- `source_population::Int`
+"""
+function load_observations(
+        path::AbstractString = joinpath(@__DIR__, "..", "data",
+                                        "observations.toml"))
+    raw = TOML.parsefile(path)
+    return (;
+        exported_cases               = Int(raw["exported_cases"]),
+        total_deaths                 = Int(raw["total_deaths"]),
+        daily_outbound_travellers    = float(
+            raw["daily_outbound_travellers"]),
+        daily_outbound_travellers_sd = float(
+            raw["daily_outbound_travellers_sd"]),
+        source_population            = Int(raw["source_population"]),
+    )
+end
+
+"""
+$(TYPEDSIGNATURES)
 
 Mooncake reverse-mode AD with default `Mooncake.Config()`. Used as
 the NUTS `adtype` keyword.
@@ -107,10 +131,9 @@ the NUTS `adtype` keyword.
 default_adtype() = AutoMooncake(; config = Mooncake.Config())
 
 """
-    nuts_sample(model; samples = 1000, chains = 4, target_accept = 0.9,
-                seed = 20260518, progress = false, adtype = default_adtype())
+$(TYPEDSIGNATURES)
 
-NUTS on `model`, four parallel chains via `MCMCThreads`. Chains
+NUTS on `model`, parallel chains via `MCMCThreads`. Chains
 initialise from the prior to keep the sampler away from the
 boundary of constrained variables.
 """
@@ -136,7 +159,7 @@ end
 _draws(chn, name::Symbol) = vec(Array(chn[name]))
 
 """
-    posterior_summary(xs)
+$(TYPEDSIGNATURES)
 
 Return `(lo90, lo60, lo30, hi30, hi60, hi90)` equal-tailed credible
 interval endpoints from a vector of draws.
@@ -153,12 +176,11 @@ function posterior_summary(xs)
 end
 
 """
-    summary_table(chn, params; digits = 2)
+$(TYPEDSIGNATURES)
 
 `DataFrame` with one row per posterior parameter and columns
 `:quantity, :lo90, :lo60, :lo30, :hi30, :hi60, :hi90` giving
-equal-tailed 30%, 60% and 90% credible intervals (no point
-estimate).
+equal-tailed 30%, 60% and 90% credible intervals.
 """
 function summary_table(chn, params::AbstractVector{Symbol};
         digits::Integer = 2)
@@ -181,7 +203,7 @@ function summary_table(chn, params::AbstractVector{Symbol};
 end
 
 """
-    streams_table(streams::Pair{String, <:AbstractVector}...; digits = 0)
+$(TYPEDSIGNATURES)
 
 Side-by-side credible intervals for `C_T` from several fits. Pass
 each fit as `"label" => draws_vector`.
@@ -199,10 +221,11 @@ function streams_table(streams::Pair{String, <:AbstractVector}...;
 end
 
 """
-    comparison_table(C_draws; scenarios = REPORT_SCENARIOS)
+$(TYPEDSIGNATURES)
 
 For each published `C_T` scenario, the narrowest joint posterior
-credible interval (30, 60 or 90%) that contains it, or "outside 90%".
+credible interval (30, 60 or 90%) that contains it, or "outside
+90%".
 """
 function comparison_table(C_draws::AbstractVector;
         scenarios = REPORT_SCENARIOS)
@@ -223,8 +246,7 @@ function comparison_table(C_draws::AbstractVector;
 end
 
 """
-    plot_cumulative_cases(streams...; scenarios = REPORT_SCENARIOS,
-                          xmax = 2_500)
+$(TYPEDSIGNATURES)
 
 Overlaid posterior densities of `C_T` from one or more fits, built
 through AlgebraOfGraphics. The 15 published scenario point estimates
@@ -266,35 +288,32 @@ function plot_cumulative_cases(
 end
 
 """
-    plot_predictive(pp_exports, pp_deaths, obs_exports, obs_deaths;
-                    kind = "Posterior")
+$(TYPEDSIGNATURES)
 
-Two-panel predictive histogram (NegBinomial exports; Poisson deaths)
-with the observed values drawn in red. `kind` is "Prior" or
-"Posterior" and is used in the panel titles.
+Two-panel posterior predictive histogram (Poisson exports and
+NegBinomial deaths) with the observed values drawn in red.
 """
-function plot_predictive(
+function plot_posterior_predictive(
         pp_exports::AbstractVector, pp_deaths::AbstractVector,
-        obs_exports::Real,         obs_deaths::Real;
-        kind::AbstractString = "Posterior")
+        obs_exports::Real,         obs_deaths::Real)
     fig = Figure(; size = (900, 380))
 
     e_upper = max(20, ceil(Int, quantile(pp_exports, 0.99)))
     ax_e = Axis(fig[1, 1];
         xlabel = "Replicated exports",
-        ylabel = "$(kind) predictive count",
-        title  = "$(kind) predictive — exports",
+        ylabel = "Posterior predictive count",
+        title  = "Exports (Poisson)",
         limits = ((0, e_upper), nothing),
     )
     hist!(ax_e, pp_exports; bins = 0:1:e_upper,
           color = (:steelblue, 0.7))
     vlines!(ax_e, [obs_exports]; color = :red, linewidth = 2)
 
-    d_upper = max(20.0, quantile(pp_deaths, 0.995))
+    d_upper = max(1.0, quantile(pp_deaths, 0.995))
     ax_d = Axis(fig[1, 2];
         xlabel = "Replicated deaths",
-        ylabel = "$(kind) predictive count",
-        title  = "$(kind) predictive — deaths",
+        ylabel = "Posterior predictive count",
+        title  = "Deaths (NegBinomial)",
         limits = ((0, d_upper), nothing),
     )
     hist!(ax_d, pp_deaths; bins = range(0, d_upper; length = 40),
@@ -304,22 +323,28 @@ function plot_predictive(
     return fig
 end
 
-"Convenience wrapper for `plot_predictive(...; kind = \"Posterior\")`."
-plot_posterior_predictive(pp_exports, pp_deaths, obs_exports, obs_deaths) =
-    plot_predictive(pp_exports, pp_deaths, obs_exports, obs_deaths;
-                    kind = "Posterior")
+"""
+$(TYPEDSIGNATURES)
 
-"Convenience wrapper for `plot_predictive(...; kind = \"Prior\")`."
-plot_prior_predictive(pp_exports, pp_deaths, obs_exports, obs_deaths) =
-    plot_predictive(pp_exports, pp_deaths, obs_exports, obs_deaths;
-                    kind = "Prior")
+Two-panel prior predictive histogram for replicated exports and
+deaths. Same layout as `plot_posterior_predictive` but with the
+prior-predictive label.
+"""
+function plot_prior_predictive(
+        pp_exports::AbstractVector, pp_deaths::AbstractVector,
+        obs_exports::Real,         obs_deaths::Real)
+    fig = plot_posterior_predictive(pp_exports, pp_deaths,
+                                    obs_exports, obs_deaths)
+    fig.content[1].title[] = "Exports (prior predictive)"
+    fig.content[2].title[] = "Deaths (prior predictive)"
+    return fig
+end
 
 """
-    plot_pair(chn, params::Vector{Symbol}; thin::Int = 2)
+$(TYPEDSIGNATURES)
 
 PairPlots.jl corner plot over the named posterior parameters,
-thinned by `thin`. Follows the `plot_pair` convention from the
-hantavirus realtime work.
+thinned by `thin`.
 """
 function plot_pair(chn, params::AbstractVector{Symbol};
         thin::Integer = 2)

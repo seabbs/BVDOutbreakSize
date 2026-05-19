@@ -1,26 +1,16 @@
-# Reported observations and population covariates feeding the BVD
-# joint model. Update these numbers as new sitrep data become
-# available; the literate walkthrough picks them up automatically
-# the next time the docs are built.
+# Observations for the 2026 DRC Bundibugyo virus disease outbreak.
+#
+# Sources:
+# - exported_cases: McCabe et al. (Imperial College London, 18 May 2026).
+#   Two BVD cases detected in Uganda after travel from Ituri Province.
+# - daily_outbound_travellers, source_population: McCabe et al., Table 1.
+# - daily_outbound_travellers_sd: covers point-of-entry-to-point-of-entry
+#   variation and reporting uncertainty in the underlying mobility survey.
+# - total_deaths: Guardian situation report, 19 May 2026 (replaces the
+#   Imperial 16 May 2026 snapshot of 88 deaths).
 
-[observations]
-# Total BVD cases detected in Uganda after travel from DRC.
-exported_cases = 2
-
-# Total suspected BVD deaths reported in DRC.
-total_deaths = 88
-
-# Date the observations were drawn from, ISO 8601.
-as_of_date = "2026-05-16"
-
-[population]
-# Source population assumed to be at risk; "Ituri" is the
-# Imperial / WHO Method 1 main scenario, "Ituri+Nord Kivu" is the
-# sensitivity scenario.
-source = "Ituri"
-size = 4_392_200
-
-# Mean daily outbound travellers from the source population to
-# Uganda across the seven Uganda-DRC PoEs with available
-# screening data (Table 3 of the report).
-daily_outbound_travellers = 1_871
+exported_cases                = 2
+total_deaths                  = 130
+daily_outbound_travellers     = 1871
+daily_outbound_travellers_sd  = 200
+source_population             = 4392200

@@ -29,13 +29,27 @@ Literate.markdown(
     credit  = false,
 )
 
+# Citation processing through DocumenterCitations
+bib = CitationBibliography(
+    joinpath(@__DIR__, "src", "refs.bib");
+    style = :authoryear,
+)
+
+# References page sourced from refs.bib through `@bibliography`.
+open(joinpath(LITERATE_OUT, "references.md"), "w") do io
+    println(io, "# References")
+    println(io)
+    println(io, "```@bibliography")
+    println(io, "```")
+end
+
 makedocs(;
     sitename = "BVDOutbreakSize",
     authors  = "Sam Abbott and contributors",
     repo     = "github.com/seabbs/BVDOutbreakSize",
     clean    = true,
     doctest  = false,
-    warnonly = [:missing_docs, :linkcheck],
+    warnonly = [:missing_docs, :linkcheck, :citations],
     plugins  = [bib],
     pages    = [
         "Home"                 => "index.md",
@@ -43,10 +57,10 @@ makedocs(;
         "References"           => "references.md",
     ],
     format   = Documenter.HTML(;
-        prettyurls       = get(ENV, "CI", "false") == "true",
-        canonical        = "https://seabbs.github.io/BVDOutbreakSize",
-        size_threshold   = 4 * 1024 * 1024,
-        size_threshold_warn = 2 * 1024 * 1024,
+        prettyurls = get(ENV, "CI", "false") == "true",
+        canonical  = "https://seabbs.github.io/BVDOutbreakSize",
+        size_threshold        = 1_000_000,
+        size_threshold_warn   = 800_000,
     ),
 )
 
