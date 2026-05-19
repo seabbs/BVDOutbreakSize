@@ -179,11 +179,19 @@ observations_table = DataFrame(
 
 observations_table
 
+#md # ```@raw html
+#md # <details><summary>Bind observation values to module-level constants</summary>
+#md # ```
+
 const ITURI_POPULATION    = obs.source_population
 const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
 const EXPORTED_CASES      = obs.exported_cases
 const TOTAL_DEATHS        = obs.total_deaths
 const REPORTED_CASES      = obs.reported_cases
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ## Building-block submodels
 #
@@ -218,6 +226,10 @@ const REPORTED_CASES      = obs.reported_cases
 # highest `1008` to `m ≈ 10`. The hard upper bound at 13 caps
 # `C_T` at ~8000, well above Imperial's tail.
 
+#md # ```@raw html
+#md # <details><summary>Submodel: exponential_growth_model</summary>
+#md # ```
+
 @model function exponential_growth_model(;
         tau_prior = LogNormal(log(14), 0.4),
         m_prior   = truncated(Normal(7.0, 2.5);
@@ -230,6 +242,10 @@ const REPORTED_CASES      = obs.reported_cases
     cumulative = s -> exp(r * s)
     return (; τ, r, m, T, C_T, cumulative)
 end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ### Onset-to-death delay
 #
@@ -249,6 +265,10 @@ end
 # inference of epidemiological delays follow the recommendations in
 # [charniga2024](@cite).
 
+#md # ```@raw html
+#md # <details><summary>Submodel: delay_model</summary>
+#md # ```
+
 @model function delay_model(;
         alpha_prior = truncated(Normal(4.3, 1.22); lower = 0),
         theta_prior = truncated(Normal(2.6, 0.82); lower = 0))
@@ -256,6 +276,10 @@ end
     θ ~ theta_prior
     return (; α, θ, dist = Gamma(α, θ))
 end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ### Case-fatality ratio
 #
@@ -265,10 +289,18 @@ end
 # (95% CrI 0.31-0.65) for non-HCW confirmed cases. The prior is
 # `Beta(6, 14)` (mean 0.30, 95% interval roughly 0.13-0.51).
 
+#md # ```@raw html
+#md # <details><summary>Submodel: cfr_model</summary>
+#md # ```
+
 @model function cfr_model(; cfr_prior = Beta(6.0, 14.0))
     CFR ~ cfr_prior
     return (; CFR)
 end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ### Detection window
 #
@@ -283,11 +315,19 @@ end
 # where `w` is the mean time during which a case is still infectious
 # and detectable abroad (incubation + onset-to-detection).
 
+#md # ```@raw html
+#md # <details><summary>Submodel: detection_window_model</summary>
+#md # ```
+
 @model function detection_window_model(;
         window_prior = truncated(Normal(15.0, 5.0); lower = 0))
     w ~ window_prior
     return (; w)
 end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ### Surveillance dispersion
 #
@@ -309,12 +349,20 @@ end
 # all; the switch to NegBinomial here is an intentional deviation
 # from their Method 2 choice.
 
+#md # ```@raw html
+#md # <details><summary>Submodel: surveillance_dispersion_model</summary>
+#md # ```
+
 @model function surveillance_dispersion_model(;
         inv_sqrt_k_prior = Exponential(2.0))
     inv_sqrt_k ~ inv_sqrt_k_prior
     k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
     return (; k, inv_sqrt_k)
 end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ### Ascertainment
 #
@@ -324,10 +372,18 @@ end
 # of roughly `(0.03, 0.65)`, leaving most of the unit interval open
 # while gently downweighting near-perfect ascertainment.
 
+#md # ```@raw html
+#md # <details><summary>Submodel: ascertainment_model</summary>
+#md # ```
+
 @model function ascertainment_model(; p_prior = Beta(2.0, 6.0))
     p_report ~ p_prior
     return (; p_report)
 end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ## Forward convolution for deaths
 #
@@ -349,6 +405,10 @@ end
 
 const DEATH_INTEGRAL_ALG = GaussLegendre(; n = 64)
 
+#md # ```@raw html
+#md # <details><summary>Integral helpers — deaths convolution</summary>
+#md # ```
+
 function _death_integrand(u, p)
     s = p.halfwidth * (u + 1)
     τ = p.T - s
@@ -363,6 +423,10 @@ function expected_deaths(CFR, r, T, delay_dist;
     prob = IntegralProblem(_death_integrand, (-1.0, 1.0), params)
     return CFR * halfwidth * solve(prob, alg).u
 end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ## At-risk person-time for export detection
 #
@@ -405,6 +469,10 @@ end
 
 const _CUM_INTEGRAL_ALG = GaussLegendre(; n = 32)
 
+#md # ```@raw html
+#md # <details><summary>Integral helpers — at-risk person-time</summary>
+#md # ```
+
 function _cumulative_integrand(u, p)
     s = p.halfwidth * (u + 1) + p.lower
     return p.cumulative(s)
@@ -419,11 +487,19 @@ function integrate_cumulative(cumulative, lower, upper;
     return halfwidth * solve(prob, alg).u
 end
 
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # Helper used by the deaths and cases observation submodels:
 # `NegativeBinomial` parameterised by mean `μ` and dispersion `k`
 # (so `variance = μ + μ²/k`), with NaN / Inf-safe clamping on the
 # success probability so extreme NUTS proposals during warmup don't
 # trip the distribution domain check.
+
+#md # ```@raw html
+#md # <details><summary>Function: safe_nbinomial</summary>
+#md # ```
 
 function safe_nbinomial(k, μ)
     p_raw = k / (k + max(μ, eps(typeof(μ))))
@@ -432,6 +508,10 @@ function safe_nbinomial(k, μ)
         eps(typeof(k))
     return NegativeBinomial(k, p)
 end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ## Observation submodels
 #
@@ -504,6 +584,10 @@ end
 # uncertainty implicit in the sitrep schedule; source population is
 # kept fixed (census).
 
+#md # ```@raw html
+#md # <details><summary>Submodel: exports_model</summary>
+#md # ```
+
 @model function exports_model(
         exported_cases::Union{Missing, Integer},
         growth_state;
@@ -537,12 +621,20 @@ end
               cumulative_window_integral, expected_exports)
 end
 
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ### Deaths — Method 2 (Imperial Method 2, backcalculation from deaths)
 #
 # The death convolution is integrated against the latent growth
 # trajectory and weighted by the case-fatality ratio. The dispersion
 # `k` is supplied by the composer rather than sampled inside, so it
 # can be shared with the cases likelihood.
+
+#md # ```@raw html
+#md # <details><summary>Submodel: deaths_model</summary>
+#md # ```
 
 @model function deaths_model(
         total_deaths::Union{Missing, Integer},
@@ -573,6 +665,10 @@ end
     return (; CFR, expected_deaths_T)
 end
 
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ### Cases — Extension beyond Imperial
 #
 # Imperial Methods 1 and 2 use exports and deaths only. Reported
@@ -588,6 +684,10 @@ end
 #
 # The dispersion `k` is shared with the deaths likelihood through
 # the composer.
+
+#md # ```@raw html
+#md # <details><summary>Submodel: cases_model</summary>
+#md # ```
 
 @model function cases_model(
         reported_cases::Union{Missing, Integer},
@@ -609,10 +709,14 @@ end
     return (; p_report, expected_reports)
 end
 
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ## Top-level composers
 #
 # These composers stitch the building blocks into the **full
-# generative forward models** for each Imperial analysis. Imperial
+# generative models** for each Imperial analysis. Imperial
 # inverts a deterministic summary formula at fixed nuisance
 # parameters; here we sample the entire generative process — growth,
 # delay, CFR, detection window, dispersion — and condition on the
@@ -627,6 +731,10 @@ end
 
 # ### Exports-only fit — Imperial Method 1 analogue
 
+#md # ```@raw html
+#md # <details><summary>Composer: exports_only_model</summary>
+#md # ```
+
 @model function exports_only_model(
         exported_cases::Union{Missing, Integer};
         growth  = exponential_growth_model(),
@@ -639,7 +747,15 @@ end
     cumulative_cases := growth_state.C_T
 end
 
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ### Deaths-only fit — Imperial Method 2 analogue
+
+#md # ```@raw html
+#md # <details><summary>Composer: deaths_only_model</summary>
+#md # ```
 
 @model function deaths_only_model(
         total_deaths::Union{Missing, Integer};
@@ -657,7 +773,15 @@ end
     cumulative_cases := growth_state.C_T
 end
 
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ### Cases-only fit — ascertainment extension (no Imperial counterpart)
+
+#md # ```@raw html
+#md # <details><summary>Composer: cases_only_model</summary>
+#md # ```
 
 @model function cases_only_model(
         reported_cases::Union{Missing, Integer};
@@ -675,7 +799,15 @@ end
     cumulative_cases := growth_state.C_T
 end
 
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ### Joint fit — full posterior over `C_T` from all data streams
+
+#md # ```@raw html
+#md # <details><summary>Composer: bvd_joint</summary>
+#md # ```
 
 @model function bvd_joint(
         exported_cases::Union{Missing, Integer},
@@ -700,6 +832,10 @@ end
 
     cumulative_cases := growth_state.C_T
 end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ## Prior predictive check
 #
@@ -746,15 +882,31 @@ prior_pair_fig
 # draws each, `target_accept = 0.9`. Chains initialise from the prior
 # to keep the sampler away from the boundary of `r` and `m`.
 
+#md # ```@raw html
+#md # <details><summary>Run the joint NUTS fit</summary>
+#md # ```
+
 chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths, obs.reported_cases));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # Also fit the three single-stream models so the four posteriors can
 # be compared side by side.
 
+#md # ```@raw html
+#md # <details><summary>Run the per-stream NUTS fits</summary>
+#md # ```
+
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
 chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths));
 chn_cases   = nuts_sample(cases_only_model(obs.reported_cases));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ## Posterior summary
 #
@@ -934,8 +1086,16 @@ imperial_fixed = Turing.fix(
      inv_sqrt_k = 0.0),
 )
 
+#md # ```@raw html
+#md # <details><summary>Run the Imperial sense-check fit</summary>
+#md # ```
+
 chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 #md # ```@raw html
 #md # <details><summary>Imperial sense-check summary table</summary>
