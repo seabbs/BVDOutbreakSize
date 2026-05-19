@@ -30,6 +30,7 @@ using Distributions
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using Integrals: IntegralProblem, GaussLegendre, solve
+import FastGaussQuadrature
 using SpecialFunctions: loggamma
 using Random
 using BVDOutbreakSize
