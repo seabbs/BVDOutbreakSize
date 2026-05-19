@@ -244,8 +244,11 @@ end
 #
 # where `f(·; α, θ)` is the gamma onset-to-death density. The
 # integral is evaluated by Gauss-Legendre quadrature with `n = 64`.
-# The normalisation `1 / (θ^α · Γ(α))` is factored out of the
-# integrand to keep AD off `loggamma` inside the quadrature loop.
+# Imperial use the closed-form approximation
+# `D_T ≈ CFR · C_T · (1 + r/β)^{−α}` (valid for
+# `T ⪞ 12 / (β + r)`); we evaluate the exact integral so the delay
+# family stays a runtime parameter and the approximation error is
+# avoided.
 
 const DEATH_INTEGRAL_ALG = GaussLegendre(; n = 64)
 
@@ -266,15 +269,15 @@ function expected_deaths(CFR, r, T, α, θ;
     return CFR * exp(log_norm) * integral
 end
 
-# ## Method 1 — exports-only model
 # ## Observation submodels
 #
-# Two observation submodels take the latent `C_T` (and `r`, `T` for
-# the deaths convolution) as inputs from the growth submodel. They
-# own their own nested submodels (delay, CFR, detection window,
-# dispersion) and the likelihood.
+# Two observation submodels take the latent growth state as input
+# and apply the likelihood for one data stream each. Their priors
+# live in nested submodels (delay, CFR, detection window,
+# dispersion). Each maps directly onto one of the two analyses in
+# the Imperial report.
 
-# ### Exports
+# ### Exports likelihood — Imperial Method 1 (geographic spread)
 #
 # The expected number of exported cases is the incidence produced
 # over the last `w` days, scaled by the per-case travel-to-Uganda
@@ -287,12 +290,17 @@ end
 #
 # with `Y_exports ~ Poisson(μ_e)`. The Imperial / Imai 2020
 # Method 1 simplification
-# `μ_e = C_T · w · daily_travellers / source_pop` differs by a
-# factor `(1 - e^{-rw}) / (rw)`, which for the BVD prior range
-# `rw ∈ 0.33-2.0` sits between 0.43 and 0.85, so the simplification
-# under-estimates `C_T` by roughly 15-57%. We use the convolution
-# form throughout. Adding NegBinomial overdispersion is not
-# identified by two exports.
+# `μ_e = C_T · w · daily_travellers / source_pop` differs from this
+# by a factor `(1 − e^{−rw}) / (rw)`, which for the BVD prior range
+# `rw ∈ 0.33 − 2.0` sits between 0.43 and 0.85, so the simplification
+# under-estimates `C_T` by 15-57%. We use the convolution form.
+#
+# Imperial's explicit likelihood is `Binomial(N, p)`; their reported
+# "exact NegBinomial CIs" are the standard confidence-interval
+# procedure for inferring `N` from a binomial sample with known `p`.
+# In the small-`p` regime here (`p ≈ 6 × 10⁻³`) Poisson and Binomial
+# coincide to within numerical noise, so we use Poisson and avoid
+# the extra `N`-as-integer machinery.
 
 @model function exports_model(
         exported_cases::Union{Missing, Integer},
@@ -322,7 +330,7 @@ end
               expected_exports)
 end
 
-# ### Deaths
+# ### Deaths likelihood — Imperial Method 2 (backcalculation from deaths)
 
 @model function deaths_model(
         total_deaths::Union{Missing, Integer},
@@ -356,9 +364,10 @@ end
 
 # ## Top-level composers
 #
-# Three thin composer models stitch the submodels together: an
-# exports-only fit, a deaths-only fit, and the joint fit applying
-# both observation submodels.
+# Three thin composer models stitch the building blocks together,
+# each mapping onto one analysis from the Imperial report.
+
+# ### Exports-only fit — Imperial Method 1 analogue
 
 @model function exports_only_model(
         exported_cases::Union{Missing, Integer};
@@ -373,6 +382,8 @@ end
     cumulative_cases := growth_state.C_T
 end
 
+# ### Deaths-only fit — Imperial Method 2 analogue
+
 @model function deaths_only_model(
         total_deaths::Union{Missing, Integer};
         growth = exponential_growth_model(),
@@ -385,6 +396,8 @@ end
 
     cumulative_cases := growth_state.C_T
 end
+
+# ### Joint fit — both data streams, single posterior over `C_T`
 
 @model function bvd_joint(
         exported_cases::Union{Missing, Integer},
