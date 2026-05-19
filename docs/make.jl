@@ -2,7 +2,13 @@ using Pkg: Pkg
 Pkg.instantiate()
 
 using Documenter
+using DocumenterCitations
 using Literate
+
+const bib = CitationBibliography(
+    joinpath(@__DIR__, "src", "refs.bib");
+    style = :authoryear,
+)
 
 const REPO_ROOT    = dirname(@__DIR__)
 const LITERATE_SRC = joinpath(@__DIR__, "examples", "analysis.jl")
@@ -26,16 +32,21 @@ Literate.markdown(
 makedocs(;
     sitename = "BVDOutbreakSize",
     authors  = "Sam Abbott and contributors",
+    repo     = "github.com/seabbs/BVDOutbreakSize",
     clean    = true,
     doctest  = false,
     warnonly = [:missing_docs, :linkcheck],
+    plugins  = [bib],
     pages    = [
         "Home"                 => "index.md",
         "Analysis walkthrough" => "analysis.md",
+        "References"           => "references.md",
     ],
     format   = Documenter.HTML(;
-        prettyurls = get(ENV, "CI", "false") == "true",
-        canonical  = "https://seabbs.github.io/BVDOutbreakSize",
+        prettyurls       = get(ENV, "CI", "false") == "true",
+        canonical        = "https://seabbs.github.io/BVDOutbreakSize",
+        size_threshold   = 4 * 1024 * 1024,
+        size_threshold_warn = 2 * 1024 * 1024,
     ),
 )
 

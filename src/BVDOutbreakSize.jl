@@ -17,6 +17,14 @@ import AlgebraOfGraphics as AoG
 import PairPlots
 using CairoMakie: Figure, Axis, hist!, vlines!
 
+function __init__()
+    ## Activate CairoMakie so plots returned by the helpers below
+    ## render as PNG in Documenter / Literate without callers having
+    ## to `using CairoMakie` themselves.
+    CairoMakie.activate!()
+    return nothing
+end
+
 export REPORT_SCENARIOS,
        load_observations, DEFAULT_OBSERVATIONS_PATH,
        summary_table, posterior_summary,
