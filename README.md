@@ -1,10 +1,5 @@
 # BVDOutbreakSize
 
-**This is an LLM-driven reimplementation of the Imperial / WHO BVD
-report as a single joint Bayesian model. It is an experiment in
-methodology and should not be used to inform public health decision
-making.**
-
 Joint forward generative Turing model for the 2026 Bundibugyo virus disease
 (BVD) outbreak in the Democratic Republic of the Congo, fitting both
 data sources from the Imperial / WHO report (McCabe et al.,
