@@ -417,6 +417,36 @@ comparison_table(vec(Array(chn[:cumulative_cases])))
 # - *Convolution numerics.* `GaussLegendre(n = 64)` is accurate for
 #   `T ≲ 200 d`.
 
+# ## Counterfactual: lower bound under no further transmission
+#
+# Suppose every onward transmission stopped today. The cohort
+# already infected by time `T` still carries committed deaths in
+# the onset-to-death tail: a case infected at outbreak age `s` has
+# only died by `T` with probability `F_d(T - s)`, so a fraction
+# `1 - F_d(T - s)` of its CFR-weighted contribution is still in
+# flight. Integrating against the incidence `i(s) = r·exp(r·s)`
+# under exponential growth gives the additional committed deaths
+#
+# ```math
+# \Delta D = \mathrm{CFR} \cdot \int_0^T r\,\exp(r\,s)
+#            \,\bigl(1 - F_d(T - s)\bigr)\,ds,
+# ```
+#
+# and a lower bound on the cumulative-death endpoint of
+# `D_T + \Delta D`, evaluated per posterior draw.
+
+no_onward = predict_no_onward_deaths(chn; obs_deaths = TOTAL_DEATHS)
+
+summary_table_no_onward = streams_table(
+    "Projected total (no onward transmission)" => no_onward.total_projected;
+    digits = 0,
+)
+
+# Density of the projected total, with the observed death count
+# `D_T = 88` marked as a dashed black rule.
+
+plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS)
+
 # ## Sense check against Imperial Method 2, main scenario
 #
 # To check the model recovers a published Method 2 estimate, we
