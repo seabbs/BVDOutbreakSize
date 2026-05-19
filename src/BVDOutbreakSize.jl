@@ -24,7 +24,7 @@ using CairoMakie: Figure, Axis, hist!, vlines!
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
        ITURI_DAILY_TRAVEL_SD,
-       EXPORTED_CASES, TOTAL_DEATHS,
+       EXPORTED_CASES, TOTAL_DEATHS, REPORTED_CASES,
        load_observations,
        summary_table, posterior_summary,
        streams_table, comparison_table,
@@ -99,6 +99,15 @@ report uses the earlier 16 May 2026 snapshot of 88 deaths.
 const TOTAL_DEATHS = 130
 
 """
+    REPORTED_CASES
+
+Suspected BVD cases reported in DRC, taken from the Guardian
+situation report (19 May 2026). Used by the ascertainment extension
+beyond Imperial Methods 1 and 2.
+"""
+const REPORTED_CASES = 500
+
+"""
 $(TYPEDSIGNATURES)
 
 Load the observation block from `data/observations.toml` and return
@@ -107,6 +116,7 @@ shipped with the package is used. Expected fields:
 
 - `exported_cases::Int`
 - `total_deaths::Int`
+- `reported_cases::Int`
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
@@ -118,6 +128,7 @@ function load_observations(
     return (;
         exported_cases               = Int(raw["exported_cases"]),
         total_deaths                 = Int(raw["total_deaths"]),
+        reported_cases               = Int(raw["reported_cases"]),
         daily_outbound_travellers    = float(
             raw["daily_outbound_travellers"]),
         daily_outbound_travellers_sd = float(
@@ -291,57 +302,105 @@ function plot_cumulative_cases(
     return fg
 end
 
+_panel_exports!(fig, col, pp, obs; predictive_label = "Posterior") = begin
+    upper = max(20, ceil(Int, quantile(pp, 0.99)))
+    ax = Axis(fig[1, col];
+        xlabel = "Replicated exports",
+        ylabel = "$(predictive_label) predictive count",
+        title  = "Exports (Poisson)",
+        limits = ((0, upper), nothing),
+    )
+    hist!(ax, pp; bins = 0:1:upper, color = (:steelblue, 0.7))
+    vlines!(ax, [obs]; color = :red, linewidth = 2)
+    return ax
+end
+
+_panel_deaths!(fig, col, pp, obs; predictive_label = "Posterior") = begin
+    upper = max(1.0, quantile(pp, 0.995))
+    ax = Axis(fig[1, col];
+        xlabel = "Replicated deaths",
+        ylabel = "$(predictive_label) predictive count",
+        title  = "Deaths (NegBinomial)",
+        limits = ((0, upper), nothing),
+    )
+    hist!(ax, pp; bins = range(0, upper; length = 40),
+          color = (:firebrick, 0.7))
+    vlines!(ax, [obs]; color = :red, linewidth = 2)
+    return ax
+end
+
+_panel_cases!(fig, col, pp, obs; predictive_label = "Posterior") = begin
+    upper = max(1.0, quantile(pp, 0.995))
+    ax = Axis(fig[1, col];
+        xlabel = "Replicated reported cases",
+        ylabel = "$(predictive_label) predictive count",
+        title  = "Reported cases (NegBinomial)",
+        limits = ((0, upper), nothing),
+    )
+    hist!(ax, pp; bins = range(0, upper; length = 40),
+          color = (:seagreen, 0.7))
+    if obs !== nothing
+        vlines!(ax, [obs]; color = :red, linewidth = 2)
+    end
+    return ax
+end
+
 """
 $(TYPEDSIGNATURES)
 
-Two-panel posterior predictive histogram (Poisson exports and
-NegBinomial deaths) with the observed values drawn in red.
+Posterior predictive histogram with one panel per supplied data
+stream. Pass `pp_exports`/`pp_deaths` as `nothing` to suppress
+either of the first two panels, and supply `pp_cases` to add the
+reported-cases panel. Observed values are drawn as red `vlines`.
 """
 function plot_posterior_predictive(
-        pp_exports::AbstractVector, pp_deaths::AbstractVector,
-        obs_exports::Real,         obs_deaths::Real)
-    fig = Figure(; size = (900, 380))
+        pp_exports::Union{Nothing, AbstractVector},
+        pp_deaths::Union{Nothing, AbstractVector},
+        obs_exports::Union{Nothing, Real},
+        obs_deaths::Union{Nothing, Real};
+        pp_cases::Union{Nothing, AbstractVector} = nothing,
+        obs_cases::Union{Nothing, Real}          = nothing,
+        predictive_label::AbstractString         = "Posterior")
+    panels = Tuple{Symbol, Any, Any}[]
+    pp_exports === nothing ||
+        push!(panels, (:exports, pp_exports, obs_exports))
+    pp_deaths === nothing ||
+        push!(panels, (:deaths,  pp_deaths,  obs_deaths))
+    pp_cases === nothing ||
+        push!(panels, (:cases,   pp_cases,   obs_cases))
 
-    e_upper = max(20, ceil(Int, quantile(pp_exports, 0.99)))
-    ax_e = Axis(fig[1, 1];
-        xlabel = "Replicated exports",
-        ylabel = "Posterior predictive count",
-        title  = "Exports (Poisson)",
-        limits = ((0, e_upper), nothing),
-    )
-    hist!(ax_e, pp_exports; bins = 0:1:e_upper,
-          color = (:steelblue, 0.7))
-    vlines!(ax_e, [obs_exports]; color = :red, linewidth = 2)
+    isempty(panels) && error(
+        "plot_posterior_predictive needs at least one stream")
 
-    d_upper = max(1.0, quantile(pp_deaths, 0.995))
-    ax_d = Axis(fig[1, 2];
-        xlabel = "Replicated deaths",
-        ylabel = "Posterior predictive count",
-        title  = "Deaths (NegBinomial)",
-        limits = ((0, d_upper), nothing),
-    )
-    hist!(ax_d, pp_deaths; bins = range(0, d_upper; length = 40),
-          color = (:firebrick, 0.7))
-    vlines!(ax_d, [obs_deaths]; color = :red, linewidth = 2)
-
+    fig = Figure(; size = (450 * length(panels), 380))
+    for (i, (kind, pp, obs)) in enumerate(panels)
+        if kind === :exports
+            _panel_exports!(fig, i, pp, obs; predictive_label)
+        elseif kind === :deaths
+            _panel_deaths!(fig, i, pp, obs; predictive_label)
+        else
+            _panel_cases!(fig, i, pp, obs; predictive_label)
+        end
+    end
     return fig
 end
 
 """
 $(TYPEDSIGNATURES)
 
-Two-panel prior predictive histogram for replicated exports and
-deaths. Same layout as `plot_posterior_predictive` but with the
-prior-predictive label.
+Prior predictive variant of `plot_posterior_predictive`, with the
+panel labels switched to "Prior".
 """
 function plot_prior_predictive(
-        pp_exports::AbstractVector, pp_deaths::AbstractVector,
-        obs_exports::Real,         obs_deaths::Real)
-    fig = plot_posterior_predictive(pp_exports, pp_deaths,
-                                    obs_exports, obs_deaths)
-    fig.content[1].title[] = "Exports (prior predictive)"
-    fig.content[2].title[] = "Deaths (prior predictive)"
-    return fig
+        pp_exports::Union{Nothing, AbstractVector},
+        pp_deaths::Union{Nothing, AbstractVector},
+        obs_exports::Union{Nothing, Real},
+        obs_deaths::Union{Nothing, Real};
+        pp_cases::Union{Nothing, AbstractVector} = nothing,
+        obs_cases::Union{Nothing, Real}          = nothing)
+    return plot_posterior_predictive(
+        pp_exports, pp_deaths, obs_exports, obs_deaths;
+        pp_cases, obs_cases, predictive_label = "Prior")
 end
 
 """
