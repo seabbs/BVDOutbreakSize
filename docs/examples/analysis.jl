@@ -63,9 +63,9 @@
 # - *Exact convolution for exports.* Imperial / Imai 2020 use the
 #   small-`rw` approximation
 #   `expected_exports ≈ C_T · w · daily_travellers / source_pop`.
-#   We use the exact form
-#   `(C(T) − C(T − w)) · daily_travellers / source_pop`, which
-#   differs by a factor `(1 − e^{−rw}) / (rw)`. Over the BVD prior
+#   We use the exact cumulative integral
+#   `(daily_travellers / source_pop) · ∫_{T−w}^{T} C(s) ds`, which
+#   reduces to the Imperial form as `r → 0`. Over the BVD prior
 #   range `rw ∈ 0.33-2.0`, the approximation under-estimates `C_T`
 #   by 15-57%.
 # - *Detection-window definition is loose.* `w` lumps incubation and
@@ -282,6 +282,26 @@ function expected_deaths(CFR, r, T, α, θ;
     return CFR * exp(log_norm) * integral
 end
 
+# Numerical integral of the cumulative-incidence trajectory `C(s)`
+# over `[lower, upper]`, used by the exports likelihood to express
+# `∫_{T-w}^{T} C(s) ds` for arbitrary growth submodels.
+
+const _CUM_INTEGRAL_ALG = GaussLegendre(; n = 32)
+
+function _cumulative_integrand(u, p)
+    s = p.halfwidth * (u + 1) + p.lower
+    return p.cumulative(s)
+end
+
+function _integrate_cumulative(cumulative, lower, upper;
+        alg = _CUM_INTEGRAL_ALG)
+    upper <= lower && return zero(upper - lower)
+    halfwidth = (upper - lower) / 2
+    params = (; cumulative, halfwidth, lower)
+    prob = IntegralProblem(_cumulative_integrand, (-1.0, 1.0), params)
+    return halfwidth * solve(prob, alg).u
+end
+
 # ## Observation submodels
 #
 # Three observation submodels take the latent growth state as their
@@ -292,32 +312,32 @@ end
 
 # ### Exports likelihood — Method 1 (Imperial Method 1, geographic spread)
 #
-# The expected number of exported cases is the incidence produced
-# over the last `w` days, scaled by the per-case travel-to-Uganda
-# probability:
+# Each case has a daily probability `q = daily_travellers / source_pop`
+# of travelling to Uganda, accumulated across the `w` days they are
+# in their detection-eligible window. Per case the chance of being
+# detected in Uganda by time `T` is `q · min(T − s, w)` (with `s` the
+# case's infection time), so the cumulative expected exports are
 #
 # ```math
-# \mu_e = \frac{\text{daily travellers}}{\text{source pop}}
-#         \cdot (C(T) - C(T - w)),
+# \mu_e = q \cdot \int_{T - w}^{T} C(s)\, ds,
 # ```
 #
-# with `Y_exports ~ Poisson(μ_e)`. The Imperial / Imai 2020
-# Method 1 simplification
-# `μ_e = C_T · w · daily_travellers / source_pop` differs from this
-# by a factor `(1 − e^{−rw}) / (rw)`, which for the BVD prior range
-# `rw ∈ 0.33 − 2.0` sits between 0.43 and 0.85, so the simplification
-# under-estimates `C_T` by 15-57%. We use the convolution form.
+# the daily travel rate times the cumulative cases integrated across
+# the detection window. We evaluate the integral numerically over
+# `growth_state.cumulative` and apply a Poisson likelihood
+# `Y_{\text{exports}} \sim \mathrm{Poisson}(\mu_e)`.
 #
-# Imperial's explicit likelihood is `Binomial(N, p)`; their reported
-# "exact NegBinomial CIs" are the standard confidence-interval
-# procedure for inferring `N` from a binomial sample with known `p`.
-# In the small-`p` regime here (`p ≈ 6 × 10⁻³`) Poisson and Binomial
-# coincide to within numerical noise, so we use Poisson and avoid
-# the extra `N`-as-integer machinery.
+# Imperial / Imai 2020 use the small-`rw` simplification
+# `μ_e ≈ q · w · C(T)`; this is the limit of the integral as
+# `r → 0`. For BVD's prior range `rw ∈ 0.33 − 2.0` the simplification
+# under-estimates `C_T` by roughly 15-57%. Both Imperial and we use
+# `Binomial(N, p)`-style observation models; with `p ≈ q·w ≈ 6·10⁻³`
+# the Poisson approximation we use is indistinguishable from
+# Imperial's Binomial in the small-`p` regime.
 #
 # **Daily traveller prior.** Imperial Table 3 records mean weekly
 # passenger counts across seven PoEs from one to four weekly sitreps
-# per PoE. The Ituri-side daily total of 1871 is then a sample mean
+# per PoE. The Ituri-side daily total of 1871 is a sample mean
 # across roughly 15-21 PoE-weeks. The prior here is a Normal centred
 # on 1871 with SD 200 (≈ 10% CV), truncated at zero. The SD covers
 # point-of-entry-to-point-of-entry variation and the sampling
@@ -342,17 +362,19 @@ end
         Normal(travellers_mean, travellers_sd);
         lower = 0)
 
-    window_start      = max(T - w, zero(T))
-    cumulative_window := cumulative(T) - cumulative(window_start)
-    expected_exports  := max(
-        (daily_travellers / source_population) * cumulative_window,
+    window_start = max(T - w, zero(T))
+    cumulative_window_integral := _integrate_cumulative(
+        cumulative, window_start, T)
+    expected_exports := max(
+        (daily_travellers / source_population) *
+            cumulative_window_integral,
         eps(typeof(daily_travellers * one(T))),
     )
 
     exported_cases ~ Poisson(expected_exports)
 
-    return (; w, daily_travellers, cumulative_window,
-              expected_exports)
+    return (; w, daily_travellers,
+              cumulative_window_integral, expected_exports)
 end
 
 # ### Deaths likelihood — Method 2 (Imperial Method 2, backcalculation from deaths)
