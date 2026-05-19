@@ -1,12 +1,12 @@
-# BVDOutbreakSize
+# Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
 
-Joint forward generative Turing model for the 2026 Bundibugyo virus
+Joint generative Turing model for the 2026 Bundibugyo virus
 disease outbreak in DRC, fitting the data streams from the Imperial /
 WHO report (McCabe et al., [18 May 2026](https://doi.org/10.25560/130007))
 in a single posterior.
 
 **Data last updated:** 19 May 2026 (sources per
-[`data/observations.toml`](data/observations.toml)).
+[`data/observations.toml`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/data/observations.toml)).
 
 The original report runs two independent analyses — geographic spread
 from cases detected in Uganda, and backcalculation from deaths — and

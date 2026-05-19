@@ -17,40 +17,40 @@
 #
 # **→ Jump to the [joint posterior results](#Joint-model-and-results).**
 #
-# ## What we do differently from Imperial
+# ## What we do differently from McCabe et al.
 #
 # - *Joint posterior, not 15 scenario estimates.* The doubling time
 #   `τ`, CFR, onset-to-death shape and scale, detection window `w`,
 #   daily traveller volume and surveillance dispersion all have
-#   priors and are sampled jointly. Imperial fixes each and sweeps.
+#   priors and are sampled jointly. McCabe et al. fix each and
+#   sweep.
 # - *Exact cumulative integral for exports* —
 #   `(daily_travellers / source_pop) · ∫_{T−w}^{T} C(s) ds` — rather
-#   than Imperial's small-`rw` simplification `q · w · C(T)`. The
-#   two forms agree as `r → 0`; over the BVD prior range
-#   `rw ∈ 0.33-2.0` Imperial's approximation under-estimates `C_T`
-#   by 15-57%.
-# - *Exact gamma convolution for deaths.* Imperial uses the
+#   than the small-`rw` simplification `q · w · C(T)` used by
+#   McCabe et al. (and by Imai et al. 2020 before them). The two
+#   forms agree as `r → 0`.
+# - *Exact gamma convolution for deaths.* McCabe et al. use the
 #   closed-form approximation `D_T ≈ CFR · C_T · (1 + r/β)^{−α}`;
 #   we evaluate the integral numerically so the delay family
 #   stays a runtime parameter.
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
-#   the same Isiro 2012 line list Imperial cites for its point
-#   estimates ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis)),
+#   the same Isiro 2012 line list McCabe et al. cite for their
+#   point estimates ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis)),
 #   so the priors carry the published 95% credible intervals on
 #   `α` and `θ` rather than collapsing onto Rosello's point
 #   estimate.
 # - *NegBinomial likelihood on deaths and reported cases* with a
-#   single shared surveillance dispersion `k`. Imperial uses
-#   Poisson for deaths and does not have a cases-ascertainment
+#   single shared surveillance dispersion `k`. McCabe et al. use
+#   Poisson for deaths and do not have a cases-ascertainment
 #   model at all. Exports stay Poisson because two observations
-#   would not identify a separate dispersion. Imperial's "exact
-#   NegBinomial CIs" on Method 1 are the conventional binomial-
-#   inversion procedure, not an estimated dispersion.
-# - *Ascertainment extension* (not in Imperial). A `Beta(2, 6)`
+#   would not identify a separate dispersion. The McCabe et al.
+#   "exact NegBinomial CIs" on Method 1 are the conventional
+#   binomial-inversion procedure, not an estimated dispersion.
+# - *Ascertainment extension* (not in McCabe et al.). A `Beta(2, 6)`
 #   prior on the reporting fraction, applied to the latent `C_T`,
 #   gives a joint posterior over the reported suspected-case
 #   count alongside deaths and exports.
-# - *No-onward-transmission counterfactual* (not in Imperial).
+# - *No-onward-transmission counterfactual* (not in McCabe et al.).
 #   Projects the committed deaths from cases already infected
 #   by `T`, integrating `i(s) · (1 − F(T − s))` per draw — a
 #   lower bound on the eventual death toll if every onward
@@ -70,10 +70,14 @@
 #   priors closely.
 # - *Inherits Imperial's epidemiological assumptions and core
 #   model structures.* Exponential growth from a single zoonotic
-#   seed, the cumulative-case / deaths convolution structure for
-#   Method 2, the geographic-spread / detection-window structure
-#   for Method 1, no spatial structure beyond the Ituri / Nord
-#   Kivu split, no time series of cases or deaths.
+#   seed; the underlying case trajectory is treated as a
+#   deterministic function of the latent state (only the
+#   observation counts carry sampling noise via Poisson / NegBinomial)
+#   rather than a stochastic incidence process; the cumulative-case
+#   / deaths convolution structure for Method 2; the geographic-
+#   spread / detection-window structure for Method 1; no spatial
+#   structure beyond the Ituri / Nord Kivu split; no time series
+#   of cases or deaths.
 # - *Onset-to-death delay anchored on Isiro 2012.* A single-
 #   outbreak fit; the delay distribution reporting here follows
 #   [charniga2024](@cite) but cross-outbreak heterogeneity is
@@ -81,6 +85,12 @@
 # - *Detection-window definition is loose.* `w` lumps incubation
 #   and onset-to-detection together — both poorly characterised
 #   for BVD.
+# - *No ascertainment correction on exports.* Uganda's reported
+#   exported case count is taken as a perfect detection of every
+#   BVD-positive traveller; the ascertainment fraction `p_report`
+#   applies only to the DRC-side reported suspected case count.
+#   Allowing exports to share that ascertainment (or to carry its
+#   own Uganda-side reporting fraction) is a natural extension.
 #
 # ## How the model is built up
 #
@@ -131,7 +141,9 @@ Random.seed!(20260518)
 # traveller volume is given a normal prior centred at the Imperial
 # figure with an SD covering point-of-entry variation.
 
+#md # ```@raw html
 #md # <details><summary>Loading observations and building the data table</summary>
+#md # ```
 
 obs = load_observations()
 observations_table = DataFrame(
@@ -161,7 +173,9 @@ observations_table = DataFrame(
     ],
 );
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 observations_table
 
@@ -698,23 +712,31 @@ end
 prior_chn = sample(bvd_joint(missing, missing, missing), Prior(), 2_000;
                    progress = false);
 
+#md # ```@raw html
 #md # <details><summary>Prior summary table</summary>
+#md # ```
 
 prior_C_table = summary_table(prior_chn, [:cumulative_cases]; digits = 0);
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 prior_C_table
 
 # Pair plot of the prior over the latent quantities — useful for
 # spotting prior correlations before any data has been seen.
 
+#md # ```@raw html
 #md # <details><summary>Prior pair plot</summary>
+#md # ```
 
 prior_pair_fig = plot_pair(prior_chn,
     [:τ, :m, :cumulative_cases, :CFR, :α, :θ, :w, :k, :p_report]);
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 prior_pair_fig
 
@@ -750,18 +772,24 @@ posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]));
 posterior_C_deaths  = vec(Array(chn_deaths[:cumulative_cases]));
 posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
 
+#md # ```@raw html
 #md # <details><summary>Joint posterior summary table</summary>
+#md # ```
 
 joint_summary = summary_table(chn_joint,
     [:r, :m, :T, :CFR, :p_report, :cumulative_cases]; digits = 2);
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 joint_summary
 
 # Comparing `C_T` across the four fits:
 
+#md # ```@raw html
 #md # <details><summary>Per-stream C_T table</summary>
+#md # ```
 
 streams_C_table = streams_table(
     "exports-only" => posterior_C_exports,
@@ -769,7 +797,9 @@ streams_C_table = streams_table(
     "cases-only"   => posterior_C_cases,
     "joint"        => posterior_C_joint);
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 streams_C_table
 
@@ -796,7 +826,9 @@ pp_exports = vec(Array(pp_joint[:exported_cases]))
 pp_deaths  = vec(Array(pp_joint[:total_deaths]))
 pp_cases   = vec(Array(pp_joint[:reported_cases]))
 
+#md # ```@raw html
 #md # <details><summary>Posterior predictive grid plot</summary>
+#md # ```
 
 ppc_grid_fig = plot_posterior_predictive_grid(;
     individual = (; exports = pp_exports_only,
@@ -810,13 +842,17 @@ ppc_grid_fig = plot_posterior_predictive_grid(;
                     cases   = obs.reported_cases),
 );
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 ppc_grid_fig
 
 # ## Overlaid posterior densities for `C_T`
 
+#md # ```@raw html
 #md # <details><summary>Overlaid C_T density plot</summary>
+#md # ```
 
 cumulative_density_fig = plot_cumulative_cases(
     "exports-only" => posterior_C_exports,
@@ -824,7 +860,9 @@ cumulative_density_fig = plot_cumulative_cases(
     "cases-only"   => posterior_C_cases,
     "joint"        => posterior_C_joint);
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 cumulative_density_fig
 
@@ -849,24 +887,32 @@ cumulative_density_fig
 
 no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = TOTAL_DEATHS);
 
+#md # ```@raw html
 #md # <details><summary>No-onward projected-deaths summary table</summary>
+#md # ```
 
 no_onward_table = streams_table(
     "no-onward total" => no_onward.total_projected;
     digits = 0);
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 no_onward_table
 
 # Density of the projected total, with the observed death count
 # marked as a dashed black rule.
 
+#md # ```@raw html
 #md # <details><summary>No-onward projected-deaths plot</summary>
+#md # ```
 
 no_onward_fig = plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS);
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 no_onward_fig
 
@@ -891,12 +937,16 @@ imperial_fixed = Turing.fix(
 chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 
+#md # ```@raw html
 #md # <details><summary>Imperial sense-check summary table</summary>
+#md # ```
 
 imperial_summary = summary_table(chn_imperial,
     [:m, :T, :cumulative_cases]; digits = 1);
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 imperial_summary
 
@@ -910,7 +960,9 @@ imperial_summary
 # and Poisson CIs (Method 2) reported in Tables 1 and 2 of the
 # report.
 
+#md # ```@raw html
 #md # <details><summary>Building the main comparison table</summary>
+#md # ```
 
 joint_C_credibles    = posterior_summary(posterior_C_joint)
 imperial_C_credibles = posterior_summary(posterior_C_imperial)
@@ -933,17 +985,23 @@ main_comparison = DataFrame(
                  round(joint_C_credibles.hi90;    digits = 0)],
 );
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 main_comparison
 
 # Joint posterior coverage of all 15 published Imperial scenarios:
 
+#md # ```@raw html
 #md # <details><summary>Joint coverage table</summary>
+#md # ```
 
 coverage_table = comparison_table(posterior_C_joint);
 
+#md # ```@raw html
 #md # </details>
+#md # ```
 
 coverage_table
 
