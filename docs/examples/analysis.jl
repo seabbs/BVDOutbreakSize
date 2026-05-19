@@ -539,6 +539,36 @@ plot_cumulative_cases(
     "deaths-only"  => posterior_C_deaths,
     "joint"        => posterior_C_joint)
 
+# ## Counterfactual: lower bound under no further transmission
+#
+# Suppose every onward transmission stopped today. The cohort
+# already infected by time `T` still carries committed deaths in
+# the onset-to-death tail: a case infected at outbreak age `s` has
+# only died by `T` with probability `F_d(T - s)`, so a fraction
+# `1 - F_d(T - s)` of its CFR-weighted contribution is still in
+# flight. Integrating against the incidence `i(s) = r·exp(r·s)`
+# under exponential growth gives the additional committed deaths
+#
+# ```math
+# \Delta D = \mathrm{CFR} \cdot \int_0^T r\,\exp(r\,s)
+#            \,\bigl(1 - F_d(T - s)\bigr)\,ds,
+# ```
+#
+# and a lower bound on the cumulative-death endpoint of
+# `D_T + \Delta D`, evaluated per posterior draw.
+
+no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = TOTAL_DEATHS)
+
+println("Projected total deaths under no onward transmission:")
+println(streams_table(
+    "no-onward total" => no_onward.total_projected;
+    digits = 0))
+
+# Density of the projected total, with the observed death count
+# marked as a dashed black rule.
+
+plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS)
+
 # ## Imperial report sense check
 #
 # A quick sanity check: fix the growth, CFR, delay and travel

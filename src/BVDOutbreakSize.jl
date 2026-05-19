@@ -13,6 +13,9 @@ using Turing
 using Turing.DynamicPPL: InitFromPrior
 using MCMCChains: Chains
 using DocStringExtensions
+using Distributions: Gamma, ccdf
+using Integrals: IntegralProblem, GaussLegendre, solve
+import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
@@ -27,7 +30,8 @@ export REPORT_SCENARIOS,
        streams_table, comparison_table,
        nuts_sample, default_adtype,
        plot_cumulative_cases, plot_prior_predictive,
-       plot_posterior_predictive, plot_pair
+       plot_posterior_predictive, plot_pair,
+       predict_no_onward_deaths, plot_no_onward_deaths
 
 """
     REPORT_SCENARIOS
@@ -351,6 +355,104 @@ function plot_pair(chn, params::AbstractVector{Symbol};
     cols = NamedTuple(p => _draws(chn, p) for p in params)
     df = DataFrame(cols)
     return PairPlots.pairplot(df[1:thin:end, :])
+end
+
+## --- Committed-deaths counterfactual ----------------------------------
+##
+## Lower bound on future deaths under the counterfactual that every
+## onward transmission stops at time `T`. The cohort already infected
+## by `T` still contributes deaths in the onset-to-death tail; per
+## draw,
+##
+##     ΔD = CFR · ∫_0^T r · exp(r · s) · (1 - F_d(T - s)) ds,
+##
+## with `F_d` the Gamma(α, θ) CDF. Total projected cumulative deaths
+## under the no-onward-transmission counterfactual is `obs_deaths + ΔD`.
+
+const _NO_ONWARD_INTEGRAL_ALG = GaussLegendre(; n = 64)
+
+function _committed_deaths_integrand(u, p)
+    s = p.halfwidth * (u + 1)         # u ∈ [-1, 1] → s ∈ [0, T]
+    return p.r * exp(p.r * s) * ccdf(p.delay_dist, p.T - s)
+end
+
+function _committed_deaths_one(r, T, α, θ, CFR;
+        alg = _NO_ONWARD_INTEGRAL_ALG)
+    halfwidth = T / 2
+    delay_dist = Gamma(α, θ)
+    params = (; r, T, halfwidth, delay_dist)
+    prob = IntegralProblem(_committed_deaths_integrand,
+                           (-1.0, 1.0), params)
+    return CFR * halfwidth * solve(prob, alg).u
+end
+
+"""
+    predict_no_onward_deaths(chn; obs_deaths,
+                             alg = GaussLegendre(n = 64))
+
+Per-draw projection of cumulative deaths under the counterfactual
+that every onward transmission stops at time `T`. Reads `:r, :T, :α,
+:θ, :CFR` from the posterior `chn` and integrates
+
+```math
+\\Delta D = \\mathrm{CFR} \\cdot \\int_0^T r\\,\\exp(r\\,s)
+            \\,\\bigl(1 - F_d(T - s)\\bigr)\\,ds,
+```
+
+with `F_d` the Gamma(α, θ) onset-to-death CDF, returning a
+`DataFrame` with one row per draw:
+
+- `:delta_deaths`     additional committed deaths beyond `obs_deaths`
+- `:total_projected`  `obs_deaths + delta_deaths`
+
+`obs_deaths` is the number of deaths already observed at time `T`
+(e.g. `TOTAL_DEATHS` from the bundled observations). `alg` is the
+quadrature scheme used for ΔD; defaults to `GaussLegendre(n = 64)`,
+matching the rest of the package.
+"""
+function predict_no_onward_deaths(chn;
+        obs_deaths::Real,
+        alg = _NO_ONWARD_INTEGRAL_ALG)
+    r_draws   = _draws(chn, :r)
+    T_draws   = _draws(chn, :T)
+    α_draws   = _draws(chn, :α)
+    θ_draws   = _draws(chn, :θ)
+    CFR_draws = _draws(chn, :CFR)
+
+    n = length(r_draws)
+    delta = Vector{Float64}(undef, n)
+    @inbounds for i in 1:n
+        delta[i] = _committed_deaths_one(r_draws[i], T_draws[i],
+                                         α_draws[i], θ_draws[i],
+                                         CFR_draws[i]; alg)
+    end
+    total = float(obs_deaths) .+ delta
+    return DataFrame(delta_deaths = delta, total_projected = total)
+end
+
+"""
+    plot_no_onward_deaths(df; obs_deaths)
+
+AlgebraOfGraphics density of the projected-total distribution from
+[`predict_no_onward_deaths`](@ref) with a Makie vertical rule at
+`obs_deaths`. The vertical rule marks deaths already observed at
+time `T`; the density to its right is the lower-bound projection
+under the no-onward-transmission counterfactual.
+"""
+function plot_no_onward_deaths(df::DataFrame; obs_deaths::Real)
+    spec = AoG.data(df) *
+           AoG.mapping(:total_projected =>
+                       "Projected total deaths (no onward transmission)") *
+           AoG.AlgebraOfGraphics.density() *
+           AoG.visual(linewidth = 2, color = :firebrick)
+    fg = AoG.draw(spec;
+        axis = (; ylabel = "Posterior density",
+                  title  = "Lower bound under no onward transmission"),
+        figure = (; size = (760, 420)),
+    )
+    vlines!(fg.figure.content[1], [float(obs_deaths)];
+            color = :black, linestyle = :dash, linewidth = 2)
+    return fg
 end
 
 end # module
