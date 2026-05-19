@@ -1,0 +1,3 @@
+[submodule "external/bdbv-linelist-analysis"]
+	path = external/bdbv-linelist-analysis
+	url = https://github.com/sbfnk/bdbv-linelist-analysis.git

@@ -1,0 +1,13 @@
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+/Manifest.toml
+/docs/build/
+/docs/Manifest.toml
+/docs/src/analysis.md
+/docs/src/index.md
+/docs/node_modules/
+.DS_Store
+.ipynb_checkpoints/
+*.swp
+*.swo
