@@ -81,6 +81,37 @@
 # - *Detection-window definition is loose.* `w` lumps incubation
 #   and onset-to-detection together — both poorly characterised
 #   for BVD.
+#
+# ## How the model is built up
+#
+# The model is assembled from small reusable Turing submodels rather
+# than written as one monolithic block. Reading top to bottom:
+#
+# 1. **Building-block submodels** — one per epi parameter family
+#    (growth, onset-to-death delay, CFR, detection window,
+#    surveillance dispersion, ascertainment). Each samples its own
+#    priors and returns a small NamedTuple of values.
+# 2. **Forward integrals** — the gamma onset-to-death convolution
+#    used by the deaths likelihood and the at-risk person-time
+#    integral used by the exports likelihood.
+# 3. **Observation submodels** — `exports_model`, `deaths_model`,
+#    `cases_model`. Each takes the growth state as input, plugs into
+#    one of the integrals, and ties one data stream to the latent
+#    `C_T`.
+# 4. **Top-level composers** — `exports_only_model`,
+#    `deaths_only_model`, `cases_only_model`, `bvd_joint`. Each is
+#    a thin wrapper that samples the building blocks and the relevant
+#    observation submodels.
+# 5. **Inference** — prior predictive, the four NUTS fits, posterior
+#    summaries, posterior-predictive plots.
+# 6. **Counterfactual and sense check** — a no-onward-transmission
+#    lower bound on cumulative deaths, and a `Turing.fix`-pinned
+#    reproduction of Imperial's Method 2 main scenario.
+#
+# Composition is via `~ to_submodel(...)`. Replacing one submodel
+# (e.g. swapping the Gamma onset-to-death for a LogNormal, or
+# swapping exponential growth for a logistic curve) requires editing
+# only that submodel — the integrals and composers do not change.
 
 using Turing
 using Turing: to_submodel
@@ -102,14 +133,32 @@ Random.seed!(20260518)
 
 obs = load_observations()
 
-println("Loaded observations")
-println("-------------------")
-println("  exported_cases               = ", obs.exported_cases)
-println("  total_deaths                 = ", obs.total_deaths)
-println("  daily_outbound_travellers    = ",
+DataFrame(
+    field = [
+        "exported_cases",
+        "total_deaths",
+        "reported_cases",
+        "daily_outbound_travellers",
+        "daily_outbound_travellers_sd",
+        "source_population",
+    ],
+    value = [
+        obs.exported_cases,
+        obs.total_deaths,
+        obs.reported_cases,
         obs.daily_outbound_travellers,
-        " (sd = ", obs.daily_outbound_travellers_sd, ")")
-println("  source_population            = ", obs.source_population)
+        obs.daily_outbound_travellers_sd,
+        obs.source_population,
+    ],
+    source = [
+        obs.sources.exported_cases,
+        obs.sources.total_deaths,
+        obs.sources.reported_cases,
+        obs.sources.daily_outbound_travellers,
+        obs.sources.daily_outbound_travellers_sd,
+        obs.sources.source_population,
+    ],
+)
 
 const ITURI_POPULATION    = obs.source_population
 const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
@@ -151,17 +200,16 @@ const REPORTED_CASES      = obs.reported_cases
 # `C_T` at ~8000, well above Imperial's tail.
 
 @model function exponential_growth_model(;
-        log_τ_prior = Normal(log(14), 0.4),
-        m_prior     = truncated(Normal(7.0, 2.5);
-                                lower = 0, upper = 13.0))
-    log_τ ~ log_τ_prior
-    m     ~ m_prior
-    τ   := exp(log_τ)
+        tau_prior = LogNormal(log(14), 0.4),
+        m_prior   = truncated(Normal(7.0, 2.5);
+                              lower = 0, upper = 13.0))
+    τ ~ tau_prior
+    m ~ m_prior
     r   := log(2) / τ
     T   := m * τ
     C_T := 2.0 ^ m
     cumulative = s -> exp(r * s)
-    return (; log_τ, τ, r, m, T, C_T, cumulative)
+    return (; τ, r, m, T, C_T, cumulative)
 end
 
 # ### Onset-to-death delay
@@ -297,9 +345,44 @@ function expected_deaths(CFR, r, T, delay_dist;
     return CFR * halfwidth * solve(prob, alg).u
 end
 
-# Numerical integral of the cumulative-incidence trajectory `C(s)`
-# over `[lower, upper]`, used by the exports likelihood to express
-# `∫_{T-w}^{T} C(s) ds` for arbitrary growth submodels.
+# ## At-risk person-time for export detection
+#
+# Each case in the source population travels to Uganda on any given
+# day with probability `q = daily_travellers / source_pop`, treating
+# cases as exchangeable with the general population. A case is
+# *detection-eligible* for `w` days from infection (incubation +
+# onset-to-detection). For a case infected at time `s ≤ T`, the
+# accumulated probability of being detected in Uganda by `T` is
+#
+# ```math
+# P(\text{detected by } T \mid \text{infected at } s) = q \cdot \min(T - s, w).
+# ```
+#
+# Splitting at `s = T - w`: ``\min(T-s, w) = w`` for cases infected
+# before `T-w` (full window elapsed), and ``\min(T-s, w) = T - s``
+# for cases still inside their window. Summing across all incidence
+# gives the **full export integral**:
+#
+# ```math
+# \mathbb{E}[\text{exports by }T]
+#     = q \cdot \left[ w \cdot C(T-w)
+#                      + \int_{T-w}^{T} i(s) \, (T - s) \, ds \right].
+# ```
+#
+# Integration by parts collapses this to the cleaner form
+#
+# ```math
+# \boxed{\,\mathbb{E}[\text{exports by }T] = q \cdot \int_{T-w}^{T} C(s)\, ds\,}
+# ```
+#
+# — the daily travel rate times the cumulative-cases trajectory
+# integrated over the detection window. For exponential growth this
+# evaluates in closed form to `q · (C(T) - C(T-w)) / r`; as `r → 0`
+# it recovers Imperial's small-`rw` simplification `q · w · C(T)`.
+# For any other `growth_state.cumulative` callable (logistic,
+# two-phase, empirical) the integral has no closed form, so we
+# evaluate it numerically by Gauss-Legendre quadrature with `n = 32`,
+# mapping `[T-w, T]` to the reference domain `[-1, 1]`.
 
 const _CUM_INTEGRAL_ALG = GaussLegendre(; n = 32)
 
@@ -308,7 +391,7 @@ function _cumulative_integrand(u, p)
     return p.cumulative(s)
 end
 
-function _integrate_cumulative(cumulative, lower, upper;
+function integrate_cumulative(cumulative, lower, upper;
         alg = _CUM_INTEGRAL_ALG)
     upper <= lower && return zero(upper - lower)
     halfwidth = (upper - lower) / 2
@@ -317,15 +400,32 @@ function _integrate_cumulative(cumulative, lower, upper;
     return halfwidth * solve(prob, alg).u
 end
 
+# Helper used by the deaths and cases observation submodels:
+# `NegativeBinomial` parameterised by mean `μ` and dispersion `k`
+# (so `variance = μ + μ²/k`), with NaN / Inf-safe clamping on the
+# success probability so extreme NUTS proposals during warmup don't
+# trip the distribution domain check.
+
+function safe_nbinomial(k, μ)
+    p_raw = k / (k + max(μ, eps(typeof(μ))))
+    p = isfinite(p_raw) ?
+        clamp(p_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
+        eps(typeof(k))
+    return NegativeBinomial(k, p)
+end
+
 # ## Observation submodels
 #
-# Three observation submodels take the latent growth state as their
-# first non-data argument. They own their own nested submodels and
-# the likelihood. The NegBinomial dispersion `k` is shared between
-# the deaths and cases likelihoods and is supplied by the composer,
-# so the joint fit sees a single surveillance noise scale.
+# With the latent state (growth) and the integral machinery in
+# place, we now build the three observation models that tie data
+# to the latent state. Each takes the growth state as input and
+# returns its expected count and likelihood: `exports_model`
+# implements Imperial's Method 1, `deaths_model` implements
+# Method 2, and `cases_model` is the ascertainment extension.
+# These are the units the top-level composers will glue together
+# into the per-stream fits and the joint fit.
 
-# ### Exports likelihood — Method 1 (Imperial Method 1, geographic spread)
+# ### Exports — Method 1 (Imperial Method 1, geographic spread)
 #
 # Each case in the source population travels to Uganda on any given
 # day with probability `q = daily_travellers / source_pop`, treating
@@ -366,13 +466,15 @@ end
 # parameterisation (logistic, two-phase, empirical), and apply a
 # Poisson likelihood `Y_{\text{exports}} \sim \mathrm{Poisson}(\mu_e)`.
 #
-# Imperial / Imai 2020 use the small-`rw` simplification
-# `μ_e ≈ q · w · C(T)`; this is the limit of the integral as
-# `r → 0`. For BVD's prior range `rw ∈ 0.33 − 2.0` the simplification
-# under-estimates `C_T` by roughly 15-57%. Both Imperial and we use
-# `Binomial(N, p)`-style observation models; with `p ≈ q·w ≈ 6·10⁻³`
-# the Poisson approximation we use is indistinguishable from
-# Imperial's Binomial in the small-`p` regime.
+# !!! note "Comparison with Imperial / Imai 2020"
+#     Imperial use the small-`rw` simplification
+#     `μ_e ≈ q · w · C(T)`, the limit of the integral as
+#     `r → 0`. For BVD's prior range `rw ∈ 0.33 − 2.0` the
+#     simplification under-estimates `C_T` by roughly 15-57%.
+#     Both Imperial and we use `Binomial(N, p)`-style observation
+#     models; with `p ≈ q·w ≈ 6·10⁻³` our Poisson is
+#     indistinguishable from Imperial's Binomial in the small-`p`
+#     regime.
 #
 # **Daily traveller prior.** Imperial Table 3 records mean weekly
 # passenger counts across seven PoEs from one to four weekly sitreps
@@ -402,7 +504,7 @@ end
         lower = 0)
 
     window_start = max(T - w, zero(T))
-    cumulative_window_integral := _integrate_cumulative(
+    cumulative_window_integral := integrate_cumulative(
         cumulative, window_start, T)
     expected_exports := max(
         (daily_travellers / source_population) *
@@ -416,7 +518,7 @@ end
               cumulative_window_integral, expected_exports)
 end
 
-# ### Deaths likelihood — Method 2 (Imperial Method 2, backcalculation from deaths)
+# ### Deaths — Method 2 (Imperial Method 2, backcalculation from deaths)
 #
 # The death convolution is integrated against the latent growth
 # trajectory and weighted by the case-fatality ratio. The dispersion
@@ -440,23 +542,19 @@ end
 
     ## NaN-safe guards. Extreme NUTS proposals during warmup can
     ## push `expected_deaths_T` or `p_nb_d` to NaN / Inf; clamping
-    ## keeps the NegBinomial domain check from rejecting the
-    ## leapfrog step on a non-fatal numerical edge case.
+    ## NaN-safe clamp: extreme NUTS proposals during warmup can
+    ## push `expected_deaths_T` to NaN / Inf.
     raw_deaths         = expected_deaths(CFR, r, T, delay_state.dist)
     expected_deaths_T := isfinite(raw_deaths) ?
         max(raw_deaths, eps(typeof(raw_deaths))) :
         eps(typeof(raw_deaths))
 
-    p_nb_d_raw = k / (k + expected_deaths_T)
-    p_nb_d = isfinite(p_nb_d_raw) ?
-        clamp(p_nb_d_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
-        eps(typeof(k))
-    total_deaths ~ NegativeBinomial(k, p_nb_d)
+    total_deaths ~ safe_nbinomial(k, expected_deaths_T)
 
     return (; CFR, expected_deaths_T)
 end
 
-# ### Cases likelihood — Extension beyond Imperial (ascertainment)
+# ### Cases — Extension beyond Imperial
 #
 # Imperial Methods 1 and 2 use exports and deaths only. Reported
 # suspected cases from the same passive-surveillance system carry
@@ -469,9 +567,8 @@ end
 # Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_c,\ k).
 # ```
 #
-# The reporting-delay convolution is deferred to v2 (issue #5). The
-# dispersion `k` is shared with the deaths likelihood through the
-# composer.
+# The dispersion `k` is shared with the deaths likelihood through
+# the composer.
 
 @model function cases_model(
         reported_cases::Union{Missing, Integer},
@@ -488,11 +585,7 @@ end
         max(raw_reports, eps(typeof(raw_reports))) :
         eps(typeof(raw_reports))
 
-    p_nb_c_raw = k / (k + expected_reports)
-    p_nb_c = isfinite(p_nb_c_raw) ?
-        clamp(p_nb_c_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
-        eps(typeof(k))
-    reported_cases ~ NegativeBinomial(k, p_nb_c)
+    reported_cases ~ safe_nbinomial(k, expected_reports)
 
     return (; p_report, expected_reports)
 end
@@ -598,9 +691,14 @@ end
 # reported suspected cases.
 
 prior_chn = sample(bvd_joint(missing, missing, missing), Prior(), 2_000;
-                   progress = false)
-println("Prior C_T summary:")
-println(summary_table(prior_chn, [:cumulative_cases]; digits = 0))
+                   progress = false);
+summary_table(prior_chn, [:cumulative_cases]; digits = 0)
+
+# Pair plot of the prior over the latent quantities — useful for
+# spotting prior correlations before any data has been seen.
+
+plot_pair(prior_chn,
+          [:τ, :m, :cumulative_cases, :CFR, :α, :θ, :w, :k, :p_report])
 
 # ## Fitting the joint model
 #
@@ -609,64 +707,76 @@ println(summary_table(prior_chn, [:cumulative_cases]; digits = 0))
 # to keep the sampler away from the boundary of `r` and `m`.
 
 chn_joint = nuts_sample(
-    bvd_joint(obs.exported_cases, obs.total_deaths, obs.reported_cases))
+    bvd_joint(obs.exported_cases, obs.total_deaths, obs.reported_cases));
 
 # Also fit the three single-stream models so the four posteriors can
 # be compared side by side.
 
-chn_exports = nuts_sample(exports_only_model(obs.exported_cases))
-chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths))
-chn_cases   = nuts_sample(cases_only_model(obs.reported_cases))
+chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
+chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths));
+chn_cases   = nuts_sample(cases_only_model(obs.reported_cases));
 
 # ## Posterior summary
+#
+# The first table reports equal-tailed 30%, 60% and 90% credible
+# intervals on the key joint-fit parameters: growth rate `r`,
+# doubling-time multiplier `m`, days since seeding `T`, CFR,
+# reporting fraction `p_report`, and cumulative cases `C_T`. The
+# second table puts the four posteriors over `C_T` side-by-side —
+# the three single-stream fits and the joint — to show how each
+# data stream constrains the latent outbreak size on its own and
+# what the joint combination buys.
 
 posterior_C_joint   = vec(Array(chn_joint[:cumulative_cases]))
 posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]))
 posterior_C_deaths  = vec(Array(chn_deaths[:cumulative_cases]))
 posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]))
 
-println("Joint posterior summary:")
-println(summary_table(chn_joint,
-        [:r, :m, :T, :CFR, :p_report, :cumulative_cases]; digits = 2))
+summary_table(chn_joint,
+        [:r, :m, :T, :CFR, :p_report, :cumulative_cases]; digits = 2)
 
-println()
-println("C_T by data stream:")
-println(streams_table(
+# Comparing `C_T` across the four fits:
+
+streams_table(
     "exports-only" => posterior_C_exports,
     "deaths-only"  => posterior_C_deaths,
     "cases-only"   => posterior_C_cases,
-    "joint"        => posterior_C_joint))
+    "joint"        => posterior_C_joint)
 
 # ## Posterior predictive
 #
-# Replicated observations from each fit, checked against the
-# corresponding observed counts.
+# A posterior predictive check draws replicated observations from
+# the fitted model and compares them to the observed counts. If a
+# fit is reasonable the observed value (red line) should sit inside
+# the bulk of its replicate distribution. The 2×3 grid below has
+# replicates from the per-stream fits on the top row and the joint
+# fit on the bottom row — comparable column-wise so it's easy to
+# see what each per-stream fit constrains and how the joint
+# combination shifts the predictives.
 
-# Exports-only fit: one panel for the exported case stream.
+pp_exports_only = vec(Array(predict(
+    exports_only_model(missing), chn_exports)[:exported_cases]))
+pp_deaths_only  = vec(Array(predict(
+    deaths_only_model(missing),  chn_deaths )[:total_deaths]))
+pp_cases_only   = vec(Array(predict(
+    cases_only_model(missing),   chn_cases  )[:reported_cases]))
 
-pp_exports_chn  = predict(exports_only_model(missing), chn_exports)
-pp_exports_only = vec(Array(pp_exports_chn[:exported_cases]))
-plot_posterior_predictive(pp_exports_only, nothing,
-                          obs.exported_cases, nothing)
+pp_joint   = predict(bvd_joint(missing, missing, missing), chn_joint)
+pp_exports = vec(Array(pp_joint[:exported_cases]))
+pp_deaths  = vec(Array(pp_joint[:total_deaths]))
+pp_cases   = vec(Array(pp_joint[:reported_cases]))
 
-# Deaths-only fit: one panel for cumulative deaths.
-
-pp_deaths_chn  = predict(deaths_only_model(missing), chn_deaths)
-pp_deaths_only = vec(Array(pp_deaths_chn[:total_deaths]))
-plot_posterior_predictive(nothing, pp_deaths_only,
-                          nothing, obs.total_deaths)
-
-# Joint fit: three panels covering exports, deaths and reported cases.
-
-pp_chn     = predict(bvd_joint(missing, missing, missing), chn_joint)
-pp_exports = vec(Array(pp_chn[:exported_cases]))
-pp_deaths  = vec(Array(pp_chn[:total_deaths]))
-pp_cases   = vec(Array(pp_chn[:reported_cases]))
-
-plot_posterior_predictive(pp_exports, pp_deaths,
-                          obs.exported_cases, obs.total_deaths;
-                          pp_cases = pp_cases,
-                          obs_cases = obs.reported_cases)
+plot_posterior_predictive_grid(;
+    individual = (; exports = pp_exports_only,
+                    deaths  = pp_deaths_only,
+                    cases   = pp_cases_only),
+    joint      = (; exports = pp_exports,
+                    deaths  = pp_deaths,
+                    cases   = pp_cases),
+    observed   = (; exports = obs.exported_cases,
+                    deaths  = obs.total_deaths,
+                    cases   = obs.reported_cases),
+)
 
 # ## Overlaid posterior densities for `C_T`
 
@@ -681,10 +791,11 @@ plot_cumulative_cases(
 # Suppose every onward transmission stopped today. The cohort
 # already infected by time `T` still carries committed deaths in
 # the onset-to-death tail: a case infected at outbreak age `s` has
-# only died by `T` with probability `F_d(T - s)`, so a fraction
-# `1 - F_d(T - s)` of its CFR-weighted contribution is still in
-# flight. Integrating against the incidence `i(s) = r·exp(r·s)`
-# under exponential growth gives the additional committed deaths
+# died by `T` with probability `F_d(T - s)`, so a fraction
+# `1 - F_d(T - s)` of its CFR-weighted contribution has not yet
+# been observed in the reported death count. Integrating against
+# the incidence `i(s) = r·exp(r·s)` under exponential growth gives
+# the additional committed deaths
 #
 # ```math
 # \Delta D = \mathrm{CFR} \cdot \int_0^T r\,\exp(r\,s)
@@ -720,16 +831,14 @@ plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS)
 
 imperial_fixed = Turing.fix(
     deaths_only_model(88),                              # Imperial 16 May 2026 snapshot
-    (log_τ = log(14), CFR = 0.30, α = 4.42, θ = 1/0.388,
+    (τ = 14.0, CFR = 0.30, α = 4.42, θ = 1/0.388,
      inv_sqrt_k = 0.0),
 )
 
-chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2)
+chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]))
 
-println("Imperial sense check (r and delays fixed):")
-println(summary_table(chn_imperial,
-        [:m, :T, :cumulative_cases]; digits = 1))
+summary_table(chn_imperial, [:m, :T, :cumulative_cases]; digits = 1)
 
 # ### Side-by-side: Imperial reported vs our two analogues
 #
@@ -770,13 +879,3 @@ println()
 println("Joint posterior coverage of all 15 published scenarios:")
 println(comparison_table(posterior_C_joint))
 
-# ## Notes
-#
-# - `C_T` here is cumulative incidence since the seeding zoonotic
-#   case; it is comparable to the "Number of cases" column in
-#   Table 1 / Table 2 of the report, not to the *reported* suspected
-#   cases.
-# - The convolution is integrated on `[0, T]` with `T` itself a
-#   derived quantity (`T = m · log(2) / r`). `T` is identified
-#   jointly by the death and export likelihoods through `C_T = 2^m`
-#   and the integral.

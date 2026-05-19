@@ -30,7 +30,8 @@ export REPORT_SCENARIOS,
        streams_table, comparison_table,
        nuts_sample, default_adtype,
        plot_cumulative_cases, plot_prior_predictive,
-       plot_posterior_predictive, plot_pair,
+       plot_posterior_predictive, plot_posterior_predictive_grid,
+       plot_pair,
        predict_no_onward_deaths, plot_no_onward_deaths
 
 """
@@ -111,8 +112,12 @@ const REPORTED_CASES = 500
 $(TYPEDSIGNATURES)
 
 Load the observation block from `data/observations.toml` and return
-it as a `NamedTuple`. If `path` is omitted, the bundled TOML file
-shipped with the package is used. Expected fields:
+it as a `NamedTuple`. Each observation in the TOML is a subtable
+with `value = …` and `source = "…"`; this function returns both the
+parsed numeric values and a parallel `sources::NamedTuple` of
+citation strings so they can be printed alongside the data.
+
+Fields returned:
 
 - `exported_cases::Int`
 - `total_deaths::Int`
@@ -120,20 +125,33 @@ shipped with the package is used. Expected fields:
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
+- `sources::NamedTuple{(:exported_cases, :total_deaths, :reported_cases,
+  :daily_outbound_travellers, :daily_outbound_travellers_sd,
+  :source_population), NTuple{6, String}}` — citation per field.
 """
 function load_observations(
         path::AbstractString = joinpath(@__DIR__, "..", "data",
                                         "observations.toml"))
     raw = TOML.parsefile(path)
+    _val(k) = raw[k]["value"]
+    _src(k) = String(raw[k]["source"])
     return (;
-        exported_cases               = Int(raw["exported_cases"]),
-        total_deaths                 = Int(raw["total_deaths"]),
-        reported_cases               = Int(raw["reported_cases"]),
+        exported_cases               = Int(_val("exported_cases")),
+        total_deaths                 = Int(_val("total_deaths")),
+        reported_cases               = Int(_val("reported_cases")),
         daily_outbound_travellers    = float(
-            raw["daily_outbound_travellers"]),
+            _val("daily_outbound_travellers")),
         daily_outbound_travellers_sd = float(
-            raw["daily_outbound_travellers_sd"]),
-        source_population            = Int(raw["source_population"]),
+            _val("daily_outbound_travellers_sd")),
+        source_population            = Int(_val("source_population")),
+        sources = (;
+            exported_cases               = _src("exported_cases"),
+            total_deaths                 = _src("total_deaths"),
+            reported_cases               = _src("reported_cases"),
+            daily_outbound_travellers    = _src("daily_outbound_travellers"),
+            daily_outbound_travellers_sd = _src("daily_outbound_travellers_sd"),
+            source_population            = _src("source_population"),
+        ),
     )
 end
 
@@ -302,9 +320,13 @@ function plot_cumulative_cases(
     return fg
 end
 
-_panel_exports!(fig, col, pp, obs; predictive_label = "Posterior") = begin
+_panel_pos(pos::Integer) = (1, pos)
+_panel_pos(pos::Tuple)   = pos
+
+_panel_exports!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
+    r, c = _panel_pos(pos)
     upper = max(20, ceil(Int, quantile(pp, 0.99)))
-    ax = Axis(fig[1, col];
+    ax = Axis(fig[r, c];
         xlabel = "Replicated exports",
         ylabel = "$(predictive_label) predictive count",
         title  = "Exports (Poisson)",
@@ -315,9 +337,10 @@ _panel_exports!(fig, col, pp, obs; predictive_label = "Posterior") = begin
     return ax
 end
 
-_panel_deaths!(fig, col, pp, obs; predictive_label = "Posterior") = begin
+_panel_deaths!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
+    r, c = _panel_pos(pos)
     upper = max(1.0, quantile(pp, 0.995))
-    ax = Axis(fig[1, col];
+    ax = Axis(fig[r, c];
         xlabel = "Replicated deaths",
         ylabel = "$(predictive_label) predictive count",
         title  = "Deaths (NegBinomial)",
@@ -329,9 +352,10 @@ _panel_deaths!(fig, col, pp, obs; predictive_label = "Posterior") = begin
     return ax
 end
 
-_panel_cases!(fig, col, pp, obs; predictive_label = "Posterior") = begin
+_panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
+    r, c = _panel_pos(pos)
     upper = max(1.0, quantile(pp, 0.995))
-    ax = Axis(fig[1, col];
+    ax = Axis(fig[r, c];
         xlabel = "Replicated reported cases",
         ylabel = "$(predictive_label) predictive count",
         title  = "Reported cases (NegBinomial)",
@@ -381,6 +405,38 @@ function plot_posterior_predictive(
         else
             _panel_cases!(fig, i, pp, obs; predictive_label)
         end
+    end
+    return fig
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Two-row × three-column comparison of posterior-predictive
+distributions. Top row: replicates from the per-stream fits
+(`exports_only`, `deaths_only`, `cases_only`). Bottom row:
+replicates from the joint fit, conditioning on all three observed
+streams. Observed values shown as red vertical lines.
+
+Each panel is a histogram of replicated counts; rows share the
+same x-axis (the stream's count) so the per-stream and joint
+predictives are directly comparable.
+"""
+function plot_posterior_predictive_grid(;
+        individual::NamedTuple,   # (; exports, deaths, cases) of pp draws
+        joint::NamedTuple,        # (; exports, deaths, cases) of pp draws
+        observed::NamedTuple,     # (; exports, deaths, cases) of obs values
+    )
+    fig = Figure(; size = (1200, 640))
+    rows = ((:individual, individual, "per-stream fit"),
+            (:joint,      joint,      "joint fit"))
+    for (i, (_, pp, label)) in enumerate(rows)
+        _panel_exports!(fig, (i, 1), pp.exports, observed.exports;
+                        predictive_label = label)
+        _panel_deaths!(fig, (i, 2),  pp.deaths,  observed.deaths;
+                       predictive_label = label)
+        _panel_cases!(fig, (i, 3),   pp.cases,   observed.cases;
+                      predictive_label = label)
     end
     return fig
 end
