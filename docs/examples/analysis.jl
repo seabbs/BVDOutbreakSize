@@ -635,7 +635,7 @@ plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS)
 # `m` on 8 (so `T ≈ 112 d`) brings the model into the range needed
 # to reproduce Imperial's Method 2 headline figure of `C_T = 501`
 # (which requires `T ≈ 126 d`). The NegBinomial dispersion is pinned
-# at `inv_sqrt_k_d = 0` so the deaths likelihood collapses to
+# at `inv_sqrt_k = 0` so the deaths likelihood collapses to
 # Poisson — Imperial's actual choice (Table 2 reports Poisson CIs).
 
 imperial_growth = exponential_growth_model(
@@ -646,7 +646,7 @@ imperial_growth = exponential_growth_model(
 imperial_fixed = Turing.fix(
     deaths_only_model(88; growth = imperial_growth),  # Imperial 16 May 2026 snapshot
     (log_τ = log(14), CFR = 0.30, α = 4.42, θ = 1/0.388,
-     inv_sqrt_k_d = 0.0),
+     inv_sqrt_k = 0.0),
 )
 
 chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2)
