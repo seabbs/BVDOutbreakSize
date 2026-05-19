@@ -515,11 +515,13 @@ plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS)
 #
 # A quick sanity check: fix the growth, CFR, delay and travel
 # parameters at Imperial's main-scenario point estimates and sample
-# only the doubling-time multiplier `m` and the dispersion. Pinning
-# `log τ = log(14)` (the Imperial main scenario, doubling time
-# 14 days) and centring `m` on 8 (so `T ≈ 112 d`) brings the model
-# into the range needed to reproduce Imperial's Method 2 headline
-# figure of `C_T = 501` (which requires `T ≈ 126 d`).
+# only the doubling-time multiplier `m`. Pinning `log τ = log(14)`
+# (the Imperial main scenario, doubling time 14 days) and centring
+# `m` on 8 (so `T ≈ 112 d`) brings the model into the range needed
+# to reproduce Imperial's Method 2 headline figure of `C_T = 501`
+# (which requires `T ≈ 126 d`). The NegBinomial dispersion is pinned
+# at `inv_sqrt_k_d = 0` so the deaths likelihood collapses to
+# Poisson — Imperial's actual choice (Table 2 reports Poisson CIs).
 
 imperial_growth = exponential_growth_model(
     m_prior = truncated(Normal(8.0, 2.0);
@@ -528,7 +530,8 @@ imperial_growth = exponential_growth_model(
 
 imperial_fixed = Turing.fix(
     deaths_only_model(88; growth = imperial_growth),  # Imperial 16 May 2026 snapshot
-    (log_τ = log(14), CFR = 0.30, α = 4.42, θ = 1/0.388),
+    (log_τ = log(14), CFR = 0.30, α = 4.42, θ = 1/0.388,
+     inv_sqrt_k_d = 0.0),
 )
 
 chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2)
