@@ -17,7 +17,7 @@ deaths approximation with the full gamma convolution, replaces the
 small-growth-rate exports simplification with the exact cumulative
 integral, and adds a reported-case ascertainment extension and a
 no-onward-transmission projected-deaths counterfactual. The
-[analysis walkthrough](docs/examples/analysis.jl) lays out each
+[analysis walkthrough](https://epiforecasts.github.io/BVDOutbreakSize/analysis/) lays out each
 deviation alongside the matching Imperial method.
 
 ## Running
