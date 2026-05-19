@@ -5,6 +5,9 @@ disease outbreak in DRC, fitting the data streams from the Imperial /
 WHO report (McCabe et al., [18 May 2026](https://doi.org/10.25560/130007))
 in a single posterior.
 
+**Data last updated:** 19 May 2026 (sources per
+[`data/observations.toml`](data/observations.toml)).
+
 The original report runs two independent analyses — geographic spread
 from cases detected in Uganda, and backcalculation from deaths — and
 reports a sensitivity sweep over fixed nuisance parameters. Here those
@@ -47,13 +50,30 @@ up automatically.
   Isiro BDBV line list (Rosello et al. 2015). Source of the
   informative onset-to-death gamma shape and scale priors.
 
-## References
+## Citation
 
-- McCabe et al., *Estimation of the size of the outbreak of Ebola
-  disease caused by Bundibugyo virus in DRC*, Imperial College
-  London, 18 May 2026. DOI: [10.25560/130007](https://doi.org/10.25560/130007).
+If you use or build on this project, please cite the three works
+this repository depends on:
+
+- **This project** — Abbott, S. (2026). *BVDOutbreakSize: joint
+  forward-generative Turing model for the 2026 DRC Bundibugyo
+  outbreak.* <https://github.com/epiforecasts/BVDOutbreakSize>.
+- **Imperial / WHO report** that this work re-implements —
+  McCabe, R., Ebbarnezh, L., Okware, S., Fotsing, R., Koua, E.,
+  Mbaka, P., Lofungola, A., van Elsland, S. L., McMenamin, M.,
+  Ferguson, N., le Polain de Waroux, O., Cori, A. (2026).
+  *Estimation of the size of the outbreak of Ebola disease caused
+  by Bundibugyo virus in DRC.* Imperial College London, 18 May 2026.
+  DOI: [10.25560/130007](https://doi.org/10.25560/130007).
+- **Onset-to-death delay reanalysis** that this work uses for
+  delay priors — Funk, S. (2026). *bdbv-linelist-analysis:
+  Bayesian reanalysis of the 2012 Isiro Bundibugyo line list.*
+  <https://github.com/sbfnk/bdbv-linelist-analysis>.
+
+## Further references
+
 - Rosello et al., *Ebola virus disease in DRC, 1976–2014*, eLife
-  2015. Source of the original onset-to-death gamma point estimate.
+  2015. Original Isiro 2012 onset-to-death gamma point estimate.
 - Imai et al., *Estimating the potential total number of novel
   coronavirus cases in Wuhan City*, Imperial COVID-19 Response Team
   Report 1, 17 January 2020. Methodological template for Method 1.

@@ -136,6 +136,7 @@ function load_observations(
     _val(k) = raw[k]["value"]
     _src(k) = String(raw[k]["source"])
     return (;
+        as_of_date                   = String(raw["as_of_date"]),
         exported_cases               = Int(_val("exported_cases")),
         total_deaths                 = Int(_val("total_deaths")),
         reported_cases               = Int(_val("reported_cases")),

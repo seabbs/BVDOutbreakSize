@@ -3,6 +3,8 @@
 # both are loaded by `load_observations` and printed in the
 # walkthrough.
 
+as_of_date = "2026-05-19"
+
 [exported_cases]
 value  = 2
 source = "McCabe et al., Imperial College London report, 18 May 2026 (DOI 10.25560/130007)"
