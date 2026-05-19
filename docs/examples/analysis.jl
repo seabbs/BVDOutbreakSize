@@ -44,8 +44,9 @@
 #   `α` and `θ` rather than collapsing onto Rosello's point
 #   estimate.
 # - *NegBinomial likelihood on deaths and reported cases* with a
-#   single shared surveillance dispersion `k`, vs Imperial's
-#   Poisson on both. Exports stay Poisson because two observations
+#   single shared surveillance dispersion `k`. Imperial uses
+#   Poisson for deaths and does not have a cases-ascertainment
+#   model at all. Exports stay Poisson because two observations
 #   would not identify a separate dispersion. Imperial's "exact
 #   NegBinomial CIs" on Method 1 are the conventional binomial-
 #   inversion procedure, not an estimated dispersion.
@@ -143,6 +144,13 @@ const REPORTED_CASES      = obs.reported_cases
 # is near-orthogonal to `τ`. The growth rate `r = log(2) / τ` and
 # `T = m · τ` are exposed as `:=` deterministics so they still
 # appear in posterior tables and pair plots.
+#
+# `m` is centred at 7 (`C_T = 2^7 = 128`) with SD 2.5, giving 95%
+# prior support of roughly `m ∈ (2, 12)` → `C_T ∈ (4, 4000)`. This
+# brackets Imperial's headline scenario range on the log scale —
+# their lowest reported `C_T = 235` corresponds to `m ≈ 7.9`, their
+# highest `1008` to `m ≈ 10`. The hard upper bound at 13 caps
+# `C_T` at ~8000, well above Imperial's tail.
 
 @model function exponential_growth_model(;
         log_τ_prior = Normal(log(14), 0.4),
@@ -319,20 +327,44 @@ end
 
 # ### Exports likelihood — Method 1 (Imperial Method 1, geographic spread)
 #
-# Each case has a daily probability `q = daily_travellers / source_pop`
-# of travelling to Uganda, accumulated across the `w` days they are
-# in their detection-eligible window. Per case the chance of being
-# detected in Uganda by time `T` is `q · min(T − s, w)` (with `s` the
-# case's infection time), so the cumulative expected exports are
+# Each case in the source population travels to Uganda on any given
+# day with probability `q = daily_travellers / source_pop`, treating
+# cases as exchangeable with the general population. A case is
+# *detection-eligible* for `w` days from infection (incubation +
+# onset-to-detection). For a case infected at time `s ≤ T`, the
+# accumulated probability of being detected in Uganda by `T` is
 #
 # ```math
-# \mu_e = q \cdot \int_{T - w}^{T} C(s)\, ds,
+# P(\text{detected by } T \mid \text{infected at } s) = q \cdot \min(T - s, w).
 # ```
 #
-# the daily travel rate times the cumulative cases integrated across
-# the detection window. We evaluate the integral numerically over
-# `growth_state.cumulative` and apply a Poisson likelihood
-# `Y_{\text{exports}} \sim \mathrm{Poisson}(\mu_e)`.
+# Splitting at `s = T - w`:
+# ``\min(T - s, w) = w`` for cases infected before `T-w` (full window
+# elapsed), and ``\min(T - s, w) = T - s`` for cases still inside their
+# window. Summing across all incidence gives the **full export
+# integral**:
+#
+# ```math
+# \mathbb{E}[\text{exports by }T]
+#     = q \cdot \left[ w \cdot C(T-w)
+#                      + \int_{T-w}^{T} i(s) \, (T - s) \, ds \right].
+# ```
+#
+# Integration by parts collapses this to the cleaner form
+#
+# ```math
+# \boxed{\,\mathbb{E}[\text{exports by }T] = q \cdot \int_{T-w}^{T} C(s)\, ds\,}
+# ```
+#
+# — the daily travel rate times the cumulative-cases trajectory
+# integrated over the detection window. For exponential growth
+# this evaluates to `q · (C(T) - C(T-w)) / r`; as `r → 0` it
+# recovers Imperial's small-`rw` simplification `q · w · C(T)`.
+#
+# We evaluate the boxed integral numerically over
+# `growth_state.cumulative`, so the same form works for any growth
+# parameterisation (logistic, two-phase, empirical), and apply a
+# Poisson likelihood `Y_{\text{exports}} \sim \mathrm{Poisson}(\mu_e)`.
 #
 # Imperial / Imai 2020 use the small-`rw` simplification
 # `μ_e ≈ q · w · C(T)`; this is the limit of the integral as
@@ -406,6 +438,10 @@ end
 
     CFR = cfr_state.CFR
 
+    ## NaN-safe guards. Extreme NUTS proposals during warmup can
+    ## push `expected_deaths_T` or `p_nb_d` to NaN / Inf; clamping
+    ## keeps the NegBinomial domain check from rejecting the
+    ## leapfrog step on a non-fatal numerical edge case.
     raw_deaths         = expected_deaths(CFR, r, T, delay_state.dist)
     expected_deaths_T := isfinite(raw_deaths) ?
         max(raw_deaths, eps(typeof(raw_deaths))) :
@@ -463,8 +499,16 @@ end
 
 # ## Top-level composers
 #
-# Thin composer models stitch the submodels together: per-stream
-# fits for exports, deaths and reported cases, plus the joint fit.
+# These composers stitch the building blocks into the **full
+# generative forward models** for each Imperial analysis. Imperial
+# inverts a deterministic summary formula at fixed nuisance
+# parameters; here we sample the entire generative process — growth,
+# delay, CFR, detection window, dispersion — and condition on the
+# observed counts. The per-stream composers (`exports_only_model`,
+# `deaths_only_model`) reproduce Imperial Methods 1 and 2 as
+# stand-alone Bayesian fits; `bvd_joint` is the same generative
+# process conditioned on all observed streams simultaneously.
+#
 # The joint composer samples a single `surveillance_dispersion_model`
 # and passes that same `k` to both deaths and cases likelihoods, so
 # they share one passive-surveillance noise scale.
@@ -664,23 +708,18 @@ plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS)
 
 # ## Imperial report sense check
 #
-# A quick sanity check: fix the growth, CFR, delay and travel
-# parameters at Imperial's main-scenario point estimates and sample
-# only the doubling-time multiplier `m`. Pinning `log τ = log(14)`
-# (the Imperial main scenario, doubling time 14 days) and centring
-# `m` on 8 (so `T ≈ 112 d`) brings the model into the range needed
-# to reproduce Imperial's Method 2 headline figure of `C_T = 501`
-# (which requires `T ≈ 126 d`). The NegBinomial dispersion is pinned
-# at `inv_sqrt_k = 0` so the deaths likelihood collapses to
-# Poisson — Imperial's actual choice (Table 2 reports Poisson CIs).
-
-imperial_growth = exponential_growth_model(
-    m_prior = truncated(Normal(8.0, 2.0);
-                        lower = 0, upper = 13.0),
-)
+# A quick sanity check that the model can recover Imperial's Method 2
+# headline when given Imperial's inputs. We `Turing.fix` the doubling
+# time, CFR, gamma shape and scale to the Method 2 main-scenario
+# values (`τ = 14 d, CFR = 30%, α = 4.42, β = 0.388/d`) and pin the
+# NegBinomial dispersion at `inv_sqrt_k = 0` so the deaths likelihood
+# collapses to Poisson — Imperial's actual choice (Table 2 reports
+# Poisson CIs). The only sampled latent is `m`, the number of
+# doublings since seeding; `C_T = 2^m`. The same `m_prior` used in
+# the joint fit applies here without modification.
 
 imperial_fixed = Turing.fix(
-    deaths_only_model(88; growth = imperial_growth),  # Imperial 16 May 2026 snapshot
+    deaths_only_model(88),                              # Imperial 16 May 2026 snapshot
     (log_τ = log(14), CFR = 0.30, α = 4.42, θ = 1/0.388,
      inv_sqrt_k = 0.0),
 )
