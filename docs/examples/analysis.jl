@@ -33,10 +33,6 @@
 #   closed-form approximation `D_T ≈ CFR · C_T · (1 + r/β)^{−α}`;
 #   we evaluate the integral numerically so the delay family
 #   stays a runtime parameter.
-# - *Reparameterise growth.* Sampling `log τ` (doubling time) and
-#   `m = T / τ` (number of doublings since seeding), with
-#   `C_T := 2^m` and `r := log(2) / τ` as deterministics,
-#   decorrelates `r` from `T` (the natural ridge in `C_T = e^{rT}`).
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list Imperial cites for its point
 #   estimates ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis)),
@@ -238,9 +234,11 @@ end
 # surveillance noise (under-reporting that varies by district,
 # weekend reporting effects, batched updates), not transmission
 # heterogeneity. The default prior `1/√k ~ Exponential(2)` is weak,
-# giving `k` a prior median near 4 (mild overdispersion). Imperial
-# use Poisson here; the switch to NegBinomial is an intentional
-# deviation.
+# giving `k` a prior median near 4 (mild overdispersion).
+# Imperial uses Poisson on deaths (Method 2; their reported CIs
+# are Poisson CIs) and does not model reported suspected cases at
+# all; the switch to NegBinomial here is an intentional deviation
+# from their Method 2 choice.
 
 @model function surveillance_dispersion_model(;
         inv_sqrt_k_prior = Exponential(2.0))
