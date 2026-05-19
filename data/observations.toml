@@ -1,0 +1,26 @@
+# Reported observations and population covariates feeding the BVD
+# joint model. Update these numbers as new sitrep data become
+# available; the literate walkthrough picks them up automatically
+# the next time the docs are built.
+
+[observations]
+# Total BVD cases detected in Uganda after travel from DRC.
+exported_cases = 2
+
+# Total suspected BVD deaths reported in DRC.
+total_deaths = 88
+
+# Date the observations were drawn from, ISO 8601.
+as_of_date = "2026-05-16"
+
+[population]
+# Source population assumed to be at risk; "Ituri" is the
+# Imperial / WHO Method 1 main scenario, "Ituri+Nord Kivu" is the
+# sensitivity scenario.
+source = "Ituri"
+size = 4_392_200
+
+# Mean daily outbound travellers from the source population to
+# Uganda across the seven Uganda-DRC PoEs with available
+# screening data (Table 3 of the report).
+daily_outbound_travellers = 1_871

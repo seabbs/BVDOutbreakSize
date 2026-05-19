@@ -8,6 +8,7 @@
 /docs/src/index.md
 /docs/node_modules/
 .DS_Store
+.claude/
 .ipynb_checkpoints/
 *.swp
 *.swo
