@@ -25,6 +25,14 @@ end
     @test fig isa CairoMakie.Makie.Figure
 end
 
+@testset "plot_prior_predictive returns a Makie figure" begin
+    rng = MersenneTwister(6)
+    pp_exports = rand(rng, 0:10, 500)
+    pp_deaths = rand(rng, 0:5, 500)
+    fig = plot_prior_predictive(pp_exports, pp_deaths, 3, 1)
+    @test fig isa CairoMakie.Makie.Figure
+end
+
 @testset "plot_pair returns a renderable object" begin
     chn = sample(_plot_model(), Prior(), 200;
                  chain_type = MCMCChains.Chains, progress = false)

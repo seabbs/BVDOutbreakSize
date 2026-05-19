@@ -4,7 +4,9 @@ using BVDOutbreakSize: REPORT_SCENARIOS,
                        summary_table, posterior_summary,
                        streams_table, comparison_table,
                        nuts_sample, default_adtype,
+                       load_observations,
                        plot_cumulative_cases,
+                       plot_prior_predictive,
                        plot_posterior_predictive, plot_pair
 using ADTypes: AutoMooncake
 using DataFrames: DataFrame, nrow
@@ -25,3 +27,4 @@ include("test_comparison_table.jl")
 include("test_plots.jl")
 include("test_adtype.jl")
 include("test_nuts_sample.jl")
+include("test_load_observations.jl")

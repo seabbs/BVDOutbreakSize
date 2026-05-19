@@ -1,0 +1,16 @@
+# Observations for the 2026 DRC Bundibugyo virus disease outbreak.
+#
+# Sources:
+# - exported_cases: McCabe et al. (Imperial College London, 18 May 2026).
+#   Two BVD cases detected in Uganda after travel from Ituri Province.
+# - daily_outbound_travellers, source_population: McCabe et al., Table 1.
+# - daily_outbound_travellers_sd: covers point-of-entry-to-point-of-entry
+#   variation and reporting uncertainty in the underlying mobility survey.
+# - total_deaths: Guardian situation report, 19 May 2026 (replaces the
+#   Imperial 16 May 2026 snapshot of 88 deaths).
+
+exported_cases                = 2
+total_deaths                  = 130
+daily_outbound_travellers     = 1871
+daily_outbound_travellers_sd  = 200
+source_population             = 4392200
