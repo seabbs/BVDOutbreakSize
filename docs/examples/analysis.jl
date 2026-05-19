@@ -61,15 +61,19 @@
 # - *LLM-driven reimplementation.* The model code, priors,
 #   convolution implementation and walkthrough were drafted by a
 #   language model from the published Imperial report and the
-#   companion delay reanalysis. Not independently replicated
-#   against the authors' code; not for public-health decisions.
-# - *Prior-driven inference where data is scarce.* Two exports and
-#   ~10² deaths give little information about `τ`, `m`, the
-#   dispersion, or the reporting fraction individually.
-#   Posteriors track their priors closely.
-# - *Inherits Imperial's epidemiological assumptions.* Exponential
-#   growth from a single zoonotic seed, no spatial structure
-#   beyond the Ituri / Nord Kivu split, no time series.
+#   companion delay reanalysis, then reviewed and revised. Not
+#   independently replicated against the authors' code.
+# - *Prior-driven inference where data is scarce.* Two exports,
+#   ~10² deaths, and a single reported-case total give little
+#   information about `τ`, `m`, the surveillance dispersion, or
+#   the reporting fraction individually. Posteriors track their
+#   priors closely.
+# - *Inherits Imperial's epidemiological assumptions and core
+#   model structures.* Exponential growth from a single zoonotic
+#   seed, the cumulative-case / deaths convolution structure for
+#   Method 2, the geographic-spread / detection-window structure
+#   for Method 1, no spatial structure beyond the Ituri / Nord
+#   Kivu split, no time series of cases or deaths.
 # - *Onset-to-death delay anchored on Isiro 2012.* A single-
 #   outbreak fit; the delay distribution reporting here follows
 #   [charniga2024](@cite) but cross-outbreak heterogeneity is
