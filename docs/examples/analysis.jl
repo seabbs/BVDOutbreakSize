@@ -131,9 +131,10 @@ Random.seed!(20260518)
 # traveller volume is given a normal prior centred at the Imperial
 # figure with an SD covering point-of-entry variation.
 
-obs = load_observations()
+#md # <details><summary>Loading observations and building the data table</summary>
 
-DataFrame(
+obs = load_observations()
+observations_table = DataFrame(
     field = [
         "exported_cases",
         "total_deaths",
@@ -158,7 +159,11 @@ DataFrame(
         obs.sources.daily_outbound_travellers_sd,
         obs.sources.source_population,
     ],
-)
+);
+
+#md # </details>
+
+observations_table
 
 const ITURI_POPULATION    = obs.source_population
 const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
@@ -692,13 +697,26 @@ end
 
 prior_chn = sample(bvd_joint(missing, missing, missing), Prior(), 2_000;
                    progress = false);
-summary_table(prior_chn, [:cumulative_cases]; digits = 0)
+
+#md # <details><summary>Prior summary table</summary>
+
+prior_C_table = summary_table(prior_chn, [:cumulative_cases]; digits = 0);
+
+#md # </details>
+
+prior_C_table
 
 # Pair plot of the prior over the latent quantities — useful for
 # spotting prior correlations before any data has been seen.
 
-plot_pair(prior_chn,
-          [:τ, :m, :cumulative_cases, :CFR, :α, :θ, :w, :k, :p_report])
+#md # <details><summary>Prior pair plot</summary>
+
+prior_pair_fig = plot_pair(prior_chn,
+    [:τ, :m, :cumulative_cases, :CFR, :α, :θ, :w, :k, :p_report]);
+
+#md # </details>
+
+prior_pair_fig
 
 # ## Fitting the joint model
 #
@@ -727,21 +745,33 @@ chn_cases   = nuts_sample(cases_only_model(obs.reported_cases));
 # data stream constrains the latent outbreak size on its own and
 # what the joint combination buys.
 
-posterior_C_joint   = vec(Array(chn_joint[:cumulative_cases]))
-posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]))
-posterior_C_deaths  = vec(Array(chn_deaths[:cumulative_cases]))
-posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]))
+posterior_C_joint   = vec(Array(chn_joint[:cumulative_cases]));
+posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]));
+posterior_C_deaths  = vec(Array(chn_deaths[:cumulative_cases]));
+posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
 
-summary_table(chn_joint,
-        [:r, :m, :T, :CFR, :p_report, :cumulative_cases]; digits = 2)
+#md # <details><summary>Joint posterior summary table</summary>
+
+joint_summary = summary_table(chn_joint,
+    [:r, :m, :T, :CFR, :p_report, :cumulative_cases]; digits = 2);
+
+#md # </details>
+
+joint_summary
 
 # Comparing `C_T` across the four fits:
 
-streams_table(
+#md # <details><summary>Per-stream C_T table</summary>
+
+streams_C_table = streams_table(
     "exports-only" => posterior_C_exports,
     "deaths-only"  => posterior_C_deaths,
     "cases-only"   => posterior_C_cases,
-    "joint"        => posterior_C_joint)
+    "joint"        => posterior_C_joint);
+
+#md # </details>
+
+streams_C_table
 
 # ## Posterior predictive
 #
@@ -766,7 +796,9 @@ pp_exports = vec(Array(pp_joint[:exported_cases]))
 pp_deaths  = vec(Array(pp_joint[:total_deaths]))
 pp_cases   = vec(Array(pp_joint[:reported_cases]))
 
-plot_posterior_predictive_grid(;
+#md # <details><summary>Posterior predictive grid plot</summary>
+
+ppc_grid_fig = plot_posterior_predictive_grid(;
     individual = (; exports = pp_exports_only,
                     deaths  = pp_deaths_only,
                     cases   = pp_cases_only),
@@ -776,15 +808,25 @@ plot_posterior_predictive_grid(;
     observed   = (; exports = obs.exported_cases,
                     deaths  = obs.total_deaths,
                     cases   = obs.reported_cases),
-)
+);
+
+#md # </details>
+
+ppc_grid_fig
 
 # ## Overlaid posterior densities for `C_T`
 
-plot_cumulative_cases(
+#md # <details><summary>Overlaid C_T density plot</summary>
+
+cumulative_density_fig = plot_cumulative_cases(
     "exports-only" => posterior_C_exports,
     "deaths-only"  => posterior_C_deaths,
     "cases-only"   => posterior_C_cases,
-    "joint"        => posterior_C_joint)
+    "joint"        => posterior_C_joint);
+
+#md # </details>
+
+cumulative_density_fig
 
 # ## Counterfactual: lower bound under no further transmission
 #
@@ -805,17 +847,28 @@ plot_cumulative_cases(
 # and a lower bound on the cumulative-death endpoint of
 # `D_T + \Delta D`, evaluated per posterior draw.
 
-no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = TOTAL_DEATHS)
+no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = TOTAL_DEATHS);
 
-println("Projected total deaths under no onward transmission:")
-println(streams_table(
+#md # <details><summary>No-onward projected-deaths summary table</summary>
+
+no_onward_table = streams_table(
     "no-onward total" => no_onward.total_projected;
-    digits = 0))
+    digits = 0);
+
+#md # </details>
+
+no_onward_table
 
 # Density of the projected total, with the observed death count
 # marked as a dashed black rule.
 
-plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS)
+#md # <details><summary>No-onward projected-deaths plot</summary>
+
+no_onward_fig = plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS);
+
+#md # </details>
+
+no_onward_fig
 
 # ## Imperial report sense check
 #
@@ -836,9 +889,16 @@ imperial_fixed = Turing.fix(
 )
 
 chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2);
-posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]))
+posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 
-summary_table(chn_imperial, [:m, :T, :cumulative_cases]; digits = 1)
+#md # <details><summary>Imperial sense-check summary table</summary>
+
+imperial_summary = summary_table(chn_imperial,
+    [:m, :T, :cumulative_cases]; digits = 1);
+
+#md # </details>
+
+imperial_summary
 
 # ### Side-by-side: Imperial reported vs our two analogues
 #
@@ -850,9 +910,10 @@ summary_table(chn_imperial, [:m, :T, :cumulative_cases]; digits = 1)
 # and Poisson CIs (Method 2) reported in Tables 1 and 2 of the
 # report.
 
-posterior_C_joint    = vec(Array(chn_joint[:cumulative_cases]))
-joint_summary        = posterior_summary(posterior_C_joint)
-imperial_fit_summary = posterior_summary(posterior_C_imperial)
+#md # <details><summary>Building the main comparison table</summary>
+
+joint_C_credibles    = posterior_summary(posterior_C_joint)
+imperial_C_credibles = posterior_summary(posterior_C_imperial)
 
 main_comparison = DataFrame(
     source = [
@@ -865,17 +926,24 @@ main_comparison = DataFrame(
                    round(quantile(posterior_C_imperial, 0.5); digits = 0),
                    round(quantile(posterior_C_joint,    0.5); digits = 0)],
     CrI_lower = [39.0, 402.0,
-                 round(imperial_fit_summary.lo90; digits = 0),
-                 round(joint_summary.lo90;        digits = 0)],
+                 round(imperial_C_credibles.lo90; digits = 0),
+                 round(joint_C_credibles.lo90;    digits = 0)],
     CrI_upper = [870.0, 612.0,
-                 round(imperial_fit_summary.hi90; digits = 0),
-                 round(joint_summary.hi90;        digits = 0)],
-)
-println()
-println("Main comparison vs Imperial:")
-println(main_comparison)
+                 round(imperial_C_credibles.hi90; digits = 0),
+                 round(joint_C_credibles.hi90;    digits = 0)],
+);
 
-println()
-println("Joint posterior coverage of all 15 published scenarios:")
-println(comparison_table(posterior_C_joint))
+#md # </details>
+
+main_comparison
+
+# Joint posterior coverage of all 15 published Imperial scenarios:
+
+#md # <details><summary>Joint coverage table</summary>
+
+coverage_table = comparison_table(posterior_C_joint);
+
+#md # </details>
+
+coverage_table
 
