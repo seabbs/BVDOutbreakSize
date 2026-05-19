@@ -108,6 +108,7 @@ const ITURI_POPULATION    = obs.source_population
 const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
 const EXPORTED_CASES      = obs.exported_cases
 const TOTAL_DEATHS        = obs.total_deaths
+const REPORTED_CASES      = obs.reported_cases
 
 # ## Building-block submodels
 #
@@ -207,30 +208,42 @@ end
     return (; w)
 end
 
-# ### NegBinomial dispersion for deaths
+# ### Surveillance dispersion
 #
-# Cumulative deaths follow
+# Both NegBinomial likelihoods (deaths and reported cases) share a
+# single dispersion parameter `k`, since both arise from the same
+# passive-surveillance system.
 #
-# Exported case count uses
 # ```math
-# Y_{\text{deaths}} \sim
-#     \mathrm{NegBinomial}(\mu = \mathbb{E}[D_T],\ k_d),
+# Y \sim \mathrm{NegBinomial}(\mu,\ k),
 # ```
 #
-# with variance `μ + μ²/k_d`. The dispersion captures
-# passive-surveillance noise (under-reporting that varies by
-# district, weekend reporting effects, batched updates), not
-# transmission heterogeneity, so transmission-`k` literature is not
-# used. The default prior `1/√k_d ~ Exponential(2)` is weak, giving
-# `k_d` prior median near 4 (mild overdispersion).
-# Imperial use Poisson here; the switch to NegBinomial is an
-# intentional deviation.
+# with variance `μ + μ²/k`. The dispersion captures passive-
+# surveillance noise (under-reporting that varies by district,
+# weekend reporting effects, batched updates), not transmission
+# heterogeneity. The default prior `1/√k ~ Exponential(2)` is weak,
+# giving `k` a prior median near 4 (mild overdispersion). Imperial
+# use Poisson here; the switch to NegBinomial is an intentional
+# deviation.
 
-@model function deaths_dispersion_model(;
+@model function surveillance_dispersion_model(;
         inv_sqrt_k_prior = Exponential(2.0))
-    inv_sqrt_k_d ~ inv_sqrt_k_prior
-    k_d := 1.0 / (inv_sqrt_k_d^2 + eps(typeof(inv_sqrt_k_d)))
-    return (; k_d, inv_sqrt_k_d)
+    inv_sqrt_k ~ inv_sqrt_k_prior
+    k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
+    return (; k, inv_sqrt_k)
+end
+
+# ### Ascertainment
+#
+# Of every true case `C_T`, only a fraction `p_report` is captured
+# by passive surveillance and appears as a reported suspected case.
+# The prior `p_report ~ Beta(2, 6)` has mean 0.25 and a 95% interval
+# of roughly `(0.03, 0.65)`, leaving most of the unit interval open
+# while gently downweighting near-perfect ascertainment.
+
+@model function ascertainment_model(; p_prior = Beta(2.0, 6.0))
+    p_report ~ p_prior
+    return (; p_report)
 end
 
 # ## Forward convolution for deaths
@@ -271,13 +284,13 @@ end
 
 # ## Observation submodels
 #
-# Two observation submodels take the latent growth state as input
-# and apply the likelihood for one data stream each. Their priors
-# live in nested submodels (delay, CFR, detection window,
-# dispersion). Each maps directly onto one of the two analyses in
-# the Imperial report.
+# Three observation submodels take the latent growth state as their
+# first non-data argument. They own their own nested submodels and
+# the likelihood. The NegBinomial dispersion `k` is shared between
+# the deaths and cases likelihoods and is supplied by the composer,
+# so the joint fit sees a single surveillance noise scale.
 
-# ### Exports likelihood — Imperial Method 1 (geographic spread)
+# ### Exports likelihood — Method 1 (Imperial Method 1, geographic spread)
 #
 # The expected number of exported cases is the incidence produced
 # over the last `w` days, scaled by the per-case travel-to-Uganda
@@ -304,11 +317,14 @@ end
 
 @model function exports_model(
         exported_cases::Union{Missing, Integer},
-        cumulative, T::Real;
+        growth_state;
         travellers_mean::Real   = ITURI_DAILY_TRAVEL,
         travellers_sd::Real     = ITURI_DAILY_TRAVEL_SD,
         source_population::Real = ITURI_POPULATION,
         window                  = detection_window_model())
+
+    cumulative = growth_state.cumulative
+    T          = growth_state.T
 
     window_state ~ to_submodel(window, false)
     w = window_state.w
@@ -330,42 +346,92 @@ end
               expected_exports)
 end
 
-# ### Deaths likelihood — Imperial Method 2 (backcalculation from deaths)
+# ### Deaths likelihood — Method 2 (Imperial Method 2, backcalculation from deaths)
+#
+# The death convolution is integrated against the latent growth
+# trajectory and weighted by the case-fatality ratio. The dispersion
+# `k` is supplied by the composer rather than sampled inside, so it
+# can be shared with the cases likelihood.
 
 @model function deaths_model(
         total_deaths::Union{Missing, Integer},
-        C_T::Real, r::Real, T::Real;
-        delay      = delay_model(),
-        cfr        = cfr_model(),
-        dispersion = deaths_dispersion_model())
+        growth_state, k::Real;
+        delay = delay_model(),
+        cfr   = cfr_model())
 
-    delay_state      ~ to_submodel(delay, false)
-    cfr_state        ~ to_submodel(cfr, false)
-    dispersion_state ~ to_submodel(dispersion, false)
+    C_T = growth_state.C_T
+    r   = growth_state.r
+    T   = growth_state.T
+
+    delay_state ~ to_submodel(delay, false)
+    cfr_state   ~ to_submodel(cfr, false)
 
     α   = delay_state.α
     θ   = delay_state.θ
     CFR = cfr_state.CFR
-    k_d = dispersion_state.k_d
 
     raw_deaths         = expected_deaths(CFR, r, T, α, θ)
     expected_deaths_T := isfinite(raw_deaths) ?
         max(raw_deaths, eps(typeof(raw_deaths))) :
         eps(typeof(raw_deaths))
 
-    p_nb_d_raw = k_d / (k_d + expected_deaths_T)
+    p_nb_d_raw = k / (k + expected_deaths_T)
     p_nb_d = isfinite(p_nb_d_raw) ?
-        clamp(p_nb_d_raw, eps(typeof(k_d)), one(k_d) - eps(typeof(k_d))) :
-        eps(typeof(k_d))
-    total_deaths ~ NegativeBinomial(k_d, p_nb_d)
+        clamp(p_nb_d_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
+        eps(typeof(k))
+    total_deaths ~ NegativeBinomial(k, p_nb_d)
 
-    return (; α, θ, CFR, k_d, expected_deaths_T)
+    return (; α, θ, CFR, expected_deaths_T)
+end
+
+# ### Cases likelihood — Extension beyond Imperial (ascertainment)
+#
+# Imperial Methods 1 and 2 use exports and deaths only. Reported
+# suspected cases from the same passive-surveillance system carry
+# information about `C_T` once an ascertainment fraction is
+# introduced:
+#
+# ```math
+# \mu_c = p_{\text{report}} \cdot C_T,
+# \qquad
+# Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_c,\ k).
+# ```
+#
+# The reporting-delay convolution is deferred to v2 (issue #5). The
+# dispersion `k` is shared with the deaths likelihood through the
+# composer.
+
+@model function cases_model(
+        reported_cases::Union{Missing, Integer},
+        growth_state, k::Real;
+        ascertainment = ascertainment_model())
+
+    C_T = growth_state.C_T
+
+    asc_state ~ to_submodel(ascertainment, false)
+    p_report  = asc_state.p_report
+
+    raw_reports        = p_report * C_T
+    expected_reports := isfinite(raw_reports) ?
+        max(raw_reports, eps(typeof(raw_reports))) :
+        eps(typeof(raw_reports))
+
+    p_nb_c_raw = k / (k + expected_reports)
+    p_nb_c = isfinite(p_nb_c_raw) ?
+        clamp(p_nb_c_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
+        eps(typeof(k))
+    reported_cases ~ NegativeBinomial(k, p_nb_c)
+
+    return (; p_report, expected_reports)
 end
 
 # ## Top-level composers
 #
-# Three thin composer models stitch the building blocks together,
-# each mapping onto one analysis from the Imperial report.
+# Thin composer models stitch the submodels together: per-stream
+# fits for exports, deaths and reported cases, plus the joint fit.
+# The joint composer samples a single `surveillance_dispersion_model`
+# and passes that same `k` to both deaths and cases likelihoods, so
+# they share one passive-surveillance noise scale.
 
 # ### Exports-only fit — Imperial Method 1 analogue
 
@@ -376,8 +442,7 @@ end
 
     growth_state ~ to_submodel(growth, false)
     exports_state ~ to_submodel(
-        exports(exported_cases,
-                growth_state.cumulative, growth_state.T), false)
+        exports(exported_cases, growth_state), false)
 
     cumulative_cases := growth_state.C_T
 end
@@ -386,33 +451,60 @@ end
 
 @model function deaths_only_model(
         total_deaths::Union{Missing, Integer};
-        growth = exponential_growth_model(),
-        deaths = deaths_model)
+        growth     = exponential_growth_model(),
+        deaths     = deaths_model,
+        dispersion = surveillance_dispersion_model())
 
-    growth_state ~ to_submodel(growth, false)
+    growth_state     ~ to_submodel(growth, false)
+    dispersion_state ~ to_submodel(dispersion, false)
+    k = dispersion_state.k
+
     deaths_state ~ to_submodel(
-        deaths(total_deaths, growth_state.C_T,
-               growth_state.r,  growth_state.T), false)
+        deaths(total_deaths, growth_state, k), false)
 
     cumulative_cases := growth_state.C_T
 end
 
-# ### Joint fit — both data streams, single posterior over `C_T`
+# ### Cases-only fit — ascertainment extension (no Imperial counterpart)
+
+@model function cases_only_model(
+        reported_cases::Union{Missing, Integer};
+        growth     = exponential_growth_model(),
+        cases      = cases_model,
+        dispersion = surveillance_dispersion_model())
+
+    growth_state     ~ to_submodel(growth, false)
+    dispersion_state ~ to_submodel(dispersion, false)
+    k = dispersion_state.k
+
+    cases_state ~ to_submodel(
+        cases(reported_cases, growth_state, k), false)
+
+    cumulative_cases := growth_state.C_T
+end
+
+# ### Joint fit — full posterior over `C_T` from all data streams
 
 @model function bvd_joint(
         exported_cases::Union{Missing, Integer},
-        total_deaths::Union{Missing, Integer};
-        growth  = exponential_growth_model(),
-        exports = exports_model,
-        deaths  = deaths_model)
+        total_deaths::Union{Missing, Integer},
+        reported_cases::Union{Missing, Integer} = missing;
+        growth     = exponential_growth_model(),
+        exports    = exports_model,
+        deaths     = deaths_model,
+        cases      = cases_model,
+        dispersion = surveillance_dispersion_model())
 
-    growth_state ~ to_submodel(growth, false)
+    growth_state     ~ to_submodel(growth, false)
+    dispersion_state ~ to_submodel(dispersion, false)
+    k = dispersion_state.k
+
     exports_state ~ to_submodel(
-        exports(exported_cases,
-                growth_state.cumulative, growth_state.T), false)
+        exports(exported_cases, growth_state), false)
     deaths_state ~ to_submodel(
-        deaths(total_deaths, growth_state.C_T,
-               growth_state.r,  growth_state.T), false)
+        deaths(total_deaths, growth_state, k), false)
+    cases_state ~ to_submodel(
+        cases(reported_cases, growth_state, k), false)
 
     cumulative_cases := growth_state.C_T
 end
@@ -420,11 +512,12 @@ end
 # ## Prior predictive check
 #
 # Before either observation is taken into account, what does the
-# joint prior imply about replicated exports and deaths? Draws from
-# the prior over the unobserved data; should bracket the observed
-# `Y = 2` exports and `D = 88` deaths.
+# joint prior imply about replicated exports, deaths and reported
+# cases? Draws from the prior over the unobserved data should bracket
+# the observed `Y = 2` exports, `D = 130` deaths and `C = 500`
+# reported suspected cases.
 
-prior_chn = sample(bvd_joint(missing, missing), Prior(), 2_000;
+prior_chn = sample(bvd_joint(missing, missing, missing), Prior(), 2_000;
                    progress = false)
 println("Prior C_T summary:")
 println(summary_table(prior_chn, [:cumulative_cases]; digits = 0))
@@ -436,49 +529,71 @@ println(summary_table(prior_chn, [:cumulative_cases]; digits = 0))
 # to keep the sampler away from the boundary of `r` and `m`.
 
 chn_joint = nuts_sample(
-    bvd_joint(obs.exported_cases, obs.total_deaths))
+    bvd_joint(obs.exported_cases, obs.total_deaths, obs.reported_cases))
 
-# Also fit the two single-stream models so the three posteriors can
+# Also fit the three single-stream models so the four posteriors can
 # be compared side by side.
 
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases))
 chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths))
+chn_cases   = nuts_sample(cases_only_model(obs.reported_cases))
 
 # ## Posterior summary
 
 posterior_C_joint   = vec(Array(chn_joint[:cumulative_cases]))
 posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]))
 posterior_C_deaths  = vec(Array(chn_deaths[:cumulative_cases]))
+posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]))
 
 println("Joint posterior summary:")
 println(summary_table(chn_joint,
-        [:r, :m, :T, :CFR, :cumulative_cases]; digits = 2))
+        [:r, :m, :T, :CFR, :p_report, :cumulative_cases]; digits = 2))
 
 println()
 println("C_T by data stream:")
 println(streams_table(
     "exports-only" => posterior_C_exports,
     "deaths-only"  => posterior_C_deaths,
+    "cases-only"   => posterior_C_cases,
     "joint"        => posterior_C_joint))
 
 # ## Posterior predictive
 #
-# Draw replicated `(exports, deaths)` from the fitted posterior so
-# the two observation streams can be checked against the data they
-# were fitted to.
+# Replicated observations from each fit, checked against the
+# corresponding observed counts.
 
-pp_chn     = predict(bvd_joint(missing, missing), chn_joint)
+# Exports-only fit: one panel for the exported case stream.
+
+pp_exports_chn  = predict(exports_only_model(missing), chn_exports)
+pp_exports_only = vec(Array(pp_exports_chn[:exported_cases]))
+plot_posterior_predictive(pp_exports_only, nothing,
+                          obs.exported_cases, nothing)
+
+# Deaths-only fit: one panel for cumulative deaths.
+
+pp_deaths_chn  = predict(deaths_only_model(missing), chn_deaths)
+pp_deaths_only = vec(Array(pp_deaths_chn[:total_deaths]))
+plot_posterior_predictive(nothing, pp_deaths_only,
+                          nothing, obs.total_deaths)
+
+# Joint fit: three panels covering exports, deaths and reported cases.
+
+pp_chn     = predict(bvd_joint(missing, missing, missing), chn_joint)
 pp_exports = vec(Array(pp_chn[:exported_cases]))
 pp_deaths  = vec(Array(pp_chn[:total_deaths]))
+pp_cases   = vec(Array(pp_chn[:reported_cases]))
 
 plot_posterior_predictive(pp_exports, pp_deaths,
-                          obs.exported_cases, obs.total_deaths)
+                          obs.exported_cases, obs.total_deaths;
+                          pp_cases = pp_cases,
+                          obs_cases = obs.reported_cases)
 
 # ## Overlaid posterior densities for `C_T`
 
 plot_cumulative_cases(
     "exports-only" => posterior_C_exports,
     "deaths-only"  => posterior_C_deaths,
+    "cases-only"   => posterior_C_cases,
     "joint"        => posterior_C_joint)
 
 # ## Counterfactual: lower bound under no further transmission

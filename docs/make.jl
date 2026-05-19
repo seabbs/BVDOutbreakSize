@@ -29,12 +29,6 @@ Literate.markdown(
     credit  = false,
 )
 
-# Citation processing through DocumenterCitations
-bib = CitationBibliography(
-    joinpath(@__DIR__, "src", "refs.bib");
-    style = :authoryear,
-)
-
 # References page sourced from refs.bib through `@bibliography`.
 open(joinpath(LITERATE_OUT, "references.md"), "w") do io
     println(io, "# References")
