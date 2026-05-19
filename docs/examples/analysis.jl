@@ -314,6 +314,15 @@ end
 # In the small-`p` regime here (`p ≈ 6 × 10⁻³`) Poisson and Binomial
 # coincide to within numerical noise, so we use Poisson and avoid
 # the extra `N`-as-integer machinery.
+#
+# **Daily traveller prior.** Imperial Table 3 records mean weekly
+# passenger counts across seven PoEs from one to four weekly sitreps
+# per PoE. The Ituri-side daily total of 1871 is then a sample mean
+# across roughly 15-21 PoE-weeks. The prior here is a Normal centred
+# on 1871 with SD 200 (≈ 10% CV), truncated at zero. The SD covers
+# point-of-entry-to-point-of-entry variation and the sampling
+# uncertainty implicit in the sitrep schedule; source population is
+# kept fixed (census).
 
 @model function exports_model(
         exported_cases::Union{Missing, Integer},
