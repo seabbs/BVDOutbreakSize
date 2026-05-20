@@ -19,7 +19,7 @@ import MCMCChains
 import FlexiChains
 using DocStringExtensions
 using Distributions: Gamma, cdf, ccdf, mgf, pdf, Poisson, NegativeBinomial
-using Integrals: IntegralProblem, GaussLegendre, solve
+using Integrals: IntegralProblem, GaussLegendre, QuadGKJL, solve
 import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
@@ -238,6 +238,18 @@ person-time export integral and the deaths-among-exports convolution
 """
 const CUMULATIVE_INTEGRAL_ALG = GaussLegendre(; n = 32)
 
+"""
+    GAMMA_CDF_ADJ_INTEGRAL_ALG
+
+Adaptive Gauss–Kronrod quadrature (`QuadGKJL`) used in the adjoint
+computation of the gamma CDF (the `α`-partial integral inside
+`_gamma_cdf`'s rrule). Adaptive rather than fixed-node Gauss-Legendre
+because NUTS trajectories can land at `α < 1`, where the integrand
+`t^{α-1} e^{-t} log t` is singular at `t = 0` and fixed-node quadrature
+loses accuracy.
+"""
+const GAMMA_CDF_ADJ_INTEGRAL_ALG = QuadGKJL()
+
 _integrate_kernel(u, p) = p.f(p.halfwidth * (u + 1) + p.lo)
 
 """
@@ -318,7 +330,8 @@ function _gamma_cdf_partials(α, θ, x)
     P      = first(gamma_inc(α, y))
     integrand = t -> t > zero(t) ?
         t^(α - 1) * exp(-t) * log(t) : zero(t)
-    I      = integrate(integrand, zero(y), y; alg = CUMULATIVE_INTEGRAL_ALG)
+    I      = integrate(integrand, zero(y), y;
+                       alg = GAMMA_CDF_ADJ_INTEGRAL_ALG)::Float64
     df_dα  = -digamma(α) * P + I / SpecialFunctions.gamma(α)
     return df_dα, df_dθ, df_dx
 end
@@ -327,10 +340,10 @@ function ChainRulesCore.rrule(::typeof(_gamma_cdf),
         α::Real, θ::Real, x::Real)
     y = _gamma_cdf(α, θ, x)
     dα, dθ, dx = _gamma_cdf_partials(α, θ, x)
-    pullback = let dα = dα, dθ = dθ, dx = dx
-        ȳ -> (NoTangent(), ȳ * dα, ȳ * dθ, ȳ * dx)
+    function _gamma_cdf_pullback(ȳ)
+        return (NoTangent(), dα' * ȳ, dθ' * ȳ, dx' * ȳ)
     end
-    return y, pullback
+    return y, _gamma_cdf_pullback
 end
 
 Mooncake.@from_rrule Mooncake.DefaultCtx Tuple{typeof(_gamma_cdf), Float64, Float64, Float64}
