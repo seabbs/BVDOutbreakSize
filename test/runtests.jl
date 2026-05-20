@@ -1,6 +1,6 @@
 using Test
 import BVDOutbreakSize
-using BVDOutbreakSize: REPORT_SCENARIOS,
+using BVDOutbreakSize: REPORT_SCENARIOS, expected_deaths,
                        summary_table, posterior_summary,
                        fit_diagnostics, diagnostics_table,
                        streams_table, comparison_table,
@@ -9,15 +9,24 @@ using BVDOutbreakSize: REPORT_SCENARIOS,
                        plot_cumulative_cases,
                        plot_prior_predictive,
                        plot_posterior_predictive, plot_pair,
-                       forecast_reported, forecast_table, plot_forecast
+                       forecast_reported, forecast_table, plot_forecast,
+                       predict_no_onward_deaths, plot_no_onward_deaths
 using ADTypes: AutoMooncake
+import CairoMakie
+using ChainRulesTestUtils: test_rrule
 using DataFrames: DataFrame, nrow
-using Distributions: Normal
+using Distributions: Beta, Gamma, NegativeBinomial, Normal, Poisson
+using Distributions: pdf, truncated
+using Integrals: IntegralProblem, GaussLegendre, solve
+using JET: test_opt
+using Mooncake: Mooncake
 using Random: MersenneTwister
-using Turing: Turing, @model, sample, Prior
+using Statistics: quantile
+using StatsFuns: logit, logistic
+using Turing: Turing, @model, sample, Prior, to_submodel
 import MCMCChains
 using MCMCChains: Chains
-import CairoMakie
+
 
 # Make sure Makie does not try to open a screen.
 CairoMakie.activate!(type = "png")

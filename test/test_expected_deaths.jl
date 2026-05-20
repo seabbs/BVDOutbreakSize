@@ -1,29 +1,41 @@
 ## Tests for the analytic Gamma method of `expected_deaths`.
 
-using Distributions: Gamma
-using Mooncake: Mooncake
-using BVDOutbreakSize: expected_deaths
+using ChainRulesTestUtils: test_rrule
+using JET: test_opt
+import BVDOutbreakSize
 
-@testset "expected_deaths Gamma analytic matches integration" begin
-    CFR, r, T, α, θ = 0.3, 0.05, 30.0, 4.3, 2.6
-    dist = Gamma(α, θ)
-    analytic = expected_deaths(CFR, r, T, dist)
-    numerical = invoke(expected_deaths,
-                       Tuple{Any, Any, Any, Any},
-                       CFR, r, T, dist)
-    @test analytic ≈ numerical rtol = 1e-6
-end
+# Reference parameter values. α, θ match the Gamma onset-to-death
+# prior means; CFR, r, T are mid-run state. x_cdf is the CDF argument
+# that expected_deaths(::Gamma) actually feeds to `_gamma_cdf`,
+# i.e. T*(1 + θ*r) — testing at this point keeps the AD checks
+# aligned with the path the sampler will exercise.
+let α = 4.3, θ = 2.6, CFR = 0.3, r = 0.05, T = 30.0,
+    x_cdf = T * (1 + θ * r)
 
-@testset "Mooncake AD on expected_deaths Gamma method matches FD" begin
-    CFR, r, T = 0.3, 0.05, 30.0
-    f = (α, θ) -> expected_deaths(CFR, r, T, Gamma(α, θ))
-    α, θ = 4.3, 2.6
-    rule = Mooncake.build_rrule(f, α, θ)
-    val, grads = Mooncake.value_and_gradient!!(rule, f, α, θ)
-    h = 1e-5
-    fd_α = (f(α + h, θ) - f(α - h, θ)) / (2h)
-    fd_θ = (f(α, θ + h) - f(α, θ - h)) / (2h)
-    @test val ≈ f(α, θ)
-    @test grads[2] ≈ fd_α rtol = 1e-6
-    @test grads[3] ≈ fd_θ rtol = 1e-6
+    @testset "expected_deaths Gamma analytic matches integration" begin
+        dist = Gamma(α, θ)
+        analytic = expected_deaths(CFR, r, T, dist)
+        numerical = invoke(expected_deaths,
+                           Tuple{Any, Any, Any, Any},
+                           CFR, r, T, dist) #avoid the analytic method dispatch
+        @test analytic ≈ numerical rtol = 1e-6
+    end
+
+    # This is superceded by Mooncake.TestUtils.test_rule since
+    # that tests the macro converted rrule!! used by Mooncake
+    # But we keep it here for now
+    test_rrule(BVDOutbreakSize._gamma_cdf, α, θ, x_cdf; rtol = 1e-7)
+
+    # Found type-stability issue in `_gamma_cdf` and left here
+    # to check against future regressions.
+    test_opt(BVDOutbreakSize._gamma_cdf, (Float64, Float64, Float64);
+             target_modules = (BVDOutbreakSize,))
+
+    Mooncake.TestUtils.test_rule(
+        MersenneTwister(20260520),
+        BVDOutbreakSize._gamma_cdf, α, θ, x_cdf;
+        is_primitive = true,
+        perf_flag    = :none,
+        mode         = Mooncake.ReverseMode,
+    )
 end

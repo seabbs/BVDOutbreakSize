@@ -2,11 +2,6 @@
 ## synthetic chain carrying the parameters `forecast_reported` reads,
 ## then checks the returned DataFrame contract.
 
-using DataFrames: DataFrame, nrow
-using Distributions: Normal, Gamma, Beta, truncated
-using Turing: Turing, @model, sample, Prior
-import MCMCChains
-
 @model function _forecast_test()
     r          ~ truncated(Normal(0.05, 0.01); lower = 1e-3)
     T          ~ truncated(Normal(100.0, 10.0); lower = 1.0)

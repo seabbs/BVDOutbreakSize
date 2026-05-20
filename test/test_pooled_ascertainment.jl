@@ -3,11 +3,6 @@
 ## recreate the minimal set here to keep the tests self-contained
 ## and avoid a dependency on the doc-build pipeline.
 
-using Distributions: Normal, truncated
-using StatsFuns: logit, logistic
-using Turing: Turing, @model, sample, Prior, to_submodel
-import MCMCChains
-
 @model function _pooled_test(;
         mu_prior  = Normal(logit(0.25), 1.0),
         tau_prior = truncated(Normal(0.0, 0.5); lower = 1e-4))

@@ -2,8 +2,6 @@
 ## are produced in the documented order and match `Statistics.quantile`
 ## on a known vector.
 
-using Statistics: quantile
-
 @testset "posterior_summary returns six fields in documented order" begin
     xs = collect(0.0:0.01:1.0)
     s = posterior_summary(xs)

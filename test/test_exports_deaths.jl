@@ -3,12 +3,6 @@
 ## minimal set here to keep the tests self-contained and avoid a
 ## dependency on the doc-build pipeline.
 
-using Distributions: Gamma, Normal, Poisson, Beta, pdf, truncated
-using Integrals: IntegralProblem, GaussLegendre, solve
-using StatsFuns: logit, logistic
-using Turing: Turing, @model, sample, Prior, to_submodel
-import MCMCChains
-
 const _XD_ALG = GaussLegendre(; n = 32)
 
 function _xd_cdf_integrand(u, p)
