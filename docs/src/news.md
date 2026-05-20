@@ -6,6 +6,13 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
+## Unreleased
+
+- First-export-death and first-export-detection timing terms: one-sided
+  survival likelihoods on the reliable Uganda admission and death dates
+  that bound the elapsed time `T`. Off by default; enabled by supplying
+  the dates in `data/observations.toml`.
+
 ## v1.0.0
 
 First release.

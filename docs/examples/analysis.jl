@@ -952,10 +952,10 @@ end
 #
 # Uganda's single death among its detected exports is point-of-entry /
 # hospital-detected, so the *date* it occurred is reliable. That date
-# carries information beyond the count: had the outbreak begun earlier (larger
-# $T$), more at-risk export person-time would have accrued before the
-# death date, so a death would have been expected sooner. Observing none
-# before the recorded date therefore bounds $T$ from above.
+# carries information beyond the count. Had the outbreak begun earlier
+# (larger $T$), more at-risk export person-time would have accrued
+# before the death date, so a death would have been expected sooner.
+# Observing none before the recorded date therefore bounds $T$ from above.
 #
 # We treat detected export deaths as an inhomogeneous Poisson process
 # with cumulative intensity $\mathbb{E}[D_{\text{uganda}}(t)]$
@@ -1434,7 +1434,7 @@ diagnostics_table( #hide
 #
 # ```math
 # \Delta D = \mathrm{CFR} \cdot \int_0^T r\,\exp(r\,s)
-#            \,\bigl(1 - F_d(T - s)\bigr)\,ds, \tag{21}
+#            \,\bigl(1 - F_d(T - s)\bigr)\,ds, \tag{23}
 # ```
 #
 # and a lower bound on the cumulative-death endpoint of
@@ -1477,7 +1477,7 @@ diagnostics_table( #hide
 #
 # ```math
 # \alpha \sim \mathrm{Normal}^{+}(5.6,\ 6.35), \qquad
-# \theta \sim \mathrm{Normal}^{+}(1.4,\ 2.35). \tag{22}
+# \theta \sim \mathrm{Normal}^{+}(1.4,\ 2.35). \tag{24}
 # ```
 #
 # The comparison shows how sensitive the
@@ -1485,7 +1485,7 @@ diagnostics_table( #hide
 #
 # !!! warning "Sensitivity only, not a preferred estimate"
 #     The community-only delay is fitted from $n = 5$ deaths, so the
-#     evidence is weak and the priors in equation (22) are very wide.
+#     evidence is weak and the priors in equation (24) are very wide.
 #     This section is included to probe sensitivity, not as a preferred
 #     alternative to the baseline.
 #
