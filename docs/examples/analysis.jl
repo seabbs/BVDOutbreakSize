@@ -1,4 +1,4 @@
-# # Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
+# # Estimating the current size of the 2026 DRC Bundibugyo virus outbreak: a joint Bayesian re-analysis of the McCabe et al. report
 #
 # **Authors.** Sam Abbott, Samuel Brand and Sebastian Funk.
 #
@@ -240,13 +240,35 @@ observations_table #hide
 #
 # #### Model overview
 #
-# The model is assembled from small reusable Turing submodels rather
-# than written as one monolithic block. Each *building-block submodel*
-# owns the maths and priors for one epidemic parameter family. The
-# *observation submodels* assemble those blocks, introduce the forward
-# integrals and the likelihoods, and tie one data stream to the latent
-# state. The *composers* glue the observation submodels into the
-# per-stream fits and the joint fit. The diagram below traces that flow:
+# We model a single outbreak seeded by one zoonotic introduction that
+# then grows exponentially, so the cumulative number of people ever
+# infected by outbreak age $s$ is $C(s) = \exp(r s)$, set by a growth
+# rate $r$ (equivalently a doubling time). We never observe infections
+# directly. Instead each available data stream observes a thinned,
+# delayed or transformed view of that same latent incidence curve:
+#
+# - **Reported cases in the DRC** — an ascertained fraction of the
+#   cumulative cases.
+# - **Suspected deaths in the DRC** — the case fatality ratio applied
+#   to past incidence, convolved with the onset-to-death delay.
+# - **Cases exported to Uganda** — the fraction of recent cases that
+#   crossed the border, set by the travel rate and a detection window.
+# - **Deaths among exported cases** — those exported cases weighted by
+#   their probability of having died by now.
+#
+# Fitting all four streams together gives the posterior for the latent
+# cumulative case count $C(T)$ at the report date $T$ — the quantity we
+# care about — while sharing the growth, delay, fatality and
+# ascertainment parameters across the streams that depend on them.
+#
+# In implementation terms, the model is assembled from small reusable
+# Turing submodels rather than written as one monolithic block. Each
+# *building-block submodel* owns the maths and priors for one epidemic
+# parameter family. The *observation submodels* assemble those blocks,
+# introduce the forward integrals and the likelihoods, and tie one data
+# stream to the latent state. The *composers* glue the observation
+# submodels into the per-stream fits and the joint fit. The diagram
+# below traces that flow:
 #
 # ```mermaid
 # flowchart TD
@@ -1225,8 +1247,12 @@ posterior_C_exports_deaths =
 #
 # ### Summary
 #
-# The headline numbers below are computed from the current joint
-# posterior, so they refresh on every build.
+# For the response the question that matters is how many people have
+# already been infected: the reported counts capture only part of the
+# outbreak, and planning for beds, contacts and vaccine needs depends
+# on the true total. The numbers below are our current best estimate of
+# that total, computed from the joint posterior and refreshed on every
+# build.
 
 let
     C     = posterior_C_joint

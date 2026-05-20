@@ -1,4 +1,4 @@
-# Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
+# Estimating the current size of the 2026 DRC Bundibugyo virus outbreak: a joint Bayesian re-analysis of the McCabe et al. report
 
 **Authors:** Sam Abbott, Samuel Brand and Sebastian Funk.
 
