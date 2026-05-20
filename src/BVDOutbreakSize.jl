@@ -20,7 +20,8 @@ import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
-using CairoMakie: Figure, Axis, hist!, density!, vlines!
+using CairoMakie: Figure, Axis, hist!, density!, vlines!,
+                  lines!, scatter!
 
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
@@ -35,7 +36,7 @@ export REPORT_SCENARIOS,
        integrate_cumulative, integrate_exports_deaths,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
-       plot_pair, plot_start_date_pair,
+       plot_pair, plot_start_date_pair, plot_estimate_comparison,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast
 
@@ -650,6 +651,43 @@ function plot_pair(chn, params::AbstractVector{Symbol};
         PairPlots.Series(_table(prior); label = "Prior",
                          color = colours[2]),
     )
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Horizontal point-and-interval comparison of cumulative-case estimates
+from several sources. `rows` is a vector of
+`(label, central, lower, upper)` tuples, drawn top to bottom with the
+central estimate as a point and `[lower, upper]` as a bar. Use it to
+place model posteriors next to published point estimates and their
+intervals.
+"""
+function plot_estimate_comparison(
+        rows::AbstractVector;
+        xlabel::AbstractString = "Cumulative cases C(T)",
+        xmax::Union{Nothing, Real} = nothing)
+    n       = length(rows)
+    labels  = [String(r[1]) for r in rows]
+    central = [float(r[2])  for r in rows]
+    lo      = [float(r[3])  for r in rows]
+    hi      = [float(r[4])  for r in rows]
+    top     = isnothing(xmax) ? maximum(hi) * 1.08 : xmax
+
+    fig = Figure(; size = (840, 120 + 46n))
+    ax = Axis(fig[1, 1];
+        xlabel = xlabel,
+        yticks = (collect(1:n), reverse(labels)),
+        limits = ((0, top), (0.5, n + 0.5)),
+    )
+    for i in 1:n
+        y = n - i + 1
+        lines!(ax, [lo[i], hi[i]], [y, y];
+               color = (:steelblue, 0.8), linewidth = 3)
+        scatter!(ax, [central[i]], [y];
+                 color = :firebrick, markersize = 12)
+    end
+    return fig
 end
 
 """

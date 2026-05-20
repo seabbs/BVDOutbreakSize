@@ -133,11 +133,11 @@ this repository depends on:
 
 ## Further references
 
-- Rosello et al., *Ebola virus disease in DRC, 1976–2014*, eLife
-  2015. Original Isiro 2012 onset-to-death gamma point estimate.
+- Rosello et al., *Ebola virus disease in DRC, 1976–2014*, eLife 2015.
+  Original Isiro 2012 onset-to-death gamma point estimate.
 - Imai et al., *Estimating the potential total number of novel
   coronavirus cases in Wuhan City*, Imperial COVID-19 Response Team
   Report 1, 17 January 2020. Methodological template for Method 1.
 - Charniga et al., *Best practices for estimating and reporting
-  epidemiological delay distributions*, PLOS Computational Biology
-  2024. Followed for the delay-distribution reporting here.
+  epidemiological delay distributions*, PLOS Computational Biology 2024.
+  Followed for the delay-distribution reporting here.

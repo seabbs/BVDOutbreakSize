@@ -69,6 +69,16 @@ end
     @test obj !== nothing
 end
 
+@testset "plot_estimate_comparison returns a Makie figure" begin
+    rows = [
+        ("Source A", 313, 39, 870),
+        ("Source B", 501, 402, 612),
+        ("Our model", 240, 150, 400),
+    ]
+    fig = plot_estimate_comparison(rows)
+    @test fig isa CairoMakie.Makie.Figure
+end
+
 @testset "plot_start_date_pair returns a Makie figure" begin
     rng = MersenneTwister(16)
     n = 200

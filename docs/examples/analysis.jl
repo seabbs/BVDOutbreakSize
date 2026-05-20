@@ -94,9 +94,9 @@
 # ## Limitations
 #
 # - *Fitted only to aggregate reported counts.* The data are a
-#   handful of summary figures — total suspected cases, total
-#   suspected deaths, and cases (and one death) detected in Uganda —
-#   from press and situation reports. There is no line list and no
+#   handful of summary figures — total suspected cases in the DRC,
+#   total suspected deaths in the DRC, and cases (and one death)
+#   detected in Uganda — from press and situation reports. There is no line list and no
 #   temporal information: no onset dates, no epidemic curve, no
 #   per-case data. The model also has no knowledge of the situation
 #   on the ground (case definitions, testing capacity, affected
@@ -167,6 +167,8 @@ using StatsFuns: logit, logistic
 using DataFrames: DataFrame
 import CSV
 using Random
+using Markdown
+using Dates: Date, Day
 using BVDOutbreakSize
 using BVDOutbreakSize: integrate_cumulative, integrate_exports_deaths,
                        expected_deaths
@@ -1221,6 +1223,30 @@ posterior_C_exports_deaths =
 
 # ## Results
 #
+# ### Summary
+#
+# The headline numbers below are computed from the current joint
+# posterior, so they refresh on every build.
+
+let
+    C     = posterior_C_joint
+    c_med = round(Int, quantile(C, 0.5))
+    c_lo  = round(Int, quantile(C, 0.05))
+    c_hi  = round(Int, quantile(C, 0.95))
+    T_med = round(Int, quantile(vec(Array(chn_joint[:T])), 0.5))
+    start = Date(obs.as_of_date) - Day(T_med)
+    factor = round(c_med / obs.reported_cases; digits = 1)
+    Markdown.parse("""
+    - **Current cumulative case load:** about $c_med cases
+      (90% CrI $c_lo–$c_hi), combining all four data streams. This counts
+      both reported and as-yet-unreported cases.
+    - That is roughly $(factor)× the $(obs.reported_cases) cases reported
+      to date, so most infections are not yet in the reported counts.
+    - **Time since seeding:** about $T_med days, placing the start of
+      sustained transmission around $start.
+    """)
+end
+
 # ### Joint model estimates
 #
 # Our main result is an estimate of the current cumulative case load —
@@ -1634,29 +1660,34 @@ cumulative_density_fig = plot_cumulative_cases(
 
 cumulative_density_fig #hide
 
-# ### Imperial comparison
+# ### Comparison with McCabe et al.
 #
-# How does the joint posterior sit against what Imperial actually
-# reported? The table below compares Imperial's two main scenarios
-# (Method 1 Ituri w=15 d, and Method 2 τ=14 d / CFR 30%) against the
-# joint posterior. Imperial's 95% intervals are the exact NegBinomial
-# CIs (Method 1) and Poisson CIs (Method 2) reported in Tables 1 and 2
-# of the report. The "Our model | Imperial main assumptions" row is
-# filled in by the sense check below.
+# How does our joint posterior sit against what McCabe et al.
+# [mccabe2026](@cite) reported, and how much of any difference is the
+# method rather than the newer data? To separate the two we also fit
+# our full joint model to the report's own data snapshot (16 May 2026,
+# from `data/report-snapshot.toml`), so the only thing that changes
+# between that fit and our headline fit is the data.
 
 #md # ```@raw html
-#md # <details><summary>Run the Imperial sense-check fit</summary>
+#md # <details><summary>Fit our model to the report-date data, and run the Method 2 reproduction</summary>
 #md # ```
 
-# The sense check (next section) recovers Imperial's Method 2 headline
-# by fixing the Imperial-exact composer to Imperial's central
-# assumptions. We run it here so its $C(T)$ estimate can join the
-# comparison table.
-# Method 2 reports Poisson intervals, i.e. no overdispersion (k → ∞).
-# We approximate that by fixing inv_sqrt_k to a small positive value
-# (k ≈ 1e6, indistinguishable from Poisson for these counts). Fixing it
-# to exactly 0 gives k = 1/eps ≈ 4.5e15, where the NegBinomial
-# saturates and reverse-mode AD returns NaN gradients.
+obs_report = load_observations(
+    joinpath(pkgdir(BVDOutbreakSize), "data", "report-snapshot.toml"));
+
+chn_joint_report = nuts_sample(
+    bvd_joint(obs_report.exported_cases, obs_report.total_deaths,
+              obs_report.reported_cases, obs_report.exports_deaths));
+posterior_C_joint_report =
+    vec(Array(chn_joint_report[:cumulative_cases]));
+
+# McCabe et al. Method 2 reports Poisson intervals (no overdispersion,
+# k → ∞). We reproduce it by fixing the exports-and-deaths composer to
+# their Method 2 central assumptions and dropping exports. inv_sqrt_k
+# is fixed to a small positive value (k ≈ 1e6, Poisson-like) because
+# exactly 0 gives k ≈ 4.5e15, where the NegBinomial saturates and
+# reverse-mode AD returns NaN gradients.
 imperial_fixed = Turing.fix(
     imperial_only_model(missing, 88),       # exports missing → pure Method 2
     (τ = 14.0, CFR = 0.30, α = 4.42, θ = 1/0.388,
@@ -1665,33 +1696,56 @@ imperial_fixed = Turing.fix(
 chn_imperial = nuts_sample(imperial_fixed);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 
+# The plot places each estimate of $C(T)$ on one axis: the central
+# estimate as a point, the 90% interval as a bar. The top two rows are
+# McCabe et al.'s published headline scenarios with their reported
+# intervals; the lower rows are our Method 2 reproduction, our joint
+# fit to the report's data, and our joint fit to the current data.
+
+#md # ```@raw html
+#md # <details><summary>Build the comparison</summary>
+#md # ```
+
+joint_C_credibles        = posterior_summary(posterior_C_joint)
+joint_report_C_credibles = posterior_summary(posterior_C_joint_report)
+imperial_C_credibles     = posterior_summary(posterior_C_imperial)
+
+comparison_rows = [
+    ("McCabe Method 1 (Ituri, w=15 d)",   313, 39, 870),
+    ("McCabe Method 2 (τ=14 d, CFR 30%)", 501, 402, 612),
+    ("Our Method 2 reproduction",
+        round(Int, quantile(posterior_C_imperial, 0.5)),
+        round(Int, imperial_C_credibles.lo90),
+        round(Int, imperial_C_credibles.hi90)),
+    ("Our joint (report data, 16 May)",
+        round(Int, quantile(posterior_C_joint_report, 0.5)),
+        round(Int, joint_report_C_credibles.lo90),
+        round(Int, joint_report_C_credibles.hi90)),
+    ("Our joint (current data)",
+        round(Int, quantile(posterior_C_joint, 0.5)),
+        round(Int, joint_C_credibles.lo90),
+        round(Int, joint_C_credibles.hi90)),
+]
+
+comparison_fig = plot_estimate_comparison(comparison_rows);
+
 #md # ```@raw html
 #md # </details>
 #md # ```
 
+comparison_fig #hide
+
+# The same comparison as a table:
+
 #md # ```@raw html
-#md # <details><summary>Build the main comparison table</summary>
+#md # <details><summary>Comparison table</summary>
 #md # ```
 
-joint_C_credibles    = posterior_summary(posterior_C_joint)
-imperial_C_credibles = posterior_summary(posterior_C_imperial)
-
 main_comparison = DataFrame(
-    "Source" => [
-        "McCabe et al. Method 1 (Ituri, w=15 d)",
-        "McCabe et al. Method 2 (τ=14 d, CFR=30%)",
-        "Our model | McCabe et al. main assumptions",
-        "Our joint posterior",
-    ],
-    "Central estimate" => [313.0, 501.0,
-                   round(quantile(posterior_C_imperial, 0.5); digits = 0),
-                   round(quantile(posterior_C_joint,    0.5); digits = 0)],
-    "Lower 90%" => [39.0, 402.0,
-                 round(imperial_C_credibles.lo90; digits = 0),
-                 round(joint_C_credibles.lo90;    digits = 0)],
-    "Upper 90%" => [870.0, 612.0,
-                 round(imperial_C_credibles.hi90; digits = 0),
-                 round(joint_C_credibles.hi90;    digits = 0)],
+    "Source"           => [r[1] for r in comparison_rows],
+    "Central estimate" => [r[2] for r in comparison_rows],
+    "Lower 90%"        => [r[3] for r in comparison_rows],
+    "Upper 90%"        => [r[4] for r in comparison_rows],
 );
 
 #md # ```@raw html
@@ -1700,8 +1754,8 @@ main_comparison = DataFrame(
 
 main_comparison #hide
 
-# Joint posterior coverage of all 15 published Imperial scenarios —
-# for each scenario, the narrowest joint credible interval that
+# Joint posterior coverage of all 15 published McCabe et al. scenarios
+# — for each scenario, the narrowest joint credible interval that
 # contains it:
 
 #md # ```@raw html
@@ -1716,14 +1770,17 @@ coverage_table = comparison_table(posterior_C_joint);
 
 coverage_table #hide
 
-# The joint $C(T)$ density again, this time with the 15 published
-# Imperial scenario point estimates overlaid as faint dashed rules:
+# The joint $C(T)$ density with the 15 published scenario point
+# estimates overlaid as faint dashed rules, for both our current-data
+# fit and our fit to the report's data:
 
 #md # ```@raw html
-#md # <details><summary>Joint C_T density with Imperial scenarios</summary>
+#md # <details><summary>Joint C_T density with published scenarios</summary>
 #md # ```
 
-imperial_density_fig = plot_cumulative_cases("joint" => posterior_C_joint);
+imperial_density_fig = plot_cumulative_cases(
+    "joint (current data)" => posterior_C_joint,
+    "joint (report data)"  => posterior_C_joint_report);
 
 #md # ```@raw html
 #md # </details>
@@ -1731,25 +1788,36 @@ imperial_density_fig = plot_cumulative_cases("joint" => posterior_C_joint);
 
 imperial_density_fig #hide
 
-# ### Imperial report sense check
+# ### McCabe et al. report sense check
 #
-# A quick sanity check that the model can recover Imperial's Method 2
-# headline when given Imperial's inputs. The fit ran in the comparison
-# section above using the Imperial-exact composer `imperial_only_model`
-# with exports passed as `missing`, so only the deaths likelihood is
-# instantiated — Method 2 backcalculates outbreak size from deaths
-# alone. It is conditioned on Imperial's 16 May 2026 deaths snapshot
-# (88) and `Turing.fix`-pinned to the Method 2 main-scenario values
-# ($\tau = 14$ d, $\mathrm{CFR} = 30\%$, $\alpha = 4.42$,
-# $\beta = 0.388$/d), with the NegBinomial
-# dispersion pinned at `inv_sqrt_k = 0` so the deaths likelihood
-# collapses to Poisson — Imperial's actual choice (Table 2 reports
-# Poisson CIs). The only sampled latent is $m$, the number of doublings
-# since seeding; $C(T) = 2^m$. The same $m$ prior used in the joint fit
-# applies here without modification.
+# Does our machinery recover McCabe et al.'s Method 2 headline when
+# given their inputs? Their reported Method 2 central estimate is 501
+# cases. Our reproduction (run in the comparison above) drops exports
+# so only the deaths likelihood is instantiated, conditions on their
+# 16 May 2026 deaths snapshot (88), and `Turing.fix`-pins the Method 2
+# main-scenario values ($\tau = 14$ d, $\mathrm{CFR} = 30\%$,
+# $\alpha = 4.42$, $\beta = 0.388$/d), with the deaths NegBinomial
+# made Poisson-like. The only sampled latent is $m$, the number of
+# doublings since seeding ($C(T) = 2^m$). The number below should land
+# on their 501.
+
+let
+    rep = round(Int, quantile(posterior_C_imperial, 0.5))
+    lo  = round(Int, imperial_C_credibles.lo90)
+    hi  = round(Int, imperial_C_credibles.hi90)
+    delta = round(100 * (rep - 501) / 501; digits = 1)
+    Markdown.parse("""
+    Our reproduction: **$rep cases** (90% CrI $lo–$hi) against McCabe
+    et al.'s reported **501** — a difference of $delta%. A close match
+    confirms the deaths back-calculation is implemented as in the
+    report; the gap between this and our headline estimate is then
+    down to method (joint fit, exact convolution, sampled nuisance
+    parameters) and newer data, not a coding discrepancy.
+    """)
+end
 
 #md # ```@raw html
-#md # <details><summary>Imperial sense-check summary table</summary>
+#md # <details><summary>Sense-check summary table</summary>
 #md # ```
 
 imperial_summary = summary_table(chn_imperial,
