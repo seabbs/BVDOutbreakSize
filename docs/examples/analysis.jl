@@ -1,19 +1,39 @@
-# # Joint estimation of BVD outbreak size
+# # Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
 #
-# This walkthrough fits a single joint Bayesian model to the data
-# used by McCabe et al. ([Imperial College London, 18 May 2026](https://doi.org/10.25560/130007))
-# to estimate the size of the 2026 Bundibugyo virus disease (BVD)
-# outbreak in the Democratic Republic of the Congo. The Imperial
-# report runs two independent analyses — geographic spread from
-# cases detected in Uganda, and back-calculation from suspected
-# deaths in DRC — and reports a sensitivity sweep over the nuisance
-# parameters. Here those streams are combined in one model, the
-# nuisance parameters are given priors, and the output is a single
-# posterior over the latent cumulative case count `C(T)`.
+# Joint generative Turing model for the 2026 Bundibugyo virus disease
+# (BVD) outbreak in the Democratic Republic of the Congo, fitting the
+# data streams from the Imperial / WHO report (McCabe et al.,
+# [18 May 2026](https://doi.org/10.25560/130007)) in a single Bayesian
+# posterior over the latent cumulative case count `C(T)`. The original
+# report runs two independent analyses — geographic spread from cases
+# detected in Uganda, and back-calculation from suspected deaths in DRC
+# — and sweeps over fixed nuisance parameters. Here those nuisance
+# parameters carry priors, all streams are conditioned on jointly, the
+# closed-form deaths approximation is replaced with the full gamma
+# convolution and the small-growth-rate exports simplification with the
+# exact cumulative integral, and a reported-case ascertainment
+# extension, a no-onward-transmission projected-deaths counterfactual, a
+# one-week-ahead forecast and an onset-to-death delay sensitivity
+# analysis are added.
 #
-# An ascertainment extension takes the reported suspected-case
-# count as a third data stream, sharing the surveillance NegBinomial
-# dispersion with the deaths likelihood.
+# **Authors.** Sam Abbott and contributors. The model code and this
+# analysis were drafted by a language model and reviewed and
+# revised under human oversight; the named authors are responsible
+# for that oversight (see the *LLM-driven reimplementation* limitation
+# below). The full analysis code lives in the
+# [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
+# repository, where issues and suggestions are welcome.
+#
+# **Data cut-off and how the numbers differ from Imperial.** Results
+# are reported as of the cut-off date in `data/observations.toml`
+# (currently **2026-05-20**): *by that date there have been the
+# reported counts in the data table below.* These are different, more
+# recent figures than the McCabe et al. report, which uses the
+# 16 May 2026 snapshot (e.g. 88 suspected deaths against the later
+# figure used here). The joint posterior assumes a single common
+# cut-off for every data stream, so the deaths, exports and reported-
+# case counts must all be kept in sync to the same date; mixing
+# snapshots from different dates would break that assumption.
 #
 # **→ Jump to the [joint posterior results](#Joint-model-and-results).**
 #
@@ -54,7 +74,7 @@
 #   `C(T)`, gives a joint posterior over the reported suspected-case
 #   count alongside deaths and exports.
 # - *No-onward-transmission counterfactual* (not in McCabe et al.).
-#   Projects the committed deaths from cases already infected
+#   Projects the future expected deaths from cases already infected
 #   by `T`, integrating `i(s) · (1 − F_d(T − s))` per draw — a
 #   lower bound on the eventual death toll if every onward
 #   transmission stopped today.
@@ -72,7 +92,7 @@
 #   a model-based extrapolation from sparse summary statistics under
 #   strong assumptions rather than a measurement.
 # - *LLM-driven reimplementation.* The model code, priors,
-#   convolution implementation and walkthrough were drafted by a
+#   convolution implementation and analysis were drafted by a
 #   language model from the published Imperial report and the
 #   companion delay reanalysis, then reviewed and revised. Not
 #   independently replicated against the authors' code.
@@ -94,7 +114,12 @@
 # - *Onset-to-death delay anchored on Isiro 2012.* A single-
 #   outbreak fit; the delay distribution reporting here follows
 #   [charniga2024](@cite) but cross-outbreak heterogeneity is
-#   unmodelled.
+#   unmodelled. The baseline fit uses the full Rosello onset-to-death
+#   distribution, as in McCabe et al. The
+#   [delay sensitivity](#Delay-sensitivity) section refits the joint
+#   model with the community-only delay (the `n = 5` cases who died
+#   without admission, weak evidence of a shorter delay) to show how
+#   much the outbreak-size estimate leans on the delay assumption.
 # - *Detection-window definition is loose.* `w` lumps incubation
 #   and onset-to-detection together — both poorly characterised
 #   for BVD.
@@ -1216,15 +1241,36 @@ joint_density_fig = plot_cumulative_cases(
 
 joint_density_fig #hide
 
+# The cumulative case count `C(T) = exp(r T)` is set jointly by the
+# doubling time `τ` (equivalently the growth rate `r = log 2 / τ`) and
+# the time since seeding `T`. A reader who holds prior information on
+# the growth rate or on the outbreak's origin date can read off the
+# corresponding region of the joint `(τ, T)` posterior below and so
+# locate the implied outbreak size. The two are positively correlated:
+# a slower growth (larger `τ`) needs a longer elapsed `T` to reach the
+# same observed counts.
+
+#md # ```@raw html
+#md # <details><summary>Joint (τ, T) posterior pair plot</summary>
+#md # ```
+
+tau_T_fig = plot_pair(chn_joint, [:τ, :T]);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+tau_T_fig #hide
+
 # ## Counterfactual: lower bound under no further transmission
 #
 # Suppose every onward transmission stopped today. The cohort already
-# infected by `T` still carries committed deaths in the onset-to-death
-# tail: a case infected at outbreak age `s` has died by `T` with
+# infected by `T` still carries future expected deaths in the onset-to-
+# death tail: a case infected at outbreak age `s` has died by `T` with
 # probability `F_d(T − s)` (equation (4)), so a fraction
 # `1 − F_d(T − s)` of its CFR-weighted contribution has not yet been
 # observed. Integrating against the incidence `i(s) = r·exp(r·s)` from
-# equation (1) gives the additional committed deaths
+# equation (1) gives the additional future expected deaths
 #
 # ```math
 # \Delta D = \mathrm{CFR} \cdot \int_0^T r\,\exp(r\,s)
@@ -1313,6 +1359,92 @@ forecast_fig = plot_forecast(forecast);
 #md # ```
 
 forecast_fig #hide
+
+# ## Delay sensitivity
+#
+# The deaths back-calculation (equation (16)) depends on the onset-to-
+# death delay. The baseline fit anchors the gamma shape `α` and scale
+# `θ` on the all-deaths Isiro mixture (equation (5)). The companion
+# bdbv-linelist-analysis also reports a *community-only* pathway — the
+# `n = 5` cases who died without hospital admission — with a shorter
+# but far more uncertain delay: shape `α ≈ 5.6` (95% CrI 1.0-25.9) and
+# scale `θ ≈ 1.4` (0.3-9.5). A shorter delay means deaths appear sooner
+# after infection, so a given death count back-calculates to a smaller
+# `C(T)`.
+#
+# We refit the joint model once with `delay_model`'s priors re-anchored
+# on the community-only pathway, building truncated-Normal priors
+# centred on those medians with SD = (hi − lo) / 3.92, exactly as the
+# baseline delay priors (equation (5)) are constructed:
+#
+# ```math
+# \alpha \sim \mathrm{Normal}^{+}(5.6,\ 6.35), \qquad
+# \theta \sim \mathrm{Normal}^{+}(1.4,\ 2.35). \tag{22}
+# ```
+#
+# Nothing else changes. The comparison below shows how sensitive the
+# outbreak-size estimate is to the delay assumption.
+#
+# !!! warning "Sensitivity only, not a preferred estimate"
+#     The community-only delay is fitted from `n = 5` deaths, so the
+#     evidence is weak and the priors in equation (22) are very wide.
+#     This section is included to probe sensitivity, not as a preferred
+#     alternative to the baseline.
+
+#md # ```@raw html
+#md # <details><summary>Refit the joint model with the community-only delay</summary>
+#md # ```
+
+community_delay = delay_model(;
+    alpha_prior = truncated(Normal(5.6, (25.9 - 1.0) / 3.92); lower = 0),
+    theta_prior = truncated(Normal(1.4, (9.5 - 0.3) / 3.92); lower = 0))
+
+chn_joint_community = nuts_sample(
+    bvd_joint(obs.exported_cases, obs.total_deaths,
+              obs.reported_cases, obs.exports_deaths;
+              deaths = (total_deaths, growth_state, k) ->
+                  deaths_model(total_deaths, growth_state, k;
+                               delay = community_delay)));
+
+posterior_C_community = vec(Array(chn_joint_community[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# Baseline versus community-only delay, side by side:
+
+#md # ```@raw html
+#md # <details><summary>Delay-sensitivity C_T table</summary>
+#md # ```
+
+delay_sensitivity_table = streams_table(
+    "joint (baseline delay)"        => posterior_C_joint,
+    "joint (community-only delay)"  => posterior_C_community);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+delay_sensitivity_table #hide
+
+# Overlaid posterior densities of `C(T)` under the two delay
+# assumptions:
+
+#md # ```@raw html
+#md # <details><summary>Delay-sensitivity C_T density plot</summary>
+#md # ```
+
+delay_sensitivity_fig = plot_cumulative_cases(
+    "baseline delay"       => posterior_C_joint,
+    "community-only delay" => posterior_C_community;
+    scenarios = []);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+delay_sensitivity_fig #hide
 
 # ## How the data streams compare
 #
@@ -1557,3 +1689,10 @@ CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws)
 #md # ```@raw html
 #md # </details>
 #md # ```
+
+# ---
+#
+# The full analysis code, data and model definitions are in the
+# [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
+# repository. Issues, corrections and suggestions are welcome there.
+# Maintained by Sam Abbott and contributors.

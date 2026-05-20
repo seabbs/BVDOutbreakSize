@@ -35,7 +35,26 @@ jobs:
             exit 1
           fi
           ls -l output
+      - name: Build rendered site
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          julia --project=docs -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()'
+          julia -t auto --project=docs docs/make.jl
+      - name: Zip rendered site into release bundle
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          if [ ! -d docs/build ]; then
+            echo "::error::docs/build/ missing; expected the rendered site"
+            exit 1
+          fi
+          (cd docs/build && zip -r "$GITHUB_WORKSPACE/output/site.zip" .)
+          ls -l output/site.zip
       - name: Publish results release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: results-${{ github.run_number }}
@@ -45,9 +64,10 @@ jobs:
             `scripts/run.jl` at ${{ github.sha }}.
 
             Bundles the posterior summary tables, thinned posterior
-            draws, and a copy of the input `observations.toml`.
+            draws, a copy of the input `observations.toml`, and a zip
+            of the rendered report site (`site.zip`).
 
-            For a rendered walkthrough see
+            For the rendered analysis see
             https://epiforecasts.github.io/BVDOutbreakSize/analysis/.
           files: output/*
           make_latest: 'true'

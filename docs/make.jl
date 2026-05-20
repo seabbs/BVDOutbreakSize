@@ -47,9 +47,10 @@ makedocs(;
     warnonly = [:missing_docs, :linkcheck, :citations],
     plugins  = [bib],
     pages    = [
-        "Home"                 => "index.md",
-        "Analysis walkthrough" => "analysis.md",
-        "References"           => "references.md",
+        "Home"        => "index.md",
+        "Analysis"    => "analysis.md",
+        "News"        => "news.md",
+        "References"  => "references.md",
     ],
     format   = DocumenterVitepress.MarkdownVitepress(;
         repo      = "github.com/epiforecasts/BVDOutbreakSize",

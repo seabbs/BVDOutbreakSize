@@ -1,27 +1,35 @@
 # Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
 
-Joint generative Turing model for the 2026 Bundibugyo virus
-disease outbreak in DRC, fitting the data streams from the Imperial /
-WHO report (McCabe et al., [18 May 2026](https://doi.org/10.25560/130007))
-in a single posterior.
+Joint generative Turing model for the 2026 Bundibugyo virus disease
+(BVD) outbreak in the Democratic Republic of the Congo, fitting the
+data streams from the Imperial / WHO report (McCabe et al.,
+[18 May 2026](https://doi.org/10.25560/130007)) in a single Bayesian
+posterior over the latent cumulative case count `C(T)`. The original
+report runs two independent analyses — geographic spread from cases
+detected in Uganda, and back-calculation from suspected deaths in DRC
+— and sweeps over fixed nuisance parameters. Here those nuisance
+parameters carry priors, all streams are conditioned on jointly, the
+closed-form deaths approximation is replaced with the full gamma
+convolution and the small-growth-rate exports simplification with the
+exact cumulative integral, and a reported-case ascertainment
+extension, a no-onward-transmission projected-deaths counterfactual, a
+one-week-ahead forecast and an onset-to-death delay sensitivity
+analysis are added.
 
-**Data last updated:** 19 May 2026 (sources per
+**Authors:** Sam Abbott and contributors.
+The model code and analysis were drafted by a language model and
+reviewed and revised under human oversight; the named authors are
+responsible for that oversight.
+
+**Data last updated:** 20 May 2026 (sources per
 [`data/observations.toml`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/data/observations.toml)).
+These are different, more recent figures than the McCabe et al. report,
+which uses the 16 May 2026 snapshot. The joint posterior assumes a
+single common cut-off for every data stream, so the counts must be kept
+in sync to the same date.
 
-The original report runs two independent analyses — geographic spread
-from cases detected in Uganda, and backcalculation from deaths — and
-reports a sensitivity sweep over fixed nuisance parameters. Here those
-nuisance parameters carry priors, all streams are conditioned on
-jointly, and the output is one posterior over cumulative cases `C_T`.
-
-What it does differently: replaces Imperial's sensitivity sweep
-over fixed nuisance parameters with priors, replaces the closed-form
-deaths approximation with the full gamma convolution, replaces the
-small-growth-rate exports simplification with the exact cumulative
-integral, and adds a reported-case ascertainment extension and a
-no-onward-transmission projected-deaths counterfactual. The
-[analysis walkthrough](https://epiforecasts.github.io/BVDOutbreakSize/analysis/) lays out each
-deviation alongside the matching Imperial method.
+The [analysis](https://epiforecasts.github.io/BVDOutbreakSize/analysis/)
+lays out each deviation alongside the matching Imperial method.
 
 ## Running
 
@@ -49,8 +57,17 @@ up automatically.
 Each push to `main` regenerates the model outputs and publishes them
 as a GitHub Release. The
 [latest release](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest)
-bundles the posterior summary tables, thinned posterior draws, and a
-copy of the input `observations.toml` that produced them.
+bundles the saved result tables and plots, thinned posterior draws, a
+copy of the input `observations.toml` that produced them, and a
+`site.zip` snapshot of the rendered report site; the same artifacts are
+written to the repository's `output/` directory on each build. Browse
+[all releases](https://github.com/epiforecasts/BVDOutbreakSize/releases)
+for earlier output bundles — major versions of the report are kept as
+GitHub Releases.
+
+The rendered report is published from the
+[`gh-pages` branch](https://github.com/epiforecasts/BVDOutbreakSize/tree/gh-pages),
+where past and development versions of the analysis page can be found.
 
 ## Submodules
 

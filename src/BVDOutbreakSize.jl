@@ -589,12 +589,12 @@ function plot_pair(chn, params::AbstractVector{Symbol};
     return PairPlots.pairplot(df[1:thin:end, :])
 end
 
-## --- Committed-deaths counterfactual ----------------------------------
+## --- Future-expected-deaths counterfactual -----------------------------
 ##
 ## Lower bound on future deaths under the counterfactual that every
 ## onward transmission stops at time `T`. The cohort already infected
-## by `T` still contributes deaths in the onset-to-death tail; per
-## draw,
+## by `T` still contributes future expected deaths in the onset-to-death
+## tail; per draw,
 ##
 ##     ΔD = CFR · ∫_0^T r · exp(r · s) · (1 - F_d(T - s)) ds,
 ##
@@ -626,7 +626,7 @@ that every onward transmission stops at time `T`. Reads `:r, :T, :α,
 with `F_d` the Gamma(α, θ) onset-to-death CDF, returning a
 `DataFrame` with one row per draw:
 
-- `:delta_deaths`     additional committed deaths beyond `obs_deaths`
+- `:delta_deaths`     additional future expected deaths beyond `obs_deaths`
 - `:total_projected`  `obs_deaths + delta_deaths`
 
 `obs_deaths` is the number of deaths already observed at time `T`
