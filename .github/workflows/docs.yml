@@ -59,6 +59,16 @@ jobs:
             exit 1
           fi
           ls -l output
+      # Lift the rendered analysis page out of the multi-file Vitepress
+      # site into one self-contained HTML file (CSS and fonts inlined,
+      # SPA JavaScript dropped) for sharing and download.
+      - name: Build self-contained report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          julia --project=docs scripts/standalone_report.jl \
+            docs/build output/analysis.html
+          ls -l output/analysis.html
       # Bundle the rendered site produced by the same docs build
       # (docs/build/) so each release is a self-contained snapshot.
       - name: Zip rendered site into release bundle
@@ -86,10 +96,15 @@ jobs:
             analysis — the model is not fitted a second time).
 
             Bundles the posterior summary tables, thinned posterior
-            draws, a copy of the input `observations.toml`, and a
-            `site.zip` snapshot of the rendered report site.
+            draws, a copy of the input `observations.toml`, a
+            `site.zip` snapshot of the rendered report site, and
+            `analysis.html` — a self-contained single-file copy of the
+            report that opens offline.
 
             Rendered analysis:
             https://epiforecasts.io/BVDOutbreakSize/dev/analysis
+
+            Self-contained report (always latest build):
+            https://github.com/epiforecasts/BVDOutbreakSize/releases/latest/download/analysis.html
           files: output/*
           make_latest: 'true'

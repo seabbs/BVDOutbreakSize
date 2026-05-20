@@ -39,6 +39,10 @@
 # cut-off for every data stream, so the deaths, exports and reported-
 # case counts must all be kept in sync to the same date.
 #
+# **Offline copy.** A self-contained single-file HTML version of this
+# report, built from the same run, is attached to each results release:
+# [download the latest](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest/download/analysis.html).
+#
 # **→ Jump to the [results](#Results).**
 #
 # ## What we do differently from McCabe et al.
@@ -2015,7 +2019,7 @@ posterior_draws = DataFrame(
     p_uganda         = vec(Array(chn_joint[:p_uganda])),
     cumulative_cases = vec(Array(chn_joint[:cumulative_cases])),
 )[1:10:end, :]
-CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws)
+CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws);
 
 #md # ```@raw html
 #md # </details>
