@@ -237,43 +237,51 @@ Random.seed!(20260518)
 # traveller volume is given a normal prior centred at the Imperial
 # figure with an SD covering point-of-entry variation.
 
-obs = load_observations()                                            #hide
-observations_table = DataFrame(                                      #hide
-    field = [                                                        #hide
-        "exported_cases",                                            #hide
-        "exports_deaths",                                            #hide
-        "total_deaths",                                              #hide
-        "reported_cases",                                            #hide
-        "daily_outbound_travellers",                                 #hide
-        "daily_outbound_travellers_sd",                              #hide
-        "source_population",                                         #hide
-    ],                                                               #hide
-    value = [                                                        #hide
-        obs.exported_cases,                                          #hide
-        obs.exports_deaths,                                          #hide
-        obs.total_deaths,                                            #hide
-        obs.reported_cases,                                          #hide
-        obs.daily_outbound_travellers,                               #hide
-        obs.daily_outbound_travellers_sd,                            #hide
-        obs.source_population,                                       #hide
-    ],                                                               #hide
-    source = [                                                       #hide
-        obs.sources.exported_cases,                                  #hide
-        obs.sources.exports_deaths,                                  #hide
-        obs.sources.total_deaths,                                    #hide
-        obs.sources.reported_cases,                                  #hide
-        obs.sources.daily_outbound_travellers,                       #hide
-        obs.sources.daily_outbound_travellers_sd,                    #hide
-        obs.sources.source_population,                               #hide
-    ],                                                               #hide
-);                                                                   #hide
+#md # ```@raw html
+#md # <details><summary>Loading observations and building the data table</summary>
+#md # ```
 
-const ITURI_POPULATION    = obs.source_population                    #hide
-const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers            #hide
-const EXPORTED_CASES      = obs.exported_cases                       #hide
-const EXPORTS_DEATHS      = obs.exports_deaths                       #hide
-const TOTAL_DEATHS        = obs.total_deaths                         #hide
-const REPORTED_CASES      = obs.reported_cases                       #hide
+obs = load_observations()
+observations_table = DataFrame(
+    field = [
+        "exported_cases",
+        "exports_deaths",
+        "total_deaths",
+        "reported_cases",
+        "daily_outbound_travellers",
+        "daily_outbound_travellers_sd",
+        "source_population",
+    ],
+    value = [
+        obs.exported_cases,
+        obs.exports_deaths,
+        obs.total_deaths,
+        obs.reported_cases,
+        obs.daily_outbound_travellers,
+        obs.daily_outbound_travellers_sd,
+        obs.source_population,
+    ],
+    source = [
+        obs.sources.exported_cases,
+        obs.sources.exports_deaths,
+        obs.sources.total_deaths,
+        obs.sources.reported_cases,
+        obs.sources.daily_outbound_travellers,
+        obs.sources.daily_outbound_travellers_sd,
+        obs.sources.source_population,
+    ],
+);
+
+const ITURI_POPULATION    = obs.source_population
+const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
+const EXPORTED_CASES      = obs.exported_cases
+const EXPORTS_DEATHS      = obs.exports_deaths
+const TOTAL_DEATHS        = obs.total_deaths
+const REPORTED_CASES      = obs.reported_cases
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 observations_table #hide
 
@@ -1114,7 +1122,7 @@ end
 prior_chn = sample(bvd_joint(missing, missing, missing, missing),
                    Prior(), 2_000; progress = false);
 
-prior_C_table = summary_table(prior_chn, [:cumulative_cases]; digits = 0); #hide
+prior_C_table = summary_table(prior_chn, [:cumulative_cases]; digits = 0);
 
 #md # ```@raw html
 #md # </details>
@@ -1177,9 +1185,17 @@ posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
 # `T`, CFR, the DRC and Uganda ascertainment fractions `p_drc` and
 # `p_uganda`, the pooling SD `τ`, and cumulative cases `C(T)`.
 
-joint_summary = summary_table(chn_joint,                             #hide
-    [:r, :m, :T, :CFR, :p_drc, :p_uganda, :τ_logit,                  #hide
-     :cumulative_cases]; digits = 2);                                #hide
+#md # ```@raw html
+#md # <details><summary>Joint posterior summary table</summary>
+#md # ```
+
+joint_summary = summary_table(chn_joint,
+    [:r, :m, :T, :CFR, :p_drc, :p_uganda, :τ_logit,
+     :cumulative_cases]; digits = 2);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 joint_summary #hide
 
@@ -1271,9 +1287,9 @@ tau_T_fig #hide
 
 no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = TOTAL_DEATHS);
 
-no_onward_table = streams_table(                                     #hide
-    "no-onward total" => no_onward.total_projected;                  #hide
-    digits = 0);                                                     #hide
+no_onward_table = streams_table(
+    "no-onward total" => no_onward.total_projected;
+    digits = 0);
 
 #md # ```@raw html
 #md # </details>
@@ -1325,7 +1341,7 @@ forecast = forecast_reported(chn_joint;
     obs_cases         = REPORTED_CASES,
     obs_deaths        = TOTAL_DEATHS,
     obs_exports       = EXPORTED_CASES);
-forecast_summary = forecast_table(forecast);                         #hide
+forecast_summary = forecast_table(forecast);
 
 #md # ```@raw html
 #md # </details>
@@ -1401,9 +1417,17 @@ posterior_C_community = vec(Array(chn_joint_community[:cumulative_cases]));
 
 # Baseline versus community-only delay, side by side:
 
-delay_sensitivity_table = streams_table(                             #hide
-    "joint (baseline delay)"        => posterior_C_joint,            #hide
-    "joint (community-only delay)"  => posterior_C_community);       #hide
+#md # ```@raw html
+#md # <details><summary>Delay-sensitivity C_T table</summary>
+#md # ```
+
+delay_sensitivity_table = streams_table(
+    "joint (baseline delay)"        => posterior_C_joint,
+    "joint (community-only delay)"  => posterior_C_community);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 delay_sensitivity_table #hide
 
@@ -1432,11 +1456,19 @@ delay_sensitivity_fig #hide
 # the three single-stream fits and the joint — to show what each stream
 # buys on its own and what the joint combination adds.
 
-streams_C_table = streams_table(                                     #hide
-    "exports-only" => posterior_C_exports,                           #hide
-    "deaths-only"  => posterior_C_deaths,                            #hide
-    "cases-only"   => posterior_C_cases,                             #hide
-    "joint"        => posterior_C_joint);                            #hide
+#md # ```@raw html
+#md # <details><summary>Per-stream C_T table</summary>
+#md # ```
+
+streams_C_table = streams_table(
+    "exports-only" => posterior_C_exports,
+    "deaths-only"  => posterior_C_deaths,
+    "cases-only"   => posterior_C_cases,
+    "joint"        => posterior_C_joint);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 streams_C_table #hide
 
@@ -1523,26 +1555,34 @@ posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 #md # </details>
 #md # ```
 
-joint_C_credibles    = posterior_summary(posterior_C_joint)         #hide
-imperial_C_credibles = posterior_summary(posterior_C_imperial)      #hide
+#md # ```@raw html
+#md # <details><summary>Build the main comparison table</summary>
+#md # ```
 
-main_comparison = DataFrame(                                         #hide
-    source = [                                                       #hide
-        "Imperial Method 1 (Ituri, w=15 d)",                         #hide
-        "Imperial Method 2 (τ=14 d, CFR=30%)",                       #hide
-        "Our model | Imperial main assumptions",                     #hide
-        "Our joint posterior",                                       #hide
-    ],                                                               #hide
-    C_T_central = [313.0, 501.0,                                     #hide
-                   round(quantile(posterior_C_imperial, 0.5); digits = 0), #hide
-                   round(quantile(posterior_C_joint, 0.5); digits = 0)], #hide
-    CrI_lower = [39.0, 402.0,                                        #hide
-                 round(imperial_C_credibles.lo90; digits = 0),       #hide
-                 round(joint_C_credibles.lo90;    digits = 0)],      #hide
-    CrI_upper = [870.0, 612.0,                                       #hide
-                 round(imperial_C_credibles.hi90; digits = 0),       #hide
-                 round(joint_C_credibles.hi90;    digits = 0)],      #hide
-);                                                                   #hide
+joint_C_credibles    = posterior_summary(posterior_C_joint)
+imperial_C_credibles = posterior_summary(posterior_C_imperial)
+
+main_comparison = DataFrame(
+    source = [
+        "Imperial Method 1 (Ituri, w=15 d)",
+        "Imperial Method 2 (τ=14 d, CFR=30%)",
+        "Our model | Imperial main assumptions",
+        "Our joint posterior",
+    ],
+    C_T_central = [313.0, 501.0,
+                   round(quantile(posterior_C_imperial, 0.5); digits = 0),
+                   round(quantile(posterior_C_joint,    0.5); digits = 0)],
+    CrI_lower = [39.0, 402.0,
+                 round(imperial_C_credibles.lo90; digits = 0),
+                 round(joint_C_credibles.lo90;    digits = 0)],
+    CrI_upper = [870.0, 612.0,
+                 round(imperial_C_credibles.hi90; digits = 0),
+                 round(joint_C_credibles.hi90;    digits = 0)],
+);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 main_comparison #hide
 
@@ -1550,7 +1590,15 @@ main_comparison #hide
 # for each scenario, the narrowest joint credible interval that
 # contains it:
 
-coverage_table = comparison_table(posterior_C_joint);               #hide
+#md # ```@raw html
+#md # <details><summary>Joint coverage table</summary>
+#md # ```
+
+coverage_table = comparison_table(posterior_C_joint);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 coverage_table #hide
 
@@ -1585,8 +1633,16 @@ imperial_density_fig #hide
 # since seeding; `C(T) = 2^m`. The same `m` prior used in the joint fit
 # applies here without modification.
 
-imperial_summary = summary_table(chn_imperial,                       #hide
-    [:m, :T, :cumulative_cases]; digits = 1);                        #hide
+#md # ```@raw html
+#md # <details><summary>Imperial sense-check summary table</summary>
+#md # ```
+
+imperial_summary = summary_table(chn_imperial,
+    [:m, :T, :cumulative_cases]; digits = 1);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 imperial_summary #hide
 
