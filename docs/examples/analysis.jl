@@ -36,7 +36,8 @@
 # ## What we do differently from McCabe et al.
 #
 # - *Joint posterior, not 15 scenario estimates.* The doubling time
-#   `τ`, CFR, onset-to-death shape and scale, detection window `w`,
+#   `τ`, case fatality ratio (CFR), onset-to-death shape and scale,
+#   detection window `w`,
 #   daily traveller volume and surveillance dispersion all have
 #   priors and are sampled jointly. McCabe et al. fix each and
 #   sweep.
@@ -195,7 +196,8 @@
 #    submodels. Each composer conditionally includes only the
 #    likelihoods for the streams it uses, so a single-stream fit
 #    never instantiates the other observation submodels.
-# 4. **Inference** — prior predictive, the four NUTS fits, posterior
+# 4. **Inference** — prior predictive, the four No-U-Turn Sampler
+#    (NUTS) fits, posterior
 #    summaries, posterior-predictive plots.
 # 5. **Counterfactual, forecast and sense check** — a
 #    no-onward-transmission lower bound on cumulative deaths, a
@@ -287,7 +289,8 @@ observations_table #hide
 # structure. Each section below introduces only the mathematical
 # objects and priors for its own parameters — the likelihoods and the
 # forward integrals enter later, in the observation submodels that use
-# them. The code conventions used here (Mooncake AD, the package
+# them. The code conventions used here (Mooncake automatic
+# differentiation (AD), the package
 # `integrate` quadrature helpers, NB safe-clamp, FlexiChains, PairPlots
 # `plot_pair`, AlgebraOfGraphics density layouts) follow the hantavirus
 # modelling project [hantavirus_2026](@cite).
@@ -367,9 +370,10 @@ end
 # (α = 4.42, β = 0.388/day, θ ≈ 2.58 day). The companion Bayesian
 # reanalysis of the same Isiro line list
 # ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis))
-# gives 95% credible intervals of roughly `(2.4, 7.2)` for `α` and
-# `(1.6, 4.8)` for `θ`. The priors here are Normals centred on the
-# bdbv-linelist-analysis posterior mean with SD matching the
+# gives 95% credible intervals (CrIs) of roughly `(2.4, 7.2)` for `α`
+# and `(1.6, 4.8)` for `θ`. The priors here are Normals centred on the
+# bdbv-linelist-analysis posterior mean with standard deviation (SD)
+# matching the
 # half-width of the published 95% CrIs
 # (`1.22 = (7.2 − 2.4) / 3.92`, `0.82 = (4.8 − 1.6) / 3.92`),
 # truncated at zero to keep `Gamma(α, θ)` defined:
@@ -400,10 +404,12 @@ end
 
 # ### Case-fatality ratio
 #
-# The CDC summary for the two previous BVD outbreaks is 55 deaths /
+# The US Centers for Disease Control and Prevention (CDC) summary for
+# the two previous BVD outbreaks is 55 deaths /
 # 169 cases ≈ 33% with confidence bands spanning roughly 24-40%. The
-# companion BDBV reanalysis reports a baseline of 0.47
-# (95% CrI 0.31-0.65) for non-HCW confirmed cases. The prior on the
+# companion Bundibugyo virus (BDBV) reanalysis reports a baseline of
+# 0.47 (95% CrI 0.31-0.65) for non-healthcare-worker (non-HCW)
+# confirmed cases. The prior on the
 # case-fatality ratio is
 #
 # ```math

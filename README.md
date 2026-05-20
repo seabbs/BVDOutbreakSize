@@ -4,7 +4,7 @@
 
 <!-- ABSTRACT:START -->
 **Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus
-(BVD) is ongoing in the Democratic Republic of the Congo, with cases
+(BVD) is ongoing in the Democratic Republic of the Congo (DRC), with cases
 also detected across the border in Uganda. Estimating the likely
 current size of the outbreak is useful for the response, but most
 cases are not yet reported and have to be inferred from the data
@@ -13,7 +13,7 @@ streams that are available. The Imperial College London report
 estimates the size with two analyses, geographic spread from the cases
 exported to Uganda and back-calculation from suspected deaths in DRC.
 Building on that work, we re-analyse the same problem as a single joint
-Bayesian model over the latent cumulative case count `C(T)`, fitting
+Bayesian model over the latent cumulative case count, fitting
 all streams together with priors on the nuisance parameters that the
 report varies in scenario sweeps. Beyond the exported cases and DRC
 deaths the report uses, we condition on two further streams, the
@@ -23,7 +23,7 @@ projected-deaths counterfactual, a one-week-ahead forecast and an
 onset-to-death delay sensitivity analysis, and replace two closed-form
 approximations (the deaths convolution and the small-growth-rate
 exports term) with their exact forms. We report the joint posterior
-over `C(T)` from current data; to separate the effect of newer data
+over the cumulative case count from current data; to separate the effect of newer data
 from the change in method we also fit the model to the data as of the
 report, comparing against both a joint reimplementation of the
 report's approach and its original published estimates.
