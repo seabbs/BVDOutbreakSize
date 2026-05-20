@@ -1,19 +1,39 @@
-# # Joint estimation of BVD outbreak size
+# # Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
 #
-# This walkthrough fits a single joint Bayesian model to the data
-# used by McCabe et al. ([Imperial College London, 18 May 2026](https://doi.org/10.25560/130007))
-# to estimate the size of the 2026 Bundibugyo virus disease (BVD)
-# outbreak in the Democratic Republic of the Congo. The Imperial
-# report runs two independent analyses — geographic spread from
-# cases detected in Uganda, and back-calculation from suspected
-# deaths in DRC — and reports a sensitivity sweep over the nuisance
-# parameters. Here those streams are combined in one model, the
-# nuisance parameters are given priors, and the output is a single
-# posterior over the latent cumulative case count `C_T`.
+# Joint generative Turing model for the 2026 Bundibugyo virus disease
+# (BVD) outbreak in the Democratic Republic of the Congo, fitting the
+# data streams from the Imperial / WHO report (McCabe et al.,
+# [18 May 2026](https://doi.org/10.25560/130007)) in a single Bayesian
+# posterior over the latent cumulative case count `C(T)`. The original
+# report runs two independent analyses — geographic spread from cases
+# detected in Uganda, and back-calculation from suspected deaths in DRC
+# — and sweeps over fixed nuisance parameters. Here those nuisance
+# parameters carry priors, all streams are conditioned on jointly, the
+# closed-form deaths approximation is replaced with the full gamma
+# convolution and the small-growth-rate exports simplification with the
+# exact cumulative integral, and a reported-case ascertainment
+# extension, a no-onward-transmission projected-deaths counterfactual, a
+# one-week-ahead forecast and an onset-to-death delay sensitivity
+# analysis are added.
 #
-# An ascertainment extension takes the reported suspected-case
-# count as a third data stream, sharing the surveillance NegBinomial
-# dispersion with the deaths likelihood.
+# **Authors.** Sam Abbott and contributors. The model code and this
+# analysis were drafted by a language model and reviewed and
+# revised under human oversight; the named authors are responsible
+# for that oversight (see the *LLM-driven reimplementation* limitation
+# below). The full analysis code lives in the
+# [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
+# repository, where issues and suggestions are welcome.
+#
+# **Data cut-off and how the numbers differ from Imperial.** Results
+# are reported as of the cut-off date in `data/observations.toml`
+# (currently **2026-05-20**): *by that date there have been the
+# reported counts in the data table below.* These are different, more
+# recent figures than the McCabe et al. report, which uses the
+# 16 May 2026 snapshot (e.g. 88 suspected deaths against the later
+# figure used here). The joint posterior assumes a single common
+# cut-off for every data stream, so the deaths, exports and reported-
+# case counts must all be kept in sync to the same date; mixing
+# snapshots from different dates would break that assumption.
 #
 # **→ Jump to the [joint posterior results](#Joint-model-and-results).**
 #
@@ -25,14 +45,14 @@
 #   priors and are sampled jointly. McCabe et al. fix each and
 #   sweep.
 # - *Exact cumulative integral for exports* —
-#   `(daily_travellers / source_pop) · ∫_{T−w}^{T} C(s) ds` — rather
-#   than the small-`rw` simplification `q · w · C(T)` used by
-#   McCabe et al. (and by Imai et al. 2020 before them). The two
-#   forms agree as `r → 0`.
+#   `q · ∫_{T−w}^{T} C(s) ds` with travel rate `q` — rather than
+#   the small-`rw` simplification `q · w · C(T)` used by McCabe et
+#   al. (and by Imai et al. 2020 before them). The two forms agree
+#   as `r → 0`.
 # - *Numerical (not closed-form) deaths convolution.* For a gamma
 #   delay the convolution integral has an exact closed form; McCabe
 #   et al. derive it and use the large-`T` simplification
-#   `D_T ≈ CFR · C_T · (1 + r/β)^{−α}`. We evaluate the integral
+#   `D(T) ≈ CFR · C(T) · (1 + r/β)^{−α}`. We evaluate the integral
 #   numerically instead — not for accuracy (the gamma case is
 #   exact either way) but so the onset-to-death distribution can be
 #   swapped for any other family without re-deriving the integral.
@@ -49,13 +69,13 @@
 #   would not identify a separate dispersion. The McCabe et al.
 #   "exact NegBinomial CIs" on Method 1 are the conventional
 #   binomial-inversion procedure, not an estimated dispersion.
-# - *Ascertainment extension* (not in McCabe et al.). A `Beta(2, 6)`
-#   prior on the reporting fraction, applied to the latent `C_T`,
-#   gives a joint posterior over the reported suspected-case
+# - *Ascertainment extension* (not in McCabe et al.). A logit-scale
+#   hyperprior on the reporting fraction, applied to the latent
+#   `C(T)`, gives a joint posterior over the reported suspected-case
 #   count alongside deaths and exports.
 # - *No-onward-transmission counterfactual* (not in McCabe et al.).
-#   Projects the committed deaths from cases already infected
-#   by `T`, integrating `i(s) · (1 − F(T − s))` per draw — a
+#   Projects the future expected deaths from cases already infected
+#   by `T`, integrating `i(s) · (1 − F_d(T − s))` per draw — a
 #   lower bound on the eventual death toll if every onward
 #   transmission stopped today.
 #
@@ -72,7 +92,7 @@
 #   a model-based extrapolation from sparse summary statistics under
 #   strong assumptions rather than a measurement.
 # - *LLM-driven reimplementation.* The model code, priors,
-#   convolution implementation and walkthrough were drafted by a
+#   convolution implementation and analysis were drafted by a
 #   language model from the published Imperial report and the
 #   companion delay reanalysis, then reviewed and revised. Not
 #   independently replicated against the authors' code.
@@ -94,7 +114,12 @@
 # - *Onset-to-death delay anchored on Isiro 2012.* A single-
 #   outbreak fit; the delay distribution reporting here follows
 #   [charniga2024](@cite) but cross-outbreak heterogeneity is
-#   unmodelled.
+#   unmodelled. The baseline fit uses the full Rosello onset-to-death
+#   distribution, as in McCabe et al. The
+#   [delay sensitivity](#Delay-sensitivity) section refits the joint
+#   model with the community-only delay (the `n = 5` cases who died
+#   without admission, weak evidence of a shorter delay) to show how
+#   much the outbreak-size estimate leans on the delay assumption.
 # - *Detection-window definition is loose.* `w` lumps incubation
 #   and onset-to-detection together — both poorly characterised
 #   for BVD.
@@ -113,47 +138,99 @@
 # ## How the model is built up
 #
 # The model is assembled from small reusable Turing submodels rather
-# than written as one monolithic block. Reading top to bottom:
+# than written as one monolithic block. Each *building-block submodel*
+# owns the maths and priors for one epidemic parameter family. The
+# *observation submodels* assemble those blocks, introduce the forward
+# integrals and the likelihoods, and tie one data stream to the latent
+# state. The *composers* glue the observation submodels into the
+# per-stream fits and the joint fit. The diagram below traces that flow:
 #
-# 1. **Building-block submodels** — one per epi parameter family
+# ```mermaid
+# flowchart TD
+#     G["Growth C(s) = exp(r s)<br/>τ, m → r, T, C(T)"]
+#     D["Onset-to-death delay<br/>α, θ → f, F_d"]
+#     CFR["Case-fatality ratio<br/>CFR"]
+#     W["Detection window<br/>w"]
+#     K["Surveillance dispersion<br/>k"]
+#     A["Ascertainment<br/>p_drc, p_uganda"]
+#
+#     OE["Exports submodel<br/>μ_e = p_uganda q ∫ C(s) ds<br/>Poisson"]
+#     OD["Deaths submodel<br/>μ_d = CFR ∫ C(s) f ds<br/>NegBinomial"]
+#     OC["Cases submodel<br/>μ_c = p_drc C(T)<br/>NegBinomial"]
+#     OX["Exports-deaths submodel<br/>μ_xd = CFR p_uganda q ∫ C(s) F_d ds<br/>Poisson"]
+#
+#     CE["exports_only_model"]
+#     CD["deaths_only_model"]
+#     CC["cases_only_model"]
+#     CX["exports_deaths_only_model"]
+#     CI["imperial_only_model<br/>(exports + deaths)"]
+#     CJ["bvd_joint<br/>(all four streams)"]
+#
+#     G --> OE & OD & OC & OX
+#     D --> OD & OX
+#     CFR --> OD & OX
+#     W --> OE & OX
+#     K --> OD & OC
+#     A --> OE & OC & OX
+#
+#     OE --> CE & CI & CJ
+#     OD --> CD & CI & CJ
+#     OC --> CC & CJ
+#     OX --> CX & CJ
+# ```
+#
+# Reading top to bottom:
+#
+# 1. **Building-block submodels** — one per parameter family
 #    (growth, onset-to-death delay, CFR, detection window,
 #    surveillance dispersion, ascertainment). Each samples its own
-#    priors and returns a small NamedTuple of values.
-# 2. **Forward integrals** — the gamma onset-to-death convolution
-#    used by the deaths likelihood and the at-risk person-time
-#    integral used by the exports likelihood.
-# 3. **Observation submodels** — `exports_model`, `deaths_model`,
-#    `cases_model`, `exports_deaths_model`. Each takes the growth
-#    state as input, plugs into one of the integrals, and ties one
-#    data stream to the latent `C_T`.
-# 4. **Top-level composers** — `exports_only_model`,
-#    `deaths_only_model`, `cases_only_model`,
-#    `exports_deaths_only_model`, `bvd_joint`. Each is a thin wrapper
-#    that samples the building blocks and the relevant observation
-#    submodels.
-# 5. **Inference** — prior predictive, the four NUTS fits, posterior
+#    priors and returns a small NamedTuple of values. These sections
+#    introduce only the maths for their own parameters.
+# 2. **Observation submodels** — exports, deaths, cases, deaths-among-
+#    exports. Each takes the growth state as input, introduces the
+#    forward integral it needs and the likelihood, and ties one data
+#    stream to the latent `C(T)`.
+# 3. **Composers** — `exports_only_model`, `deaths_only_model`,
+#    `cases_only_model`, `exports_deaths_only_model`,
+#    `imperial_only_model`, `bvd_joint`. Each is a thin wrapper that
+#    samples the building blocks and the relevant observation
+#    submodels. Each composer conditionally includes only the
+#    likelihoods for the streams it uses, so a single-stream fit
+#    never instantiates the other observation submodels.
+# 4. **Inference** — prior predictive, the four NUTS fits, posterior
 #    summaries, posterior-predictive plots.
-# 6. **Counterfactual and sense check** — a no-onward-transmission
-#    lower bound on cumulative deaths, and a `Turing.fix`-pinned
-#    reproduction of Imperial's Method 2 main scenario.
+# 5. **Counterfactual, forecast and sense check** — a
+#    no-onward-transmission lower bound on cumulative deaths, a
+#    one-week-ahead forecast, and a `Turing.fix`-pinned reproduction
+#    of Imperial's Method 2 main scenario via the Imperial-exact
+#    composer.
 #
 # Composition is via `~ to_submodel(...)`. Replacing one submodel
 # (e.g. swapping the Gamma onset-to-death for a LogNormal, or
 # swapping exponential growth for a logistic curve) requires editing
-# only that submodel — the integrals and composers do not change.
+# only that submodel — the integrals (which live in the package) and
+# composers do not change.
+
+#md # ```@raw html
+#md # <details><summary>Load packages and seed the RNG</summary>
+#md # ```
 
 using Turing
 using Turing: to_submodel
 using Distributions
 using StatsFuns: logit, logistic
-using Integrals: IntegralProblem, GaussLegendre, solve
-import FastGaussQuadrature
 using DataFrames: DataFrame
 import CSV
 using Random
 using BVDOutbreakSize
+using BVDOutbreakSize: integrate_cumulative, integrate_exports_deaths,
+                       expected_deaths
 
 Random.seed!(20260518)
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # ## Data
 #
@@ -197,16 +274,6 @@ observations_table = DataFrame(
     ],
 );
 
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-observations_table
-
-#md # ```@raw html
-#md # <details><summary>Bind observation values to module-level constants</summary>
-#md # ```
-
 const ITURI_POPULATION    = obs.source_population
 const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
 const EXPORTED_CASES      = obs.exported_cases
@@ -218,38 +285,59 @@ const REPORTED_CASES      = obs.reported_cases
 #md # </details>
 #md # ```
 
+observations_table #hide
+
 # ## Building-block submodels
 #
 # The joint model is composed of swappable Turing submodels. Each
 # submodel owns its priors; replacing one (a different delay study,
 # a different growth assumption) requires no edits to the joint
-# structure. The code conventions used here (Mooncake AD,
-# `Integrals.jl` integrand pattern, NB safe-clamp, FlexiChains,
-# PairPlots `plot_pair`, AlgebraOfGraphics density layouts) follow
-# the hantavirus modelling project [hantavirus_2026](@cite).
+# structure. Each section below introduces only the mathematical
+# objects and priors for its own parameters — the likelihoods and the
+# forward integrals enter later, in the observation submodels that use
+# them. The code conventions used here (Mooncake AD, the package
+# `integrate` quadrature helpers, NB safe-clamp, FlexiChains, PairPlots
+# `plot_pair`, AlgebraOfGraphics density layouts) follow the hantavirus
+# modelling project [hantavirus_2026](@cite).
 
 # ### Growth — exponential
 #
 # The outbreak is seeded `T` days ago by a single zoonotic case and
-# grows exponentially with doubling time `τ`. Imperial varies the
-# doubling time over a sensitivity sweep of 7 / 14 / 21 days; here
-# we put a LogNormal prior on `τ` centred at the main scenario
+# grows exponentially with doubling time `τ`, giving the cumulative-
+# incidence trajectory
+#
+# ```math
+# C(s) = \exp(r\,s), \qquad r = \frac{\log 2}{\tau}, \tag{1}
+# ```
+#
+# so that the cumulative case count at the cut-off is `C(T) = 2^m`
+# with `m = T / τ` the number of doublings since seeding. Imperial
+# varies the doubling time over a sensitivity sweep of 7 / 14 / 21
+# days; here `τ` has a LogNormal prior centred at the main scenario
 # (14 d) with log-SD 0.4, giving a 95% prior interval of roughly
-# `(6, 31)` d that encompasses the full sweep.
+# `(6, 31)` d that encompasses the full sweep:
+#
+# ```math
+# \tau \sim \mathrm{LogNormal}(\log 14,\ 0.4). \tag{2}
+# ```
 #
 # Rather than sampling `τ` and `T` directly (which are ridge-
-# correlated through `C_T = exp(r T)`), the model samples `log τ`
-# and the *doubling-time multiplier* `m = T / τ`. Then `C_T = 2^m`
-# is near-orthogonal to `τ`. The growth rate `r = log(2) / τ` and
-# `T = m · τ` are exposed as `:=` deterministics so they still
-# appear in posterior tables and pair plots.
+# correlated through `C(T) = exp(r T)`), the model samples `τ` and the
+# *doubling-time multiplier* `m = T / τ`. Then `C(T) = 2^m` is near-
+# orthogonal to `τ`. `m` is centred at 7 (`C(T) = 2^7 = 128`) with SD
+# 2.5, truncated to `(0, 13]`:
 #
-# `m` is centred at 7 (`C_T = 2^7 = 128`) with SD 2.5, giving 95%
-# prior support of roughly `m ∈ (2, 12)` → `C_T ∈ (4, 4000)`. This
-# brackets Imperial's headline scenario range on the log scale —
-# their lowest reported `C_T = 235` corresponds to `m ≈ 7.9`, their
-# highest `1008` to `m ≈ 10`. The hard upper bound at 13 caps
-# `C_T` at ~8000, well above Imperial's tail.
+# ```math
+# m \sim \mathrm{Normal}(7,\ 2.5)\ \text{on}\ (0, 13]. \tag{3}
+# ```
+#
+# This gives 95% prior support of roughly `m ∈ (2, 12)` →
+# `C(T) ∈ (4, 4000)`, bracketing Imperial's headline scenario range
+# on the log scale (their lowest `C(T) = 235` is `m ≈ 7.9`, their
+# highest `1008` is `m ≈ 10`). The hard upper bound at 13 caps `C(T)`
+# at ~8000, well above Imperial's tail. The growth rate `r` and the
+# elapsed time `T = m · τ` are exposed as deterministics so they
+# appear in posterior tables and pair plots.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exponential_growth_model</summary>
@@ -275,20 +363,32 @@ end
 # ### Onset-to-death delay
 #
 # Symptom-onset to death is gamma distributed with shape `α` and
-# scale `θ`, giving mean `α·θ` and SD `√α · θ`.
+# scale `θ`, giving density `f` and CDF `F_d`, mean `α·θ` and SD
+# `√α · θ`:
+#
+# ```math
+# \text{delay} \sim \mathrm{Gamma}(\alpha,\ \theta), \qquad
+# f(\cdot) = \text{density}, \quad F_d(\cdot) = \text{CDF}. \tag{4}
+# ```
 #
 # The Imperial report uses the Rosello et al. 2015 point estimate
 # (α = 4.42, β = 0.388/day, θ ≈ 2.58 day). The companion Bayesian
 # reanalysis of the same Isiro line list
 # ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis))
-# gives 95% credible intervals of roughly `(2.4, 7.2)` for α and
-# `(1.6, 4.8)` for θ. The priors here are Normals centred on the
+# gives 95% credible intervals of roughly `(2.4, 7.2)` for `α` and
+# `(1.6, 4.8)` for `θ`. The priors here are Normals centred on the
 # bdbv-linelist-analysis posterior mean with SD matching the
 # half-width of the published 95% CrIs
 # (`1.22 = (7.2 − 2.4) / 3.92`, `0.82 = (4.8 − 1.6) / 3.92`),
-# truncated at zero to keep `Gamma(α, θ)` defined. Reporting and
-# inference of epidemiological delays follow the recommendations in
-# [charniga2024](@cite).
+# truncated at zero to keep `Gamma(α, θ)` defined:
+#
+# ```math
+# \alpha \sim \mathrm{Normal}^{+}(4.3,\ 1.22), \qquad
+# \theta \sim \mathrm{Normal}^{+}(2.6,\ 0.82). \tag{5}
+# ```
+#
+# Reporting and inference of epidemiological delays follow the
+# recommendations in [charniga2024](@cite).
 
 #md # ```@raw html
 #md # <details><summary>Submodel: delay_model</summary>
@@ -311,8 +411,14 @@ end
 # The CDC summary for the two previous BVD outbreaks is 55 deaths /
 # 169 cases ≈ 33% with confidence bands spanning roughly 24-40%. The
 # companion BDBV reanalysis reports a baseline of 0.47
-# (95% CrI 0.31-0.65) for non-HCW confirmed cases. The prior is
-# `Beta(6, 14)` (mean 0.30, 95% interval roughly 0.13-0.51).
+# (95% CrI 0.31-0.65) for non-HCW confirmed cases. The prior on the
+# case-fatality ratio is
+#
+# ```math
+# \mathrm{CFR} \sim \mathrm{Beta}(6,\ 14), \tag{6}
+# ```
+#
+# with mean 0.30 and 95% interval roughly 0.13-0.51.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: cfr_model</summary>
@@ -329,16 +435,16 @@ end
 
 # ### Detection window
 #
-# The probability that an infectious case is detected after travelling
-# to Uganda is
+# `w` is the mean time during which a case is still infectious and
+# detectable abroad (incubation + onset-to-detection). Its prior is
 #
 # ```math
-# p_{\text{detect}} = w \cdot
-#     \frac{\text{daily travellers}}{\text{source population}}
+# w \sim \mathrm{Normal}^{+}(15,\ 5)\ \text{days}. \tag{7}
 # ```
 #
-# where `w` is the mean time during which a case is still infectious
-# and detectable abroad (incubation + onset-to-detection).
+# `w` enters the export likelihood through the detection probability
+# `p_detect = w · (daily travellers / source population)`; that
+# relationship is set out with the exports observation submodel below.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: detection_window_model</summary>
@@ -357,22 +463,29 @@ end
 # ### Surveillance dispersion
 #
 # Both NegBinomial likelihoods (deaths and reported cases) share a
-# single dispersion parameter `k`, since both arise from the same
-# passive-surveillance system.
+# single dispersion `k`, since both arise from the same passive-
+# surveillance system. Under the mean-`μ` / dispersion-`k`
+# parameterisation a count `Y` has
 #
 # ```math
-# Y \sim \mathrm{NegBinomial}(\mu,\ k),
+# Y \sim \mathrm{NegBinomial}(\mu,\ k), \qquad
+# \mathrm{Var}(Y) = \mu + \frac{\mu^2}{k}. \tag{8}
 # ```
 #
-# with variance `μ + μ²/k`. The dispersion captures passive-
-# surveillance noise (under-reporting that varies by district,
-# weekend reporting effects, batched updates), not transmission
-# heterogeneity. The default prior `1/√k ~ Exponential(2)` is weak,
-# giving `k` a prior median near 4 (mild overdispersion).
-# Imperial uses Poisson on deaths (Method 2; their reported CIs
-# are Poisson CIs) and does not model reported suspected cases at
-# all; the switch to NegBinomial here is an intentional deviation
-# from their Method 2 choice.
+# The dispersion captures passive-surveillance noise (under-reporting
+# that varies by district, weekend reporting effects, batched updates),
+# not transmission heterogeneity. It is sampled on the `1/√k` scale
+# with a weak prior,
+#
+# ```math
+# 1/\sqrt{k} \sim \mathrm{Exponential}(2), \tag{9}
+# ```
+#
+# giving `k` a prior median near 4 (mild overdispersion). Imperial
+# uses Poisson on deaths (Method 2; their reported CIs are Poisson
+# CIs) and does not model reported suspected cases at all; the switch
+# to NegBinomial here is an intentional deviation from their Method 2
+# choice.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: surveillance_dispersion_model</summary>
@@ -401,30 +514,30 @@ end
 # almost wholly prior-driven given only two exports.
 #
 # Partial pooling sits between the two. Both ascertainment fractions
-# share a logit-scale hyperprior with mean `μ_logit` and SD
-# `τ_logit`:
+# `p_drc` and `p_uganda` share a logit-scale hyperprior with mean
+# `μ` and SD `τ`:
 #
 # ```math
-# \mu_{\text{logit}} \sim \mathrm{Normal}(\mathrm{logit}(0.25),\ 1),
+# \mu \sim \mathrm{Normal}(\mathrm{logit}(0.25),\ 1),
 # \qquad
-# \tau_{\text{logit}} \sim \mathrm{Normal}^{+}(0,\ 0.5),
+# \tau \sim \mathrm{Normal}^{+}(0,\ 0.5), \tag{10}
 # ```
 #
 # ```math
-# \mathrm{logit}(p_{\text{DRC}}) \sim
-#     \mathrm{Normal}(\mu_{\text{logit}},\ \tau_{\text{logit}}),
+# \mathrm{logit}(p_{\text{drc}}) \sim
+#     \mathrm{Normal}(\mu,\ \tau),
 # \qquad
-# \mathrm{logit}(p_{\text{Uganda}}) \sim
-#     \mathrm{Normal}(\mu_{\text{logit}},\ \tau_{\text{logit}}),
+# \mathrm{logit}(p_{\text{uganda}}) \sim
+#     \mathrm{Normal}(\mu,\ \tau), \tag{11}
 # ```
 #
 # with `p = logistic(logit p)`. The hyperprior mean is centred on
-# `logit(0.25)`, matching the previous `Beta(2, 6)` mean of 0.25.
-# `τ_logit` is the pooling strength: small `τ_logit` pulls the two
-# fractions together (the shared-`p_report` limit), large `τ_logit`
-# lets them move independently (the separate-`p` limit). The data
-# decide where on that spectrum the fit lands. `cases_model` uses
-# `p_drc`; `exports_model` uses `p_uganda`.
+# `logit(0.25)` (a 0.25 reporting fraction). `τ` is the pooling
+# strength: small `τ` pulls the two fractions together (the shared-
+# fraction limit), large `τ` lets them move independently (the
+# separate-fraction limit). The data decide where on that spectrum
+# the fit lands. The cases likelihood uses `p_drc`; the two Uganda-
+# side likelihoods use `p_uganda`.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: pooled_ascertainment_model</summary>
@@ -446,179 +559,11 @@ end
 #md # </details>
 #md # ```
 
-# ## Forward convolution for deaths
-#
-# Expected cumulative deaths by time `T` from a single seeding case:
-#
-# ```math
-# \mathbb{E}[D_T] = \mathrm{CFR} \cdot
-#     \int_0^T e^{r s}\, f(T - s;\, \alpha, \theta)\, ds
-# ```
-#
-# where `f(·; α, θ)` is the gamma onset-to-death density. The
-# integral is evaluated by Gauss-Legendre quadrature with `n = 64`.
-# For a gamma delay this integral has an exact closed form;
-# McCabe et al. derive it and use the large-`T` simplification
-# `D_T ≈ CFR · C_T · (1 + r/β)^{−α}` (valid for `T ⪞ 12/(β+r)`).
-# We integrate numerically instead — not because the gamma case
-# needs it, but so swapping `Gamma(α, θ)` in `delay_model` for any
-# other continuous distribution requires no changes to the
-# quadrature.
-
-const DEATH_INTEGRAL_ALG = GaussLegendre(; n = 64)
-
-#md # ```@raw html
-#md # <details><summary>Integral helpers — deaths convolution</summary>
-#md # ```
-
-function _death_integrand(u, p)
-    s = p.halfwidth * (u + 1)
-    τ = p.T - s
-    τ <= 0 && return zero(p.r)
-    return exp(p.r * s) * pdf(p.delay_dist, τ)
-end
-
-function expected_deaths(CFR, r, T, delay_dist;
-        alg = DEATH_INTEGRAL_ALG)
-    halfwidth = T / 2
-    params = (; r, T, halfwidth, delay_dist)
-    prob = IntegralProblem(_death_integrand, (-1.0, 1.0), params)
-    return CFR * halfwidth * solve(prob, alg).u
-end
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-# ## At-risk person-time for export detection
-#
-# Each case in the source population travels to Uganda on any given
-# day with probability `q = daily_travellers / source_pop`, treating
-# cases as exchangeable with the general population. A case is
-# *detection-eligible* for `w` days from infection (incubation +
-# onset-to-detection). For a case infected at time `s ≤ T`, the
-# accumulated probability of being detected in Uganda by `T` is
-#
-# ```math
-# P(\text{detected by } T \mid \text{infected at } s) = q \cdot \min(T - s, w).
-# ```
-#
-# Splitting at `s = T - w`: ``\min(T-s, w) = w`` for cases infected
-# before `T-w` (full window elapsed), and ``\min(T-s, w) = T - s``
-# for cases still inside their window. Summing across all incidence
-# gives the **full export integral**:
-#
-# ```math
-# \mathbb{E}[\text{exports by }T]
-#     = q \cdot \left[ w \cdot C(T-w)
-#                      + \int_{T-w}^{T} i(s) \, (T - s) \, ds \right].
-# ```
-#
-# Integration by parts collapses this to the cleaner form
-#
-# ```math
-# \boxed{\,\mathbb{E}[\text{exports by }T] = q \cdot \int_{T-w}^{T} C(s)\, ds\,}
-# ```
-#
-# — the daily travel rate times the cumulative-cases trajectory
-# integrated over the detection window. For exponential growth this
-# evaluates in closed form to `q · (C(T) - C(T-w)) / r`; as `r → 0`
-# it recovers Imperial's small-`rw` simplification `q · w · C(T)`.
-# For any other `growth_state.cumulative` callable (logistic,
-# two-phase, empirical) the integral has no closed form, so we
-# evaluate it numerically by Gauss-Legendre quadrature with `n = 32`,
-# mapping `[T-w, T]` to the reference domain `[-1, 1]`.
-
-const _CUM_INTEGRAL_ALG = GaussLegendre(; n = 32)
-
-#md # ```@raw html
-#md # <details><summary>Integral helpers — at-risk person-time</summary>
-#md # ```
-
-function _cumulative_integrand(u, p)
-    s = p.halfwidth * (u + 1) + p.lower
-    return p.cumulative(s)
-end
-
-function integrate_cumulative(cumulative, lower, upper;
-        alg = _CUM_INTEGRAL_ALG)
-    upper <= lower && return zero(upper - lower)
-    halfwidth = (upper - lower) / 2
-    params = (; cumulative, halfwidth, lower)
-    prob = IntegralProblem(_cumulative_integrand, (-1.0, 1.0), params)
-    return halfwidth * solve(prob, alg).u
-end
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-# ## Deaths-among-exports convolution
-#
-# The deaths-among-exports likelihood needs the expected number of
-# exported cases that have *died* by `T`, rather than merely been
-# detected. An export detected after being infected at outbreak age
-# `s` has died by `T` with probability `F_d(T - s)`, the gamma
-# onset-to-death CDF. Weighting the at-risk cumulative-cases
-# integrand by that survival-to-death probability gives
-#
-# ```math
-# \int_{T-w}^{T} C(s)\, F_d(T - s)\, ds,
-# ```
-#
-# the same detection window `[T-w, T]` as the exports likelihood but
-# with each case down-weighted by how likely it is to have died yet.
-# Rather than calling the gamma CDF directly — whose derivative with
-# respect to the shape parameter is not supported by the reverse-mode
-# AD backend — we write `F_d(T - s)` as the inner integral of the
-# gamma density `\int_0^{T-s} f_d(u)\,du`, so the whole expression
-# differentiates through the density `f_d` alone, exactly as the
-# deaths convolution does. The result is a nested Gauss-Legendre
-# quadrature: the outer integral runs over `[T-w, T]` and, for each
-# outer node `s`, an inner integral evaluates `F_d(T - s)` over
-# `[0, T - s]`. Both map to the reference domain `[-1, 1]`.
-
-#md # ```@raw html
-#md # <details><summary>Integral helpers — deaths-among-exports</summary>
-#md # ```
-
-function _exports_deaths_cdf_integrand(u, p)
-    v = p.inner_halfwidth * (u + 1)        # u ∈ [-1, 1] → v ∈ [0, T-s]
-    return pdf(p.delay_dist, v)
-end
-
-function _exports_deaths_cdf(delay_dist, upper; alg = _CUM_INTEGRAL_ALG)
-    upper <= zero(upper) && return zero(upper)
-    inner_halfwidth = upper / 2
-    params = (; delay_dist, inner_halfwidth)
-    prob = IntegralProblem(
-        _exports_deaths_cdf_integrand, (-1.0, 1.0), params)
-    return inner_halfwidth * solve(prob, alg).u
-end
-
-function _exports_deaths_integrand(u, p)
-    s = p.halfwidth * (u + 1) + p.lower
-    return p.cumulative(s) * _exports_deaths_cdf(p.delay_dist, p.T - s)
-end
-
-function integrate_exports_deaths(cumulative, delay_dist, lower, upper, T;
-        alg = _CUM_INTEGRAL_ALG)
-    upper <= lower && return zero(upper - lower)
-    halfwidth = (upper - lower) / 2
-    params = (; cumulative, delay_dist, halfwidth, lower, T)
-    prob = IntegralProblem(_exports_deaths_integrand, (-1.0, 1.0), params)
-    return halfwidth * solve(prob, alg).u
-end
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-# Helper used by the deaths and cases observation submodels:
-# `NegativeBinomial` parameterised by mean `μ` and dispersion `k`
-# (so `variance = μ + μ²/k`), with NaN / Inf-safe clamping on the
-# success probability so extreme NUTS proposals during warmup don't
-# trip the distribution domain check.
+# A small NegBinomial constructor parameterised by mean `μ` and
+# dispersion `k` (so the variance is given by equation (8)), with
+# NaN / Inf-safe clamping on the success probability so extreme NUTS
+# proposals during warmup do not trip the distribution domain check.
+# It is used by the deaths and cases observation submodels below.
 
 #md # ```@raw html
 #md # <details><summary>Function: safe_nbinomial</summary>
@@ -638,73 +583,77 @@ end
 
 # ## Observation submodels
 #
-# With the latent state (growth) and the integral machinery in
-# place, we now build the three observation models that tie data
-# to the latent state. Each takes the growth state as input and
-# returns its expected count and likelihood: `exports_model`
-# implements Imperial's Method 1, `deaths_model` implements
-# Method 2, and `cases_model` is the ascertainment extension.
-# These are the units the top-level composers will glue together
-# into the per-stream fits and the joint fit.
+# With the building blocks in place, each observation submodel takes
+# the growth state as input, introduces the forward integral it needs,
+# and ties one data stream to the latent `C(T)`. The forward integrals
+# (the at-risk person-time integral for exports, the gamma convolution
+# for deaths, and the deaths-among-exports convolution) live in the
+# package as the reusable helpers `integrate_cumulative`,
+# `expected_deaths` and `integrate_exports_deaths`, so swapping a delay
+# family or a growth curve needs no change to the quadrature. Each
+# submodel introduces its likelihood by referring back to the
+# parameters defined in equations (1)-(11) rather than restating them.
 
-# ### Exports — Method 1 (Imperial Method 1, geographic spread)
+# ### Exports — Imperial Method 1 (geographic spread)
 #
 # Each case in the source population travels to Uganda on any given
-# day with probability `q = daily_travellers / source_pop`, treating
-# cases as exchangeable with the general population. A case is
-# *detection-eligible* for `w` days from infection (incubation +
-# onset-to-detection). For a case infected at time `s ≤ T`, the
-# accumulated probability of being detected in Uganda by `T` is
+# day with probability `q = daily travellers / source population`,
+# treating cases as exchangeable with the general population. A case
+# is *detection-eligible* for `w` days from infection (equation (7)).
+# For a case infected at outbreak age `s ≤ T`, the accumulated
+# probability of being detected in Uganda by `T` is
 #
 # ```math
-# P(\text{detected by } T \mid \text{infected at } s) = q \cdot \min(T - s, w).
+# P(\text{detected by } T \mid \text{infected at } s)
+#     = q \cdot \min(T - s,\ w). \tag{12}
 # ```
 #
-# Splitting at `s = T - w`:
-# ``\min(T - s, w) = w`` for cases infected before `T-w` (full window
-# elapsed), and ``\min(T - s, w) = T - s`` for cases still inside their
-# window. Summing across all incidence gives the **full export
-# integral**:
+# Splitting at `s = T - w` (full window elapsed before `T-w`, partial
+# window after) and summing across incidence `i(s)` gives the full
+# export integral
 #
 # ```math
 # \mathbb{E}[\text{exports by }T]
-#     = q \cdot \left[ w \cdot C(T-w)
-#                      + \int_{T-w}^{T} i(s) \, (T - s) \, ds \right].
+#     = q \cdot \Bigl[ w \cdot C(T-w)
+#          + \int_{T-w}^{T} i(s) \, (T - s) \, ds \Bigr], \tag{13}
 # ```
 #
-# Integration by parts collapses this to the cleaner form
+# which integration by parts collapses to the cleaner at-risk person-
+# time form using the cumulative-incidence trajectory `C(s)` of
+# equation (1):
 #
 # ```math
-# \boxed{\,\mathbb{E}[\text{exports by }T] = q \cdot \int_{T-w}^{T} C(s)\, ds\,}
+# \mathbb{E}[\text{exports by }T] = q \cdot \int_{T-w}^{T} C(s)\, ds. \tag{14}
 # ```
 #
-# — the daily travel rate times the cumulative-cases trajectory
-# integrated over the detection window. For exponential growth
-# this evaluates to `q · (C(T) - C(T-w)) / r`; as `r → 0` it
-# recovers Imperial's small-`rw` simplification `q · w · C(T)`.
+# For exponential growth this evaluates to `q · (C(T) − C(T−w)) / r`;
+# as `r → 0` it recovers Imperial's small-`rw` simplification
+# `q · w · C(T)`. We evaluate equation (14) numerically with
+# `integrate_cumulative` so the same form works for any growth
+# parameterisation, scale by the Uganda ascertainment fraction
+# `p_uganda` (equation (11)), and apply a Poisson likelihood:
 #
-# We evaluate the boxed integral numerically over
-# `growth_state.cumulative`, so the same form works for any growth
-# parameterisation (logistic, two-phase, empirical), and apply a
-# Poisson likelihood `Y_{\text{exports}} \sim \mathrm{Poisson}(\mu_e)`.
+# ```math
+# \mu_e = p_{\text{uganda}} \cdot q \cdot \int_{T-w}^{T} C(s)\, ds,
+# \qquad
+# Y_{\text{exports}} \sim \mathrm{Poisson}(\mu_e). \tag{15}
+# ```
 #
 # !!! note "Comparison with Imperial / Imai 2020"
 #     Imperial use the small-`rw` simplification
-#     `μ_e ≈ q · w · C(T)`, the limit of the integral as
-#     `r → 0`. For BVD's prior range `rw ∈ 0.33 − 2.0` the
-#     simplification under-estimates `C_T` by roughly 15-57%.
-#     Both Imperial and we use `Binomial(N, p)`-style observation
-#     models; with `p ≈ q·w ≈ 6·10⁻³` our Poisson is
-#     indistinguishable from Imperial's Binomial in the small-`p`
-#     regime.
+#     `μ_e ≈ q · w · C(T)`, the limit of equation (14) as `r → 0`.
+#     For BVD's prior range `rw ∈ 0.33 − 2.0` the simplification
+#     under-estimates `C(T)` by roughly 15-57%. Both Imperial and we
+#     use `Binomial(N, p)`-style observation models; with
+#     `p ≈ q·w ≈ 6·10⁻³` our Poisson is indistinguishable from
+#     Imperial's Binomial in the small-`p` regime.
 #
 # **Daily traveller prior.** Imperial Table 3 records mean weekly
 # passenger counts across seven PoEs from one to four weekly sitreps
-# per PoE. The Ituri-side daily total of 1871 is a sample mean
-# across roughly 15-21 PoE-weeks. The prior here is a Normal centred
-# on 1871 with SD 200 (≈ 10% CV), truncated at zero. The SD covers
-# point-of-entry-to-point-of-entry variation and the sampling
-# uncertainty implicit in the sitrep schedule; source population is
+# per PoE. The Ituri-side daily total of 1871 is a sample mean across
+# roughly 15-21 PoE-weeks. The prior here is a Normal centred on 1871
+# with SD 200 (≈ 10% CV), truncated at zero, covering point-of-entry
+# variation and the sitrep sampling uncertainty; source population is
 # kept fixed (census).
 
 #md # ```@raw html
@@ -748,12 +697,31 @@ end
 #md # </details>
 #md # ```
 
-# ### Deaths — Method 2 (Imperial Method 2, backcalculation from deaths)
+# ### Deaths — Imperial Method 2 (back-calculation from deaths)
 #
-# The death convolution is integrated against the latent growth
-# trajectory and weighted by the case-fatality ratio. The dispersion
-# `k` is supplied by the composer rather than sampled inside, so it
-# can be shared with the cases likelihood.
+# Expected cumulative deaths by `T` from a single seeding case is the
+# CFR-weighted convolution of the cumulative-incidence trajectory
+# `C(s)` (equation (1)) with the onset-to-death density `f`
+# (equation (4)):
+#
+# ```math
+# \mathbb{E}[D(T)] = \mathrm{CFR} \cdot
+#     \int_0^T e^{r s}\, f(T - s)\, ds. \tag{16}
+# ```
+#
+# For a gamma delay this integral has an exact closed form; McCabe et
+# al. derive it and use the large-`T` simplification
+# `D(T) ≈ CFR · C(T) · (1 + r/β)^{−α}` (valid for `T ⪞ 12/(β+r)`). We
+# evaluate equation (16) numerically with `expected_deaths` instead —
+# not because the gamma case needs it, but so swapping the delay
+# family in `delay_model` requires no change to the quadrature. The
+# observed deaths follow the NegBinomial likelihood of equation (8)
+# with the dispersion `k` of equation (9), supplied by the composer so
+# it can be shared with the cases likelihood:
+#
+# ```math
+# Y_{\text{deaths}} \sim \mathrm{NegBinomial}(\mathbb{E}[D(T)],\ k). \tag{17}
+# ```
 
 #md # ```@raw html
 #md # <details><summary>Submodel: deaths_model</summary>
@@ -774,10 +742,8 @@ end
 
     CFR = cfr_state.CFR
 
-    ## NaN-safe guards. Extreme NUTS proposals during warmup can
-    ## push `expected_deaths_T` or `p_nb_d` to NaN / Inf; clamping
-    ## NaN-safe clamp: extreme NUTS proposals during warmup can
-    ## push `expected_deaths_T` to NaN / Inf.
+    ## NaN-safe clamp: extreme NUTS proposals during warmup can push
+    ## the expected count to NaN / Inf.
     raw_deaths         = expected_deaths(CFR, r, T, delay_state.dist)
     expected_deaths_T := isfinite(raw_deaths) ?
         max(raw_deaths, eps(typeof(raw_deaths))) :
@@ -792,23 +758,21 @@ end
 #md # </details>
 #md # ```
 
-# ### Cases — Extension beyond Imperial
+# ### Cases — ascertainment extension (no Imperial counterpart)
 #
 # Imperial Methods 1 and 2 use exports and deaths only. Reported
 # suspected cases from the same passive-surveillance system carry
-# information about `C_T` once an ascertainment fraction is
-# introduced:
+# information about `C(T)` once the DRC ascertainment fraction `p_drc`
+# (equation (11)) is introduced:
 #
 # ```math
-# \mu_c = p_{\text{DRC}} \cdot C_T,
+# \mu_c = p_{\text{drc}} \cdot C(T),
 # \qquad
-# Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_c,\ k).
+# Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_c,\ k). \tag{18}
 # ```
 #
-# The DRC ascertainment fraction `p_drc` comes from the pooled
-# ascertainment submodel, sampled once by the composer and shared
-# with the Uganda-side exports likelihood through `p_uganda`. The
-# dispersion `k` is shared with the deaths likelihood the same way.
+# The dispersion `k` (equation (9)) is shared with the deaths
+# likelihood; both are sampled once by the composer.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: cases_model</summary>
@@ -834,30 +798,37 @@ end
 #md # </details>
 #md # ```
 
-# ### Deaths-among-exports — fourth observation likelihood
+# ### Deaths among exports — fourth observation likelihood
 #
-# Uganda reports a single death among its detected exports. The zero
-# (when there were none) and the small count here are informative:
-# if the exports happened long ago, more of them would have died by
-# now under the onset-to-death gamma, so the observed deaths-among-
-# exports bound how recently the exports occurred and so help
-# constrain `T` (and `C_T`).
-#
-# The expected count reuses the at-risk export integral but weights
-# each case by its probability of having died by `T`, then scales by
-# the CFR, the daily travel rate `q = daily_travellers / source_pop`
-# and the Uganda ascertainment fraction `p_uganda`:
+# Uganda reports a single death among its detected exports. That count
+# is informative: if the exports happened long ago, more of them would
+# have died by now under the onset-to-death gamma, so the observed
+# deaths-among-exports bound how recently the exports occurred and help
+# constrain `T` (and `C(T)`). The expected count reuses the at-risk
+# export integrand of equation (14) but weights each case by its
+# probability of having died by `T`, the onset-to-death CDF
+# `F_d(T − s)` (equation (4)), then scales by the CFR, the travel rate
+# `q` and the Uganda ascertainment fraction `p_uganda`:
 #
 # ```math
-# \mathbb{E}[D_{\text{Uganda}}]
-#     = \mathrm{CFR} \cdot p_{\text{Uganda}} \cdot q
-#       \cdot \int_{T-w}^{T} C(s)\, F_d(T - s)\, ds.
+# \mathbb{E}[D_{\text{uganda}}]
+#     = \mathrm{CFR} \cdot p_{\text{uganda}} \cdot q
+#       \cdot \int_{T-w}^{T} C(s)\, F_d(T - s)\, ds. \tag{19}
 # ```
 #
-# The detection window `w` and daily traveller volume are sampled by
-# the exports likelihood and threaded in here so the two Uganda-side
-# observations share the same person-time. A Poisson likelihood ties
-# the observed count to the expected.
+# The package helper `integrate_exports_deaths` evaluates equation (19)
+# by writing `F_d` as the inner integral of the density `f`, so the
+# whole expression differentiates through `f` alone (the reverse-mode
+# AD backend does not support the gamma CDF shape-parameter
+# derivative). The detection window `w` and daily traveller volume are
+# sampled by the exports likelihood and threaded in here so the two
+# Uganda-side observations share the same person-time, and a Poisson
+# likelihood ties the observed count to equation (19):
+#
+# ```math
+# Y_{\text{exports-deaths}} \sim
+#     \mathrm{Poisson}(\mathbb{E}[D_{\text{uganda}}]). \tag{20}
+# ```
 #
 # !!! note "Selection-bias caveat"
 #     This assumes Uganda's surveillance retains detected exports
@@ -897,27 +868,26 @@ end
 #md # </details>
 #md # ```
 
-# ## Top-level composers
+# ## Composers
 #
 # These composers stitch the building blocks into the **full
-# generative models** for each Imperial analysis. Imperial
-# inverts a deterministic summary formula at fixed nuisance
-# parameters; here we sample the entire generative process — growth,
-# delay, CFR, detection window, dispersion — and condition on the
-# observed counts. The per-stream composers (`exports_only_model`,
-# `deaths_only_model`) reproduce Imperial Methods 1 and 2 as
-# stand-alone Bayesian fits; `bvd_joint` is the same generative
-# process conditioned on all four observed streams simultaneously.
+# generative models** for each analysis. Imperial inverts a
+# deterministic summary formula at fixed nuisance parameters; here we
+# sample the entire generative process — growth, delay, CFR, detection
+# window, dispersion, ascertainment — and condition on the observed
+# counts. Each composer conditionally includes only the likelihoods
+# for the streams it carries, so a single-stream composer never
+# instantiates the other observation submodels (and so a discrete
+# stream is never left sampled, which would trip Turing's model check).
 #
 # The joint composer samples a single `surveillance_dispersion_model`
 # and passes that same `k` to both deaths and cases likelihoods, so
 # they share one passive-surveillance noise scale. It also samples a
 # single `pooled_ascertainment_model`, threading `p_drc` to the cases
-# likelihood and `p_uganda` to the two Uganda-side likelihoods
-# (exports and deaths-among-exports). The window `w` and daily
-# traveller volume sampled by the exports likelihood are reused by
-# the deaths-among-exports likelihood so the two share person-time.
-# Each per-stream composer instantiates its own pooled submodel.
+# likelihood and `p_uganda` to the two Uganda-side likelihoods. The
+# window `w` and daily traveller volume sampled by the exports
+# likelihood are reused by the deaths-among-exports likelihood so the
+# two share person-time.
 
 # ### Exports-only fit — Imperial Method 1 analogue
 
@@ -1010,7 +980,7 @@ end
         delay         = delay_model(),
         cfr           = cfr_model(),
         window        = detection_window_model(),
-        exports_deaths_lik = exports_deaths_model,
+        exports_deaths_model = exports_deaths_model,
         ascertainment = pooled_ascertainment_model(),
         travellers_mean::Real   = ITURI_DAILY_TRAVEL,
         travellers_sd::Real     = ITURI_DAILY_TRAVEL_SD,
@@ -1026,7 +996,7 @@ end
         Normal(travellers_mean, travellers_sd); lower = 0)
 
     exports_deaths_state ~ to_submodel(
-        exports_deaths_lik(exports_deaths, growth_state,
+        exports_deaths_model(exports_deaths, growth_state,
             cfr_state.CFR, delay_state.dist, asc_state.p_uganda;
             window           = window_state.w,
             daily_travellers = daily_travellers,
@@ -1040,7 +1010,13 @@ end
 #md # </details>
 #md # ```
 
-# ### Joint fit — full posterior over `C_T` from all data streams
+# ### Joint fit — full posterior over `C(T)` from all data streams
+#
+# `bvd_joint` is the same generative process conditioned on all four
+# observed streams simultaneously. Each stream argument may be passed
+# as `missing` to drop it; the matching likelihood is then not
+# instantiated, so the composer doubles as a generator (all streams
+# missing) for the prior- and posterior-predictive checks.
 
 #md # ```@raw html
 #md # <details><summary>Composer: bvd_joint</summary>
@@ -1055,7 +1031,7 @@ end
         exports       = exports_model,
         deaths        = deaths_model,
         cases         = cases_model,
-        exports_deaths_lik = exports_deaths_model,
+        exports_deaths_model = exports_deaths_model,
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
         source_population::Real = ITURI_POPULATION)
@@ -1074,7 +1050,7 @@ end
     cases_state ~ to_submodel(
         cases(reported_cases, growth_state, k, p_drc), false)
     exports_deaths_state ~ to_submodel(
-        exports_deaths_lik(exports_deaths, growth_state,
+        exports_deaths_model(exports_deaths, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;
             window           = exports_state.w,
             daily_travellers = exports_state.daily_travellers,
@@ -1088,20 +1064,63 @@ end
 #md # </details>
 #md # ```
 
+# ### Imperial-exact fit — exports and deaths only
+#
+# Imperial's joint configuration uses exactly two data sources: the
+# geographic-spread exports (Method 1) and the back-calculation from
+# deaths (Method 2). It has no reported-cases ascertainment model and
+# no deaths-among-exports likelihood. `imperial_only_model` wraps just
+# those two observation submodels so the sense-check can fix the model
+# down to exactly the Imperial joint configuration. Either stream may
+# be `missing`: passing `missing` for exports recovers a pure Method 2
+# (deaths-only) fit without instantiating the exports likelihood.
+
+#md # ```@raw html
+#md # <details><summary>Composer: imperial_only_model</summary>
+#md # ```
+
+@model function imperial_only_model(
+        exported_cases::Union{Missing, Integer},
+        total_deaths::Union{Missing, Integer};
+        growth        = exponential_growth_model(),
+        exports       = exports_model,
+        deaths        = deaths_model,
+        dispersion    = surveillance_dispersion_model(),
+        ascertainment = pooled_ascertainment_model())
+
+    growth_state     ~ to_submodel(growth, false)
+    dispersion_state ~ to_submodel(dispersion, false)
+    asc_state        ~ to_submodel(ascertainment, false)
+    k        = dispersion_state.k
+    p_uganda = asc_state.p_uganda
+
+    if !ismissing(exported_cases)
+        exports_state ~ to_submodel(
+            exports(exported_cases, growth_state, p_uganda), false)
+    end
+    deaths_state ~ to_submodel(
+        deaths(total_deaths, growth_state, k), false)
+
+    cumulative_cases := growth_state.C_T
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ## Prior predictive check
 #
 # Before any observation is taken into account, what does the joint
 # prior imply about replicated exports, deaths, reported cases and
 # deaths among exports? Draws from the prior over the unobserved data
-# should bracket the observed `Y = 2` exports, `D = 136` deaths,
-# `C = 514` reported suspected cases and one death among exports.
+# should bracket the observed counts.
+
+#md # ```@raw html
+#md # <details><summary>Sample the joint prior</summary>
+#md # ```
 
 prior_chn = sample(bvd_joint(missing, missing, missing, missing),
                    Prior(), 2_000; progress = false);
-
-#md # ```@raw html
-#md # <details><summary>Prior summary table</summary>
-#md # ```
 
 prior_C_table = summary_table(prior_chn, [:cumulative_cases]; digits = 0);
 
@@ -1109,7 +1128,7 @@ prior_C_table = summary_table(prior_chn, [:cumulative_cases]; digits = 0);
 #md # </details>
 #md # ```
 
-prior_C_table
+prior_C_table #hide
 
 # Pair plot of the prior over the latent quantities — useful for
 # spotting prior correlations before any data has been seen.
@@ -1126,57 +1145,45 @@ prior_pair_fig = plot_pair(prior_chn,
 #md # </details>
 #md # ```
 
-prior_pair_fig
+prior_pair_fig #hide
 
-# ## Fitting the joint model
+# ## Fitting the models
 #
 # NUTS with Mooncake reverse-mode AD, four chains, 1000 post-warmup
 # draws each, `target_accept = 0.9`. Chains initialise from the prior
-# to keep the sampler away from the boundary of `r` and `m`.
+# to keep the sampler away from the boundary of `r` and `m`. We fit
+# the joint model and the three single-stream models so the four
+# posteriors over `C(T)` can be compared.
 
 #md # ```@raw html
-#md # <details><summary>Run the joint NUTS fit</summary>
+#md # <details><summary>Run the joint and per-stream NUTS fits</summary>
 #md # ```
 
 chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
               obs.reported_cases, obs.exports_deaths));
 
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-# Also fit the three single-stream models so the four posteriors can
-# be compared side by side.
-
-#md # ```@raw html
-#md # <details><summary>Run the per-stream NUTS fits</summary>
-#md # ```
-
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
 chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths));
 chn_cases   = nuts_sample(cases_only_model(obs.reported_cases));
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-# ## Posterior summary
-#
-# The first table reports equal-tailed 30%, 60% and 90% credible
-# intervals on the key joint-fit parameters: growth rate `r`,
-# doubling-time multiplier `m`, days since seeding `T`, CFR, the DRC
-# and Uganda ascertainment fractions `p_drc` and `p_uganda`, the
-# pooling SD `τ_logit`, and cumulative cases `C_T`. The second table
-# puts the four posteriors over `C_T` side-by-side — the three
-# single-stream fits and the joint — to show how each data stream
-# constrains the latent outbreak size on its own and what the joint
-# combination buys.
 
 posterior_C_joint   = vec(Array(chn_joint[:cumulative_cases]));
 posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]));
 posterior_C_deaths  = vec(Array(chn_deaths[:cumulative_cases]));
 posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# ## Joint model and results
+#
+# The headline result is the joint posterior over `C(T)`, combining
+# all four data streams. The summary table below reports equal-tailed
+# 30%, 60% and 90% credible intervals on the key joint-fit parameters:
+# growth rate `r`, doubling-time multiplier `m`, days since seeding
+# `T`, CFR, the DRC and Uganda ascertainment fractions `p_drc` and
+# `p_uganda`, the pooling SD `τ`, and cumulative cases `C(T)`.
 
 #md # ```@raw html
 #md # <details><summary>Joint posterior summary table</summary>
@@ -1190,43 +1197,16 @@ joint_summary = summary_table(chn_joint,
 #md # </details>
 #md # ```
 
-joint_summary
+joint_summary #hide
 
-# Comparing `C_T` across the four fits:
-
-#md # ```@raw html
-#md # <details><summary>Per-stream C_T table</summary>
-#md # ```
-
-streams_C_table = streams_table(
-    "exports-only" => posterior_C_exports,
-    "deaths-only"  => posterior_C_deaths,
-    "cases-only"   => posterior_C_cases,
-    "joint"        => posterior_C_joint);
+# A posterior predictive check draws replicated observations from the
+# fitted joint model and compares them to the observed counts. If the
+# fit is reasonable the observed value (red line) sits inside the bulk
+# of its replicate distribution.
 
 #md # ```@raw html
-#md # </details>
+#md # <details><summary>Joint posterior predictive plot</summary>
 #md # ```
-
-streams_C_table
-
-# ## Posterior predictive
-#
-# A posterior predictive check draws replicated observations from
-# the fitted model and compares them to the observed counts. If a
-# fit is reasonable the observed value (red line) should sit inside
-# the bulk of its replicate distribution. The 2×3 grid below has
-# replicates from the per-stream fits on the top row and the joint
-# fit on the bottom row — comparable column-wise so it's easy to
-# see what each per-stream fit constrains and how the joint
-# combination shifts the predictives.
-
-pp_exports_only = vec(Array(predict(
-    exports_only_model(missing), chn_exports)[:exported_cases]))
-pp_deaths_only  = vec(Array(predict(
-    deaths_only_model(missing),  chn_deaths )[:total_deaths]))
-pp_cases_only   = vec(Array(predict(
-    cases_only_model(missing),   chn_cases  )[:reported_cases]))
 
 pp_joint   = predict(
     bvd_joint(missing, missing, missing, missing), chn_joint)
@@ -1234,70 +1214,77 @@ pp_exports = vec(Array(pp_joint[:exported_cases]))
 pp_deaths  = vec(Array(pp_joint[:total_deaths]))
 pp_cases   = vec(Array(pp_joint[:reported_cases]))
 
-#md # ```@raw html
-#md # <details><summary>Posterior predictive grid plot</summary>
-#md # ```
-
-ppc_grid_fig = plot_posterior_predictive_grid(;
-    individual = (; exports = pp_exports_only,
-                    deaths  = pp_deaths_only,
-                    cases   = pp_cases_only),
-    joint      = (; exports = pp_exports,
-                    deaths  = pp_deaths,
-                    cases   = pp_cases),
-    observed   = (; exports = obs.exported_cases,
-                    deaths  = obs.total_deaths,
-                    cases   = obs.reported_cases),
-);
+joint_ppc_fig = plot_posterior_predictive(
+    pp_exports, pp_deaths,
+    obs.exported_cases, obs.total_deaths;
+    pp_cases  = pp_cases,
+    obs_cases = obs.reported_cases);
 
 #md # ```@raw html
 #md # </details>
 #md # ```
 
-ppc_grid_fig
+joint_ppc_fig #hide
 
-# ## Overlaid posterior densities for `C_T`
+# The joint posterior density of `C(T)`:
 
 #md # ```@raw html
-#md # <details><summary>Overlaid C_T density plot</summary>
+#md # <details><summary>Joint C_T density plot</summary>
 #md # ```
 
-cumulative_density_fig = plot_cumulative_cases(
-    "exports-only" => posterior_C_exports,
-    "deaths-only"  => posterior_C_deaths,
-    "cases-only"   => posterior_C_cases,
-    "joint"        => posterior_C_joint);
+joint_density_fig = plot_cumulative_cases(
+    "joint" => posterior_C_joint; scenarios = []);
 
 #md # ```@raw html
 #md # </details>
 #md # ```
 
-cumulative_density_fig
+joint_density_fig #hide
+
+# The cumulative case count `C(T) = exp(r T)` is set jointly by the
+# doubling time `τ` (equivalently the growth rate `r = log 2 / τ`) and
+# the time since seeding `T`. A reader who holds prior information on
+# the growth rate or on the outbreak's origin date can read off the
+# corresponding region of the joint `(τ, T)` posterior below and so
+# locate the implied outbreak size. The two are positively correlated:
+# a slower growth (larger `τ`) needs a longer elapsed `T` to reach the
+# same observed counts.
+
+#md # ```@raw html
+#md # <details><summary>Joint (τ, T) posterior pair plot</summary>
+#md # ```
+
+tau_T_fig = plot_pair(chn_joint, [:τ, :T]);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+tau_T_fig #hide
 
 # ## Counterfactual: lower bound under no further transmission
 #
-# Suppose every onward transmission stopped today. The cohort
-# already infected by time `T` still carries committed deaths in
-# the onset-to-death tail: a case infected at outbreak age `s` has
-# died by `T` with probability `F_d(T - s)`, so a fraction
-# `1 - F_d(T - s)` of its CFR-weighted contribution has not yet
-# been observed in the reported death count. Integrating against
-# the incidence `i(s) = r·exp(r·s)` under exponential growth gives
-# the additional committed deaths
+# Suppose every onward transmission stopped today. The cohort already
+# infected by `T` still carries future expected deaths in the onset-to-
+# death tail: a case infected at outbreak age `s` has died by `T` with
+# probability `F_d(T − s)` (equation (4)), so a fraction
+# `1 − F_d(T − s)` of its CFR-weighted contribution has not yet been
+# observed. Integrating against the incidence `i(s) = r·exp(r·s)` from
+# equation (1) gives the additional future expected deaths
 #
 # ```math
 # \Delta D = \mathrm{CFR} \cdot \int_0^T r\,\exp(r\,s)
-#            \,\bigl(1 - F_d(T - s)\bigr)\,ds,
+#            \,\bigl(1 - F_d(T - s)\bigr)\,ds, \tag{21}
 # ```
 #
 # and a lower bound on the cumulative-death endpoint of
-# `D_T + \Delta D`, evaluated per posterior draw.
-
-no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = TOTAL_DEATHS);
+# `D(T) + ΔD`, evaluated per posterior draw.
 
 #md # ```@raw html
-#md # <details><summary>No-onward projected-deaths summary table</summary>
+#md # <details><summary>Project no-onward deaths and summarise</summary>
 #md # ```
+
+no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = TOTAL_DEATHS);
 
 no_onward_table = streams_table(
     "no-onward total" => no_onward.total_projected;
@@ -1307,10 +1294,10 @@ no_onward_table = streams_table(
 #md # </details>
 #md # ```
 
-no_onward_table
+no_onward_table #hide
 
-# Density of the projected total, with the observed death count
-# marked as a dashed black rule.
+# Density of the projected total, with the observed death count marked
+# as a dashed black rule.
 
 #md # ```@raw html
 #md # <details><summary>No-onward projected-deaths plot</summary>
@@ -1322,7 +1309,7 @@ no_onward_fig = plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS);
 #md # </details>
 #md # ```
 
-no_onward_fig
+no_onward_fig #hide
 
 # ## One-week-ahead forecast
 #
@@ -1331,14 +1318,14 @@ no_onward_fig
 # growth `horizon = 7` days past the cut-off `T` and apply the same
 # observation models to forecast the cumulative reported cases (DRC),
 # deaths (DRC) and exports (Uganda) by `T + 7`, and the *new* counts
-# expected over the coming week (cumulative at `T + 7` minus the
-# count already observed). These are posterior-predictive: each draw
-# yields a replicated integer count, so the intervals carry both
-# parameter and observation uncertainty.
+# expected over the coming week (cumulative at `T + 7` minus the count
+# already observed). These are posterior-predictive: each draw yields a
+# replicated integer count, so the intervals carry both parameter and
+# observation uncertainty.
 #
 # This assumes growth continues unchanged for the week — no
-# interventions and no saturation — so it is a "no-change"
-# projection, not a considered forecast.
+# interventions and no saturation — so it is a "no-change" projection,
+# not a considered forecast.
 
 #md # ```@raw html
 #md # <details><summary>Generate the one-week-ahead forecast</summary>
@@ -1357,7 +1344,7 @@ forecast_summary = forecast_table(forecast);
 #md # </details>
 #md # ```
 
-forecast_summary
+forecast_summary #hide
 
 # New counts expected over the coming week, by stream:
 
@@ -1371,35 +1358,193 @@ forecast_fig = plot_forecast(forecast);
 #md # </details>
 #md # ```
 
-forecast_fig
+forecast_fig #hide
 
-# ## Imperial report sense check
+# ## Delay sensitivity
 #
-# A quick sanity check that the model can recover Imperial's Method 2
-# headline when given Imperial's inputs. We use `deaths_only_model`,
-# conditioned on Imperial's 16 May 2026 deaths snapshot (88), since
-# Method 2 backcalculates outbreak size from deaths alone and does
-# not touch the exports, reported-cases or deaths-among-exports
-# streams (so the pooled ascertainment and the deaths-among-exports
-# likelihood play no part here). We `Turing.fix` the doubling time,
-# CFR, gamma shape and scale to the Method 2 main-scenario values
-# (`τ = 14 d, CFR = 30%, α = 4.42, β = 0.388/d`) and pin the
-# NegBinomial dispersion at `inv_sqrt_k = 0` so the deaths likelihood
-# collapses to Poisson — Imperial's actual choice (Table 2 reports
-# Poisson CIs). The only sampled latent is `m`, the number of
-# doublings since seeding; `C_T = 2^m`. The same `m_prior` used in
-# the joint fit applies here without modification.
+# The deaths back-calculation (equation (16)) depends on the onset-to-
+# death delay. The baseline fit anchors the gamma shape `α` and scale
+# `θ` on the all-deaths Isiro mixture (equation (5)). The companion
+# bdbv-linelist-analysis also reports a *community-only* pathway — the
+# `n = 5` cases who died without hospital admission — with a shorter
+# but far more uncertain delay: shape `α ≈ 5.6` (95% CrI 1.0-25.9) and
+# scale `θ ≈ 1.4` (0.3-9.5). A shorter delay means deaths appear sooner
+# after infection, so a given death count back-calculates to a smaller
+# `C(T)`.
+#
+# We refit the joint model once with `delay_model`'s priors re-anchored
+# on the community-only pathway, building truncated-Normal priors
+# centred on those medians with SD = (hi − lo) / 3.92, exactly as the
+# baseline delay priors (equation (5)) are constructed:
+#
+# ```math
+# \alpha \sim \mathrm{Normal}^{+}(5.6,\ 6.35), \qquad
+# \theta \sim \mathrm{Normal}^{+}(1.4,\ 2.35). \tag{22}
+# ```
+#
+# Nothing else changes. The comparison below shows how sensitive the
+# outbreak-size estimate is to the delay assumption.
+#
+# !!! warning "Sensitivity only, not a preferred estimate"
+#     The community-only delay is fitted from `n = 5` deaths, so the
+#     evidence is weak and the priors in equation (22) are very wide.
+#     This section is included to probe sensitivity, not as a preferred
+#     alternative to the baseline.
 
-imperial_fixed = Turing.fix(
-    deaths_only_model(88),                              # Imperial 16 May 2026 snapshot
-    (τ = 14.0, CFR = 0.30, α = 4.42, θ = 1/0.388,
-     inv_sqrt_k = 0.0),
-)
+#md # ```@raw html
+#md # <details><summary>Refit the joint model with the community-only delay</summary>
+#md # ```
+
+community_delay = delay_model(;
+    alpha_prior = truncated(Normal(5.6, (25.9 - 1.0) / 3.92); lower = 0),
+    theta_prior = truncated(Normal(1.4, (9.5 - 0.3) / 3.92); lower = 0))
+
+chn_joint_community = nuts_sample(
+    bvd_joint(obs.exported_cases, obs.total_deaths,
+              obs.reported_cases, obs.exports_deaths;
+              deaths = (total_deaths, growth_state, k) ->
+                  deaths_model(total_deaths, growth_state, k;
+                               delay = community_delay)));
+
+posterior_C_community = vec(Array(chn_joint_community[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# Baseline versus community-only delay, side by side:
+
+#md # ```@raw html
+#md # <details><summary>Delay-sensitivity C_T table</summary>
+#md # ```
+
+delay_sensitivity_table = streams_table(
+    "joint (baseline delay)"        => posterior_C_joint,
+    "joint (community-only delay)"  => posterior_C_community);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+delay_sensitivity_table #hide
+
+# Overlaid posterior densities of `C(T)` under the two delay
+# assumptions:
+
+#md # ```@raw html
+#md # <details><summary>Delay-sensitivity C_T density plot</summary>
+#md # ```
+
+delay_sensitivity_fig = plot_cumulative_cases(
+    "baseline delay"       => posterior_C_joint,
+    "community-only delay" => posterior_C_community;
+    scenarios = []);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+delay_sensitivity_fig #hide
+
+# ## How the data streams compare
+#
+# Each data stream constrains the latent outbreak size differently.
+# The table below puts the four posteriors over `C(T)` side by side —
+# the three single-stream fits and the joint — to show what each stream
+# buys on its own and what the joint combination adds.
+
+#md # ```@raw html
+#md # <details><summary>Per-stream C_T table</summary>
+#md # ```
+
+streams_C_table = streams_table(
+    "exports-only" => posterior_C_exports,
+    "deaths-only"  => posterior_C_deaths,
+    "cases-only"   => posterior_C_cases,
+    "joint"        => posterior_C_joint);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+streams_C_table #hide
+
+# The 2×3 grid below has replicates from the per-stream fits on the
+# top row and the joint fit on the bottom row, comparable column-wise
+# so it is easy to see what each per-stream fit constrains and how the
+# joint combination shifts the predictives.
+
+#md # ```@raw html
+#md # <details><summary>Per-stream vs joint posterior predictive grid</summary>
+#md # ```
+
+pp_exports_only = vec(Array(predict(
+    exports_only_model(missing), chn_exports)[:exported_cases]))
+pp_deaths_only  = vec(Array(predict(
+    deaths_only_model(missing),  chn_deaths )[:total_deaths]))
+pp_cases_only   = vec(Array(predict(
+    cases_only_model(missing),   chn_cases  )[:reported_cases]))
+
+ppc_grid_fig = plot_posterior_predictive_grid(;
+    individual = (; exports = pp_exports_only,
+                    deaths  = pp_deaths_only,
+                    cases   = pp_cases_only),
+    joint      = (; exports = pp_exports,
+                    deaths  = pp_deaths,
+                    cases   = pp_cases),
+    observed   = (; exports = obs.exported_cases,
+                    deaths  = obs.total_deaths,
+                    cases   = obs.reported_cases),
+);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+ppc_grid_fig #hide
+
+# Overlaid posterior densities of `C(T)` from the four fits:
+
+#md # ```@raw html
+#md # <details><summary>Overlaid C_T density plot</summary>
+#md # ```
+
+cumulative_density_fig = plot_cumulative_cases(
+    "exports-only" => posterior_C_exports,
+    "deaths-only"  => posterior_C_deaths,
+    "cases-only"   => posterior_C_cases,
+    "joint"        => posterior_C_joint;
+    scenarios = []);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+cumulative_density_fig #hide
+
+# ## Imperial comparison
+#
+# How does the joint posterior sit against what Imperial actually
+# reported? The table below compares Imperial's two main scenarios
+# (Method 1 Ituri w=15 d, and Method 2 τ=14 d / CFR 30%) against the
+# joint posterior. Imperial's 95% intervals are the exact NegBinomial
+# CIs (Method 1) and Poisson CIs (Method 2) reported in Tables 1 and 2
+# of the report. The "Our model | Imperial main assumptions" row is
+# filled in by the sense check below.
 
 #md # ```@raw html
 #md # <details><summary>Run the Imperial sense-check fit</summary>
 #md # ```
 
+# The sense check (next section) recovers Imperial's Method 2 headline
+# by fixing the Imperial-exact composer to Imperial's central
+# assumptions. We run it here so its `C(T)` estimate can join the
+# comparison table.
+imperial_fixed = Turing.fix(
+    imperial_only_model(missing, 88),       # exports missing → pure Method 2
+    (τ = 14.0, CFR = 0.30, α = 4.42, θ = 1/0.388,
+     inv_sqrt_k = 0.0),
+)
 chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 
@@ -1408,30 +1553,7 @@ posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 #md # ```
 
 #md # ```@raw html
-#md # <details><summary>Imperial sense-check summary table</summary>
-#md # ```
-
-imperial_summary = summary_table(chn_imperial,
-    [:m, :T, :cumulative_cases]; digits = 1);
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-imperial_summary
-
-# ### Side-by-side: Imperial reported vs our two analogues
-#
-# Compare what Imperial *actually reported* for their two main
-# scenarios (Method 1 Ituri w=15 d, and Method 2 τ=14 d / CFR 30%)
-# against the two `C_T` estimates we derive: the model conditioned
-# on Imperial's central assumptions, and the full joint posterior.
-# Imperial's 95% intervals are the exact NegBinomial CIs (Method 1)
-# and Poisson CIs (Method 2) reported in Tables 1 and 2 of the
-# report.
-
-#md # ```@raw html
-#md # <details><summary>Building the main comparison table</summary>
+#md # <details><summary>Build the main comparison table</summary>
 #md # ```
 
 joint_C_credibles    = posterior_summary(posterior_C_joint)
@@ -1459,9 +1581,11 @@ main_comparison = DataFrame(
 #md # </details>
 #md # ```
 
-main_comparison
+main_comparison #hide
 
-# Joint posterior coverage of all 15 published Imperial scenarios:
+# Joint posterior coverage of all 15 published Imperial scenarios —
+# for each scenario, the narrowest joint credible interval that
+# contains it:
 
 #md # ```@raw html
 #md # <details><summary>Joint coverage table</summary>
@@ -1473,7 +1597,51 @@ coverage_table = comparison_table(posterior_C_joint);
 #md # </details>
 #md # ```
 
-coverage_table
+coverage_table #hide
+
+# The joint `C(T)` density again, this time with the 15 published
+# Imperial scenario point estimates overlaid as faint dashed rules:
+
+#md # ```@raw html
+#md # <details><summary>Joint C_T density with Imperial scenarios</summary>
+#md # ```
+
+imperial_density_fig = plot_cumulative_cases("joint" => posterior_C_joint);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+imperial_density_fig #hide
+
+# ## Imperial report sense check
+#
+# A quick sanity check that the model can recover Imperial's Method 2
+# headline when given Imperial's inputs. The fit ran in the comparison
+# section above using the Imperial-exact composer `imperial_only_model`
+# with exports passed as `missing`, so only the deaths likelihood is
+# instantiated — Method 2 backcalculates outbreak size from deaths
+# alone. It is conditioned on Imperial's 16 May 2026 deaths snapshot
+# (88) and `Turing.fix`-pinned to the Method 2 main-scenario values
+# (`τ = 14 d, CFR = 30%, α = 4.42, β = 0.388/d`), with the NegBinomial
+# dispersion pinned at `inv_sqrt_k = 0` so the deaths likelihood
+# collapses to Poisson — Imperial's actual choice (Table 2 reports
+# Poisson CIs). The only sampled latent is `m`, the number of doublings
+# since seeding; `C(T) = 2^m`. The same `m` prior used in the joint fit
+# applies here without modification.
+
+#md # ```@raw html
+#md # <details><summary>Imperial sense-check summary table</summary>
+#md # ```
+
+imperial_summary = summary_table(chn_imperial,
+    [:m, :T, :cumulative_cases]; digits = 1);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+imperial_summary #hide
 
 # ## Saving results
 #
@@ -1522,3 +1690,9 @@ CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws)
 #md # </details>
 #md # ```
 
+# ---
+#
+# The full analysis code, data and model definitions are in the
+# [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
+# repository. Issues, corrections and suggestions are welcome there.
+# Maintained by Sam Abbott and contributors.
