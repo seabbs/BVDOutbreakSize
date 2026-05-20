@@ -16,10 +16,10 @@
 # one-week-ahead forecast and an onset-to-death delay sensitivity
 # analysis are added.
 #
-# **Authors.** Sam Abbott and contributors. The model code and this
-# analysis were drafted by a language model and reviewed and
-# revised under human oversight; the named authors are responsible
-# for that oversight (see the *LLM-driven reimplementation* limitation
+# **Authors.** Sam Abbott, Sam Brand and Sebastian Funk. The model
+# code and this analysis were drafted by a language model and
+# reviewed and revised under human oversight; the named authors are
+# responsible for that oversight (see the *LLM-driven reimplementation* limitation
 # below). The full analysis code lives in the
 # [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
 # repository, where issues and suggestions are welcome.
@@ -1243,12 +1243,13 @@ joint_density_fig #hide
 
 # The cumulative case count `C(T) = exp(r T)` is set jointly by the
 # doubling time `τ` (equivalently the growth rate `r = log 2 / τ`) and
-# the time since seeding `T`. A reader who holds prior information on
-# the growth rate or on the outbreak's origin date can read off the
-# corresponding region of the joint `(τ, T)` posterior below and so
-# locate the implied outbreak size. The two are positively correlated:
-# a slower growth (larger `τ`) needs a longer elapsed `T` to reach the
-# same observed counts.
+# the time since seeding `T`. As a calendar date, `T` places the start
+# of sustained transmission at the data cut-off minus `T` days, so a
+# reader who holds prior information on the growth rate or on the
+# outbreak's origin date can read off the corresponding region of the
+# joint `(τ, T)` posterior below and locate the implied outbreak size.
+# The two are positively correlated: a slower growth (larger `τ`) needs
+# a longer elapsed `T` to reach the same observed counts.
 
 #md # ```@raw html
 #md # <details><summary>Joint (τ, T) posterior pair plot</summary>
@@ -1296,8 +1297,10 @@ no_onward_table = streams_table(
 
 no_onward_table #hide
 
-# Density of the projected total, with the observed death count marked
-# as a dashed black rule.
+# Two panels: the *still expected* deaths `ΔD` (future deaths in cases
+# already infected by `T`, net of those already observed) on the left,
+# and the *projected total* `D(T) + ΔD` on the right with the observed
+# death count marked as a dashed black rule.
 
 #md # ```@raw html
 #md # <details><summary>No-onward projected-deaths plot</summary>
@@ -1695,4 +1698,4 @@ CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws)
 # The full analysis code, data and model definitions are in the
 # [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
 # repository. Issues, corrections and suggestions are welcome there.
-# Maintained by Sam Abbott and contributors.
+# Maintained by Sam Abbott, Sam Brand and Sebastian Funk.
