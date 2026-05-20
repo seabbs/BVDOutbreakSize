@@ -39,7 +39,7 @@
 # cut-off for every data stream, so the deaths, exports and reported-
 # case counts must all be kept in sync to the same date.
 #
-# **→ Jump to the [joint posterior results](#Joint-model-estimates).**
+# **→ Jump to the [results](#Results).**
 #
 # ## What we do differently from McCabe et al.
 #
@@ -53,7 +53,7 @@
 # - *Exact cumulative integral for exports* —
 #   $q\cdot\int_{T-w}^{T} C(s)\,ds$ with travel rate $q$ — rather than
 #   the small-$rw$ simplification $q\cdot w\cdot C(T)$ used by McCabe et
-#   al. (and by Imai et al. 2020 before them). The two forms agree
+#   al. (and by [imai2020](@cite) before them). The two forms agree
 #   as $r \to 0$.
 # - *Numerical (not closed-form) deaths convolution.* For a gamma
 #   delay the convolution integral has an exact closed form that
@@ -149,6 +149,12 @@
 #   exports through to any subsequent death. If the system loses
 #   cases that progress to death, the observed count is biased
 #   downward and the constraint it places on $T$ is overstated.
+# - *Deaths-among-exports is an approximate construction.* The expected
+#   count weights the exported at-risk person-time by the onset-to-death
+#   CDF $F_d(T-s)$ rather than convolving the death delay against the
+#   exported-case incidence; this treats the cohort present at time $s$
+#   as if infected at $s$. A cleaner construction would convolve the
+#   onset-to-death delay against the exported-case incidence trajectory.
 # - *Ascertainment partially pooled, not separately identified.*
 #   Uganda's exported-case ascertainment $p_{\text{uganda}}$ and DRC's
 #   reported-case ascertainment $p_{\text{drc}}$ share a logit-scale
@@ -1372,26 +1378,41 @@ diagnostics_table( #hide
 # outbreak, and planning for beds, contacts and vaccine needs depends
 # on the true total. The numbers below are our current best estimate of
 # that total, computed from the joint posterior and refreshed on every
-# build.
+# build. We give 90% credible-interval ranges here; the full 30/60/90%
+# intervals are in the tables below.
 
-let
-    C     = posterior_C_joint
-    c_med = round(Int, quantile(C, 0.5))
-    c_lo  = round(Int, quantile(C, 0.05))
-    c_hi  = round(Int, quantile(C, 0.95))
-    T_med = round(Int, quantile(vec(Array(chn_joint[:T])), 0.5))
-    start = Date(obs.as_of_date) - Day(T_med)
-    factor = round(c_med / obs.reported_cases; digits = 1)
+#md # ```@raw html
+#md # <details><summary>Compute the headline ranges</summary>
+#md # ```
+
+summary_ranges = let
+    C    = posterior_C_joint
+    c_lo = round(Int, quantile(C, 0.05))
+    c_hi = round(Int, quantile(C, 0.95))
+    Tdraws = vec(Array(chn_joint[:T]))
+    t_lo = round(Int, quantile(Tdraws, 0.05))
+    t_hi = round(Int, quantile(Tdraws, 0.95))
+    start_earliest = Date(obs.as_of_date) - Day(t_hi)
+    start_latest   = Date(obs.as_of_date) - Day(t_lo)
+    f_lo = round(c_lo / obs.reported_cases; digits = 1)
+    f_hi = round(c_hi / obs.reported_cases; digits = 1)
     Markdown.parse("""
-    - **Current cumulative case load:** about $(c_med) cases
-      (90% CrI $(c_lo)–$(c_hi)), combining all four data streams. This
-      counts both reported and as-yet-unreported cases.
-    - That is roughly $(factor)× the $(obs.reported_cases) cases reported
-      to date, so most infections are not yet in the reported counts.
-    - **Time since seeding:** about $(T_med) days, placing the start of
-      sustained transmission around $(start).
+    - **Current cumulative case load:** a 90% credible interval of
+      $(c_lo)–$(c_hi) cases, combining all four data streams (both
+      reported and as-yet-unreported).
+    - That is roughly $(f_lo)–$(f_hi)× the $(obs.reported_cases) cases
+      reported to date, so most infections are not yet reported.
+    - **Time since seeding:** a 90% interval of $(t_lo)–$(t_hi) days,
+      placing the start of sustained transmission between
+      $(start_earliest) and $(start_latest).
     """)
-end
+end;
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+summary_ranges #hide
 
 # ### Joint model estimates
 #
