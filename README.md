@@ -2,6 +2,9 @@
 
 **Authors:** Sam Abbott, Samuel Brand and Sebastian Funk.
 
+**Last updated:** 20 May 2026. This is a live report, re-run as new
+data arrive, so the estimates change between updates.
+
 <!-- ABSTRACT:START -->
 **Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus
 (BVD) is ongoing in the Democratic Republic of the Congo (DRC),
@@ -35,12 +38,17 @@ report's approach and its original published estimates.
 model and reviewed and revised under human oversight; the named authors
 are responsible for that oversight.
 
-**Data last updated:** 20 May 2026 (sources per
-[`data/observations.toml`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/data/observations.toml)).
-These are different, more recent figures than the McCabe et al. report,
-which uses the 16 May 2026 snapshot. The joint posterior assumes a
-single common cut-off for every data stream, so the counts must be kept
-in sync to the same date.
+**Why our numbers differ from the Imperial report.** Two reasons.
+First, the method: we fit all data streams jointly in a single
+Bayesian model rather than combining separate scenario analyses (the
+abstract above and the analysis page list the full set of changes).
+Second, the data: we use the 20 May 2026 snapshot (sources per
+[`data/observations.toml`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/data/observations.toml)),
+more recent than the 16 May 2026 figures in the McCabe et al. report.
+To separate these two effects we also refit the model to the report's
+own data. The joint posterior assumes a single common cut-off for
+every data stream, so the counts must be kept in sync to the same
+date.
 
 The [analysis](https://epiforecasts.io/BVDOutbreakSize/dev/analysis)
 lays out each deviation alongside the matching Imperial method.

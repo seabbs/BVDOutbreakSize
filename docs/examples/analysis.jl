@@ -2,6 +2,9 @@
 #
 # **Authors.** Sam Abbott, Samuel Brand and Sebastian Funk.
 #
+# **Last updated.** 2026-05-20. This is a live report, re-run as new
+# data arrive, so the estimates change between updates.
+#
 # The abstract below is loaded at build time from the repository
 # `README.md` (between its `ABSTRACT` markers) so the report and the
 # README share a single source.
@@ -19,14 +22,22 @@
 # *LLM-driven reimplementation* limitation below). The full analysis
 # code lives in the
 # [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
-# repository, where issues and suggestions are welcome.
+# repository, where issues and suggestions are welcome. This page is
+# generated from
+# [`docs/examples/analysis.jl`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/docs/examples/analysis.jl);
+# the model code it calls is in
+# [`src/`](https://github.com/epiforecasts/BVDOutbreakSize/tree/main/src).
 #
-# **Data cut-off and how the numbers differ from Imperial.** Results
-# are reported as of the cut-off date in `data/observations.toml`
-# (currently **2026-05-20**): *by that date there have been the
-# reported counts in the data table below.* These are different, more
-# recent figures than the McCabe et al. report, which uses the
-# 16 May 2026 snapshot (e.g. 88 suspected deaths against the later
+# **How the numbers differ from Imperial.** Our estimates differ from
+# the McCabe et al. report for two reasons. First, the method: we fit
+# all streams jointly in a single Bayesian model rather than combining
+# separate scenario analyses (see
+# [What we do differently](#What-we-do-differently-from-McCabe-et-al.)
+# below). Second, the data: results are reported as of the cut-off
+# date in `data/observations.toml` (currently **2026-05-20**): *by
+# that date there have been the reported counts in the data table
+# below.* These are more recent figures than the report, which uses
+# the 16 May 2026 snapshot (e.g. 88 suspected deaths against the later
 # figure used here). The joint posterior assumes a single common
 # cut-off for every data stream, so the deaths, exports and reported-
 # case counts must all be kept in sync to the same date.
