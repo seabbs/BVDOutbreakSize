@@ -146,39 +146,7 @@
 # state. The *composers* glue the observation submodels into the
 # per-stream fits and the joint fit. The diagram below traces that flow:
 #
-# ```mermaid
-# flowchart TD
-#     G["Growth C(s) = exp(r s)<br/>τ, m → r, T, C(T)"]
-#     D["Onset-to-death delay<br/>α, θ → f, F_d"]
-#     CFR["Case-fatality ratio<br/>CFR"]
-#     W["Detection window<br/>w"]
-#     K["Surveillance dispersion<br/>k"]
-#     A["Ascertainment<br/>p_drc, p_uganda"]
-#
-#     OE["Exports submodel<br/>μ_e = p_uganda q ∫ C(s) ds<br/>Poisson"]
-#     OD["Deaths submodel<br/>μ_d = CFR ∫ C(s) f ds<br/>NegBinomial"]
-#     OC["Cases submodel<br/>μ_c = p_drc C(T)<br/>NegBinomial"]
-#     OX["Exports-deaths submodel<br/>μ_xd = CFR p_uganda q ∫ C(s) F_d ds<br/>Poisson"]
-#
-#     CE["exports_only_model"]
-#     CD["deaths_only_model"]
-#     CC["cases_only_model"]
-#     CX["exports_deaths_only_model"]
-#     CI["imperial_only_model<br/>(exports + deaths)"]
-#     CJ["bvd_joint<br/>(all four streams)"]
-#
-#     G --> OE & OD & OC & OX
-#     D --> OD & OX
-#     CFR --> OD & OX
-#     W --> OE & OX
-#     K --> OD & OC
-#     A --> OE & OC & OX
-#
-#     OE --> CE & CI & CJ
-#     OD --> CD & CI & CJ
-#     OC --> CC & CJ
-#     OX --> CX & CJ
-# ```
+# {{MODEL_DIAGRAM}}
 #
 # Reading top to bottom:
 #
