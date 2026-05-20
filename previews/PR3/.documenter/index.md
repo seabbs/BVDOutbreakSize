@@ -29,6 +29,10 @@ julia --project=docs docs/make.jl
 
 Updating the observation counts for a new sitrep is a single-file edit of `data/observations.toml`; the literate picks the new numbers up automatically.
 
+## Results {#Results}
+
+Each push to `main` regenerates the model outputs and publishes them as a GitHub Release. The [latest release](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest) bundles the posterior summary tables, thinned posterior draws, and a copy of the input `observations.toml` that produced them.
+
 ## Submodules {#Submodules}
 - `external/bdbv-linelist-analysis` — Bayesian reanalysis of the 2012 Isiro BDBV line list (Rosello et al. 2015). Source of the informative onset-to-death gamma shape and scale priors.
   
