@@ -1,26 +1,23 @@
 # # Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
 #
-# Joint generative Turing model for the 2026 Bundibugyo virus disease
-# (BVD) outbreak in the Democratic Republic of the Congo, fitting the
-# data streams from the Imperial / WHO report (McCabe et al.,
-# [18 May 2026](https://doi.org/10.25560/130007)) in a single Bayesian
-# posterior over the latent cumulative case count `C(T)`. The original
-# report runs two independent analyses — geographic spread from cases
-# detected in Uganda, and back-calculation from suspected deaths in DRC
-# — and sweeps over fixed nuisance parameters. Here those nuisance
-# parameters carry priors, all streams are conditioned on jointly, the
-# closed-form deaths approximation is replaced with the full gamma
-# convolution and the small-growth-rate exports simplification with the
-# exact cumulative integral, and a reported-case ascertainment
-# extension, a no-onward-transmission projected-deaths counterfactual, a
-# one-week-ahead forecast and an onset-to-death delay sensitivity
-# analysis are added.
+# **Authors.** Sam Abbott, Sam Brand and Sebastian Funk.
 #
-# **Authors.** Sam Abbott, Sam Brand and Sebastian Funk. The model
-# code and this analysis were drafted by a language model and
-# reviewed and revised under human oversight; the named authors are
-# responsible for that oversight (see the *LLM-driven reimplementation* limitation
-# below). The full analysis code lives in the
+# The abstract below is loaded at build time from the repository
+# `README.md` (between its `ABSTRACT` markers) so the report and the
+# README share a single source.
+#
+#md # ```@eval
+#md # using BVDOutbreakSize, Markdown
+#md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
+#md # m = match(r"<!-- ABSTRACT:START -->(.*?)<!-- ABSTRACT:END -->"s, readme)
+#md # Markdown.parse(strip(m.captures[1]))
+#md # ```
+#
+# **Use of AI.** The model code and this analysis were drafted by a
+# language model and reviewed and revised under human oversight; the
+# named authors are responsible for that oversight (see the
+# *LLM-driven reimplementation* limitation below). The full analysis
+# code lives in the
 # [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
 # repository, where issues and suggestions are welcome.
 #
@@ -32,8 +29,7 @@
 # 16 May 2026 snapshot (e.g. 88 suspected deaths against the later
 # figure used here). The joint posterior assumes a single common
 # cut-off for every data stream, so the deaths, exports and reported-
-# case counts must all be kept in sync to the same date; mixing
-# snapshots from different dates would break that assumption.
+# case counts must all be kept in sync to the same date.
 #
 # **→ Jump to the [joint posterior results](#Joint-model-and-results).**
 #
@@ -50,12 +46,14 @@
 #   al. (and by Imai et al. 2020 before them). The two forms agree
 #   as `r → 0`.
 # - *Numerical (not closed-form) deaths convolution.* For a gamma
-#   delay the convolution integral has an exact closed form; McCabe
-#   et al. derive it and use the large-`T` simplification
-#   `D(T) ≈ CFR · C(T) · (1 + r/β)^{−α}`. We evaluate the integral
-#   numerically instead — not for accuracy (the gamma case is
-#   exact either way) but so the onset-to-death distribution can be
-#   swapped for any other family without re-deriving the integral.
+#   delay the convolution integral has an exact closed form that
+#   carries a `γ(α, (β + r)T) / Γ(α)` factor from the finite upper
+#   limit `T`. McCabe et al. use the large-`T` simplification
+#   `D(T) ≈ CFR · C(T) · (1 + r/β)^{−α}`, which drops that factor and
+#   is therefore an approximation. We evaluate the integral
+#   numerically instead, which recovers the exact value and lets the
+#   onset-to-death distribution be swapped for any other family
+#   without re-deriving the integral.
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list McCabe et al. cite for their
 #   point estimates ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis)),
@@ -701,12 +699,14 @@ end
 #     \int_0^T e^{r s}\, f(T - s)\, ds. \tag{16}
 # ```
 #
-# For a gamma delay this integral has an exact closed form; McCabe et
-# al. derive it and use the large-`T` simplification
-# `D(T) ≈ CFR · C(T) · (1 + r/β)^{−α}` (valid for `T ⪞ 12/(β+r)`). We
-# evaluate equation (16) numerically with `expected_deaths` instead —
-# not because the gamma case needs it, but so swapping the delay
-# family in `delay_model` requires no change to the quadrature. The
+# For a gamma delay this integral has an exact closed form carrying a
+# `γ(α, (β + r)T) / Γ(α)` factor from the finite upper limit; McCabe et
+# al. use the large-`T` simplification
+# `D(T) ≈ CFR · C(T) · (1 + r/β)^{−α}` (valid for `T ⪞ 12/(β+r)`), which
+# drops that factor and is therefore an approximation. We evaluate
+# equation (16) numerically with `expected_deaths` instead, which is
+# exact and lets the delay family in `delay_model` be swapped with no
+# change to the quadrature. The
 # observed deaths follow the NegBinomial likelihood of equation (8)
 # with the dispersion `k` of equation (9), supplied by the composer so
 # it can be shared with the cases likelihood:
@@ -1535,7 +1535,7 @@ main_comparison = DataFrame(                                         #hide
     ],                                                               #hide
     C_T_central = [313.0, 501.0,                                     #hide
                    round(quantile(posterior_C_imperial, 0.5); digits = 0), #hide
-                   round(quantile(posterior_C_joint,    0.5); digits = 0)], #hide
+                   round(quantile(posterior_C_joint, 0.5); digits = 0)], #hide
     CrI_lower = [39.0, 402.0,                                        #hide
                  round(imperial_C_credibles.lo90; digits = 0),       #hide
                  round(joint_C_credibles.lo90;    digits = 0)],      #hide

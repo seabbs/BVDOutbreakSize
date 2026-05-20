@@ -1,25 +1,39 @@
 # Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
 
-Joint generative Turing model for the 2026 Bundibugyo virus disease
-(BVD) outbreak in the Democratic Republic of the Congo, fitting the
-data streams from the Imperial / WHO report (McCabe et al.,
-[18 May 2026](https://doi.org/10.25560/130007)) in a single Bayesian
-posterior over the latent cumulative case count `C(T)`. The original
-report runs two independent analyses — geographic spread from cases
-detected in Uganda, and back-calculation from suspected deaths in DRC
-— and sweeps over fixed nuisance parameters. Here those nuisance
-parameters carry priors, all streams are conditioned on jointly, the
-closed-form deaths approximation is replaced with the full gamma
-convolution and the small-growth-rate exports simplification with the
-exact cumulative integral, and a reported-case ascertainment
-extension, a no-onward-transmission projected-deaths counterfactual, a
-one-week-ahead forecast and an onset-to-death delay sensitivity
-analysis are added.
-
 **Authors:** Sam Abbott, Sam Brand and Sebastian Funk.
-The model code and analysis were drafted by a language model and
-reviewed and revised under human oversight; the named authors are
-responsible for that oversight.
+
+<!-- ABSTRACT:START -->
+**Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus
+(BVD) is ongoing in the Democratic Republic of the Congo, with cases
+also detected across the border in Uganda. Estimating the likely
+current size of the outbreak is useful for the response, but most
+cases are not yet reported and have to be inferred from the data
+streams that are available. The Imperial College London report
+(McCabe et al., [18 May 2026](https://doi.org/10.25560/130007))
+estimates the size with two analyses, geographic spread from the cases
+exported to Uganda and back-calculation from suspected deaths in DRC.
+Building on that work, we re-analyse the same problem as a single joint
+Bayesian model over the latent cumulative case count `C(T)`, fitting
+all streams together with priors on the nuisance parameters that the
+report varies in scenario sweeps. Beyond the exported cases and DRC
+deaths the report uses, we condition on two further streams, the
+reported cases in DRC (with an ascertainment component) and the deaths
+among exported cases in Uganda. We also add a no-onward-transmission
+projected-deaths counterfactual, a one-week-ahead forecast and an
+onset-to-death delay sensitivity analysis, and replace two closed-form
+approximations (the deaths convolution and the small-growth-rate
+exports term) with their exact forms. We report the joint posterior
+over `C(T)` from current data; to separate the effect of newer data
+from the change in method we also fit the model to the data as of the
+report, comparing against both a joint reimplementation of the
+report's approach and its original published estimates. This is a
+real-time re-analysis, so the figures will move as the data are
+updated.
+<!-- ABSTRACT:END -->
+
+**Use of AI:** The model code and analysis were drafted by a language
+model and reviewed and revised under human oversight; the named authors
+are responsible for that oversight.
 
 **Data last updated:** 20 May 2026 (sources per
 [`data/observations.toml`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/data/observations.toml)).
@@ -97,7 +111,7 @@ this repository depends on:
   *BVDOutbreakSize: joint forward-generative Turing model for the
   2026 DRC Bundibugyo outbreak.*
   <https://github.com/epiforecasts/BVDOutbreakSize>.
-- **Imperial / WHO report** that this work re-implements —
+- **Imperial report** that this work re-implements —
   McCabe, R., Ebbarnezh, L., Okware, S., Fotsing, R., Koua, E.,
   Mbaka, P., Lofungola, A., van Elsland, S. L., McMenamin, M.,
   Ferguson, N., le Polain de Waroux, O., Cori, A. (2026).
