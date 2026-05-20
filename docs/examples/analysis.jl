@@ -1266,8 +1266,7 @@ diagnostics_table( #hide
 
 # ### Additional analyses
 #
-# Beyond the headline joint fit we run four supporting analyses.
-# Their methods are described here; the outputs appear under Results.
+# On top of the main analysis we run four supporting analyses.
 #
 # #### Counterfactual: no-onward-transmission lower bound
 #
