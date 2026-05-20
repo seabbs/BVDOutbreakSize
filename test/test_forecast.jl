@@ -14,7 +14,8 @@ import MCMCChains
     α          ~ truncated(Normal(4.3, 0.5); lower = 0.5)
     θ          ~ truncated(Normal(2.6, 0.3); lower = 0.2)
     w          ~ truncated(Normal(15.0, 2.0); lower = 1.0)
-    p_report   ~ Beta(2.0, 6.0)
+    p_drc      ~ Beta(2.0, 6.0)
+    p_uganda   ~ Beta(2.0, 6.0)
     inv_sqrt_k ~ truncated(Normal(0.0, 1.0); lower = 1e-3)
     k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
     return nothing

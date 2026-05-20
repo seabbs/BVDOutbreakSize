@@ -24,7 +24,7 @@ using CairoMakie: Figure, Axis, hist!, vlines!
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
        ITURI_DAILY_TRAVEL_SD,
-       EXPORTED_CASES, TOTAL_DEATHS, REPORTED_CASES,
+       EXPORTED_CASES, EXPORTS_DEATHS, TOTAL_DEATHS, REPORTED_CASES,
        load_observations,
        summary_table, posterior_summary,
        streams_table, comparison_table,
@@ -92,6 +92,13 @@ BVD cases detected in Uganda having travelled from Ituri Province.
 const EXPORTED_CASES = 2
 
 """
+    EXPORTS_DEATHS
+
+Deaths recorded in Uganda among the exported BVD cases.
+"""
+const EXPORTS_DEATHS = 1
+
+"""
     TOTAL_DEATHS
 
 Suspected BVD deaths reported in DRC, taken from the most recent
@@ -121,14 +128,16 @@ citation strings so they can be printed alongside the data.
 Fields returned:
 
 - `exported_cases::Int`
+- `exports_deaths::Int`
 - `total_deaths::Int`
 - `reported_cases::Int`
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
-- `sources::NamedTuple{(:exported_cases, :total_deaths, :reported_cases,
-  :daily_outbound_travellers, :daily_outbound_travellers_sd,
-  :source_population), NTuple{6, String}}` — citation per field.
+- `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
+  :reported_cases, :daily_outbound_travellers,
+  :daily_outbound_travellers_sd, :source_population),
+  NTuple{7, String}}` — citation per field.
 """
 function load_observations(
         path::AbstractString = joinpath(@__DIR__, "..", "data",
@@ -139,6 +148,7 @@ function load_observations(
     return (;
         as_of_date                   = String(raw["as_of_date"]),
         exported_cases               = Int(_val("exported_cases")),
+        exports_deaths               = Int(_val("exports_deaths")),
         total_deaths                 = Int(_val("total_deaths")),
         reported_cases               = Int(_val("reported_cases")),
         daily_outbound_travellers    = float(
@@ -148,6 +158,7 @@ function load_observations(
         source_population            = Int(_val("source_population")),
         sources = (;
             exported_cases               = _src("exported_cases"),
+            exports_deaths               = _src("exports_deaths"),
             total_deaths                 = _src("total_deaths"),
             reported_cases               = _src("reported_cases"),
             daily_outbound_travellers    = _src("daily_outbound_travellers"),
@@ -617,9 +628,11 @@ per draw and columns:
   coming week (`*_cum` minus the corresponding observed count at `T`,
   floored at zero).
 
-Reads `:r, :T, :CFR, :α, :θ, :w, :p_report, :k` from `chn`. Exports use
-`q = daily_travellers / source_population`. Assumes growth continues
-unchanged over the horizon (no interventions, no saturation).
+Reads `:r, :T, :CFR, :α, :θ, :w, :p_drc, :p_uganda, :k` from `chn`. DRC
+reported cases use the DRC ascertainment fraction `p_drc`; exports use
+`p_uganda · q` with `q = daily_travellers / source_population`. Assumes
+growth continues unchanged over the horizon (no interventions, no
+saturation).
 """
 function forecast_reported(chn;
         horizon::Real          = 7,
@@ -636,7 +649,8 @@ function forecast_reported(chn;
     α   = _draws(chn, :α)
     θ   = _draws(chn, :θ)
     w   = _draws(chn, :w)
-    pr  = _draws(chn, :p_report)
+    pr  = _draws(chn, :p_drc)
+    pu  = _draws(chn, :p_uganda)
     k   = _draws(chn, :k)
 
     rng = MersenneTwister(seed)
@@ -648,16 +662,16 @@ function forecast_reported(chn;
 
     @inbounds for i in 1:n
         Th = T[i] + horizon
-        ## DRC reported cases: p_report · C(T+h).
+        ## DRC reported cases: p_drc · C(T+h).
         μ_cases = pr[i] * exp(r[i] * Th)
         cases_cum[i] = _nb_rand(rng, k[i], μ_cases)
         ## DRC deaths: CFR · ∫_0^{T+h} exp(r·s) f(T+h−s) ds.
         μ_deaths = _forecast_deaths_mean(r[i], Th, α[i], θ[i], CFR[i]; alg)
         deaths_cum[i] = _nb_rand(rng, k[i], μ_deaths)
-        ## Uganda exports: q · ∫_{T+h−w}^{T+h} C(s) ds (closed form for
-        ## exponential growth).
+        ## Uganda exports: p_uganda · q · ∫_{T+h−w}^{T+h} C(s) ds (closed
+        ## form for exponential growth).
         lo = max(Th - w[i], zero(Th))
-        μ_exports = q * (exp(r[i] * Th) - exp(r[i] * lo)) / r[i]
+        μ_exports = pu[i] * q * (exp(r[i] * Th) - exp(r[i] * lo)) / r[i]
         exports_cum[i] = rand(rng, Poisson(max(μ_exports, eps(μ_exports))))
     end
 
