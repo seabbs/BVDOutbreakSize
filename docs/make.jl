@@ -3,6 +3,7 @@ Pkg.instantiate()
 
 using Documenter
 using DocumenterCitations
+using DocumenterVitepress
 using Literate
 
 const bib = CitationBibliography(
@@ -40,7 +41,7 @@ end
 makedocs(;
     sitename = "BVDOutbreakSize",
     authors  = "Sam Abbott and contributors",
-    repo     = "github.com/seabbs/BVDOutbreakSize",
+    repo     = "github.com/epiforecasts/BVDOutbreakSize",
     clean    = true,
     doctest  = false,
     warnonly = [:missing_docs, :linkcheck, :citations],
@@ -50,16 +51,15 @@ makedocs(;
         "Analysis walkthrough" => "analysis.md",
         "References"           => "references.md",
     ],
-    format   = Documenter.HTML(;
-        prettyurls = get(ENV, "CI", "false") == "true",
-        canonical  = "https://seabbs.github.io/BVDOutbreakSize",
-        size_threshold        = 1_000_000,
-        size_threshold_warn   = 800_000,
+    format   = DocumenterVitepress.MarkdownVitepress(;
+        repo      = "github.com/epiforecasts/BVDOutbreakSize",
+        devbranch = "main",
+        devurl    = "dev",
     ),
 )
 
 deploydocs(;
-    repo        = "github.com/seabbs/BVDOutbreakSize",
+    repo        = "github.com/epiforecasts/BVDOutbreakSize",
     target      = "build",
     branch      = "gh-pages",
     devbranch   = "main",
