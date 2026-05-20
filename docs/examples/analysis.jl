@@ -131,9 +131,12 @@
 #   model with the community-only delay (the $n = 5$ cases who died
 #   without admission, weak evidence of a shorter delay) to show how
 #   much the outbreak-size estimate leans on the delay assumption.
-# - *Detection-window definition is loose.* $w$ lumps incubation
-#   and onset-to-detection together — both poorly characterised
-#   for BVD.
+# - *Detection window is weakly motivated.* $w$ lumps incubation and
+#   onset-to-detection together — both poorly characterised for BVD —
+#   so the quantity itself is loosely defined. Its prior is even less
+#   grounded: it simply spans the 10–20 day windows McCabe et al. sweep,
+#   with no independent estimate behind it, so the exports stream leans
+#   on an assumption rather than data.
 # - *Not all Uganda cases are confirmed exports.* The exports
 #   likelihood treats every Uganda case as imported from DRC, but the
 #   12 suspected cases reported in Kampala are not all confirmed to be
@@ -461,17 +464,14 @@ end
 # ##### Detection window
 #
 # $w$ is the mean time during which a case is still infectious and
-# detectable abroad (incubation + onset-to-detection). Its prior is
+# detectable abroad (incubation + onset-to-detection). The prior is
+# based on the detection windows McCabe et al. sweep in their Method 1
+# scenarios (10, 15 and 20 days): it is centred on their central 15-day
+# value with an SD wide enough to cover the 10–20 day range.
 #
 # ```math
 # w \sim \mathrm{Normal}^{+}(15,\ 5)\ \text{days}. \tag{7}
 # ```
-#
-# $w$ enters the export likelihood through the detection probability
-# $p_{\text{detect}} = w\cdot(\text{daily travellers} /
-# \text{source population})$;
-# that relationship is set out with the exports observation submodel
-# below.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: detection_window_model</summary>
