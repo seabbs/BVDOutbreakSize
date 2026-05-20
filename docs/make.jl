@@ -58,7 +58,12 @@ makedocs(;
     ),
 )
 
-deploydocs(;
+# Use DocumenterVitepress.deploydocs, not the bare Documenter one:
+# DocumenterVitepress 0.2 builds into numbered subfolders
+# (docs/build/1/, …) and its deploydocs flattens each build/i/ to
+# gh-pages/<base>/. Plain deploydocs leaves the numbered subdir, so
+# the deployed site's asset URLs 404. Ref LuxDL/DocumenterVitepress.jl#280.
+DocumenterVitepress.deploydocs(;
     repo        = "github.com/epiforecasts/BVDOutbreakSize",
     target      = "build",
     branch      = "gh-pages",
