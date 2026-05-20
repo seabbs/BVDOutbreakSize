@@ -85,9 +85,14 @@ function model_diagram_svg()
     save(SVG(out), tp)
     svg = read(out * ".svg", String)
     svg = svg[findfirst("<svg", svg)[1]:end]            # drop xml/doctype
-    style = "max-width:100%;height:auto;"
+    style = "width:100%;height:auto;"
     svg = replace(svg, r"<svg " => "<svg style=\"$style\" "; count = 1)
-    return "```@raw html\n<div style=\"text-align:center\">\n$svg\n</div>\n```"
+    ## Break the diagram out of the narrow prose column so the layered
+    ## graph renders large enough to read. Centre a wider container and
+    ## let it scroll horizontally when the viewport is narrower.
+    wrap = "width:92vw;max-width:1100px;position:relative;left:50%;" *
+           "transform:translateX(-50%);text-align:center;overflow-x:auto;"
+    return "```@raw html\n<div style=\"$wrap\">\n$svg\n</div>\n```"
 end
 
 let analysis_md = joinpath(LITERATE_OUT, "analysis.md")

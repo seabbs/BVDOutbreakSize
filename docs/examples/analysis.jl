@@ -551,28 +551,34 @@ end
 # ```
 #
 # The dispersion captures passive-surveillance noise (under-reporting
-# that varies by district, weekend reporting effects, batched updates),
-# not transmission heterogeneity. Following the Stan prior-choice
-# recommendations [stan_prior_choice](@cite), it is sampled on the
-# $1/\sqrt{k}$ scale with a weak prior,
+# that varies by district, weekend reporting effects, and batched
+# updates), not transmission heterogeneity.
+# We judge this noise to be substantial, so a priori we expect
+# meaningful overdispersion rather than near-Poisson counts.
+# Following the Stan prior-choice recommendations
+# [stan_prior_choice](@cite), the dispersion is sampled on the
+# $1/\sqrt{k}$ scale, which behaves like a standard deviation, with a
+# weakly-informative prior centred on that expected overdispersion,
 #
 # ```math
-# 1/\sqrt{k} \sim \mathrm{Normal}^{+}(0, 1), \tag{9}
+# 1/\sqrt{k} \sim \mathrm{Normal}^{+}(0.6,\ 0.2), \tag{9}
 # ```
 #
-# giving $k$ a prior median near $2$ (mild overdispersion). This
-# extends
-# the McCabe et al. report, which uses a Poisson likelihood for the
-# Method 2 deaths and does not model the reported case counts at all;
-# the negative binomial adds overdispersion to absorb passive-
-# surveillance noise.
+# giving $k$ a prior median near $3$ with a 90% range of about $1$-$14$.
+# Because each stream contributes essentially one aggregate count, $k$
+# is only weakly identified, so this prior carries the inference and is
+# set to reflect the overdispersion we expect from passive surveillance.
+# This extends the McCabe et al. report, which uses a Poisson likelihood
+# for the Method 2 deaths and does not model the reported case counts at
+# all; the negative binomial adds overdispersion to absorb
+# passive-surveillance noise.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: surveillance_dispersion_model</summary>
 #md # ```
 
 @model function surveillance_dispersion_model(;
-        inv_sqrt_k_prior = truncated(Normal(0, 1); lower = 0))
+        inv_sqrt_k_prior = truncated(Normal(0.6, 0.2); lower = 0))
     inv_sqrt_k ~ inv_sqrt_k_prior
     k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
     return (; k, inv_sqrt_k)
@@ -619,6 +625,12 @@ end
 # (the separate-fraction limit). The cases likelihood uses
 # $p_{\text{drc}}$; the two Uganda-side likelihoods use
 # $p_{\text{uganda}}$.
+#
+# We sample this prior in its non-centred form: draw offsets
+# $z_{\text{drc}}, z_{\text{uganda}} \sim \mathrm{Normal}(0, 1)$ and set
+# $\mathrm{logit}(p) = \mu + \tau z$. This is the same prior but avoids
+# the funnel geometry of the centred form, which gave hundreds of
+# divergent transitions.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: pooled_ascertainment_model</summary>
@@ -629,8 +641,10 @@ end
         tau_prior = truncated(Normal(0, 0.5); lower = 1e-4))
     μ_logit  ~ mu_prior
     τ_logit  ~ tau_prior
-    logit_p_drc    ~ Normal(μ_logit, τ_logit)
-    logit_p_uganda ~ Normal(μ_logit, τ_logit)
+    z_drc    ~ Normal(0, 1)
+    z_uganda ~ Normal(0, 1)
+    logit_p_drc    = μ_logit + τ_logit * z_drc
+    logit_p_uganda = μ_logit + τ_logit * z_uganda
     p_drc    := logistic(logit_p_drc)
     p_uganda := logistic(logit_p_uganda)
     return (; μ_logit, τ_logit, p_drc, p_uganda)
@@ -1227,7 +1241,7 @@ prior_pair_fig #hide
 #
 # NUTS [hoffman2014nuts](@cite) with Mooncake [mooncake_jl](@cite)
 # reverse-mode automatic differentiation, four chains, 1000 post-warmup
-# draws each, with a target acceptance probability of 0.9. Chains
+# draws each, with a target acceptance probability of 0.95. Chains
 # initialise from the prior
 # to keep the sampler away from the boundary of $r$ and $m$. We fit
 # the joint model and the four single-stream models so the per-stream
@@ -1949,7 +1963,11 @@ imperial_density_fig #hide
 # Whether our reproduction lands on McCabe et al.'s reported 501
 # (method above): the recovered estimate and its summary table.
 
-let
+#md # ```@raw html
+#md # <details><summary>Reproduction vs McCabe et al. 501</summary>
+#md # ```
+
+imperial_sense_check = let
     rep = round(Int, quantile(posterior_C_imperial, 0.5))
     lo  = round(Int, imperial_C_credibles.lo90)
     hi  = round(Int, imperial_C_credibles.hi90)
@@ -1963,7 +1981,13 @@ let
     down to method (joint fit, exact convolution, sampled nuisance
     parameters) and newer data, not a coding discrepancy.
     """)
-end
+end;
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+imperial_sense_check #hide
 
 #md # ```@raw html
 #md # <details><summary>Sense-check summary table</summary>
