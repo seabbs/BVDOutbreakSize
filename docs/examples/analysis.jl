@@ -591,8 +591,8 @@ end
 #md # </details>
 #md # ```
 
-# The deaths and reported-case likelihoods both use a negative
-# binomial, so we define a small constructor for it once and share it.
+# We model both the deaths and the reported cases with a negative
+# binomial, so we define one small constructor for it and share it.
 # It is parameterised by mean $\mu$ and dispersion $k$ (so the variance
 # is given by equation (8)), with NaN / Inf-safe clamping on the
 # success probability so extreme NUTS proposals during warmup do not
@@ -621,12 +621,10 @@ end
 # the growth state as input, introduces the forward integral it needs,
 # and ties one data stream to the latent $C(T)$. The forward integrals
 # (the at-risk person-time integral for exports, the gamma convolution
-# for deaths, and the deaths-among-exports convolution) live in the
-# package as the reusable helpers `integrate_cumulative`,
-# `expected_deaths` and `integrate_exports_deaths`, so swapping a delay
-# family or a growth curve needs no change to the quadrature. Each
-# submodel introduces its likelihood by referring back to the
-# parameters defined in equations (1)-(11) rather than restating them.
+# for deaths, and the deaths-among-exports convolution) are solved
+# numerically, so they support any onset-to-death delay or growth curve
+# without re-derivation. Each submodel introduces its likelihood by
+# referring back to the parameters defined in equations (1)-(11).
 
 # ##### Exports — Method 1 (geographic spread)
 #
@@ -1334,7 +1332,7 @@ diagnostics_table( #hide
 # McCabe et al. Method 2 reports Poisson intervals (no overdispersion,
 # $k \to \infty$). We reproduce it by fixing the exports-and-deaths
 # composer to their Method 2 central assumptions and dropping exports.
-# `inv_sqrt_k` is fixed to a small positive value ($k \approx 10^6$,
+# $1/\sqrt{k}$ is fixed to a small positive value ($k \approx 10^6$,
 # Poisson-like) because exactly $0$ gives $k \approx 4.5\times10^{15}$,
 # where the NegBinomial saturates and reverse-mode AD returns NaN
 # gradients.
@@ -1450,7 +1448,7 @@ start_date_fig #hide
 # 90% credible intervals on the key joint-fit parameters: growth rate
 # $r$, doubling-time multiplier $m$, days since seeding $T$, CFR, the
 # DRC and Uganda ascertainment fractions $p_{\text{drc}}$ and $p_{\text{uganda}}$, the
-# pooling SD `τ_logit`, and cumulative cases $C(T)$.
+# pooling SD $\tau_{\text{logit}}$, and cumulative cases $C(T)$.
 
 #md # ```@raw html
 #md # <details><summary>Joint posterior summary table</summary>
