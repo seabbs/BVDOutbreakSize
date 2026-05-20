@@ -58,6 +58,16 @@
 #
 # ## Limitations
 #
+# - *Fitted only to aggregate reported counts.* The data are a
+#   handful of summary figures — total suspected cases, total
+#   suspected deaths, and cases (and one death) detected in Uganda —
+#   from press and situation reports. There is no line list and no
+#   temporal information: no onset dates, no epidemic curve, no
+#   per-case data. The model also has no knowledge of the situation
+#   on the ground (case definitions, testing capacity, affected
+#   areas, interventions, reporting completeness). Every estimate is
+#   a model-based extrapolation from sparse summary statistics under
+#   strong assumptions rather than a measurement.
 # - *LLM-driven reimplementation.* The model code, priors,
 #   convolution implementation and walkthrough were drafted by a
 #   language model from the published Imperial report and the

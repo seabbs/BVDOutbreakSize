@@ -3,19 +3,23 @@
 # both are loaded by `load_observations` and printed in the
 # walkthrough.
 
-as_of_date = "2026-05-19"
+as_of_date = "2026-05-20"
 
 [exported_cases]
 value  = 2
 source = "McCabe et al., Imperial College London report, 18 May 2026 (DOI 10.25560/130007)"
 
+[exports_deaths]
+value  = 1
+source = "BBC News, 20 May 2026 — one death in Uganda among the exported cases (https://www.bbc.co.uk/news/articles/ceqp11gn1l8o)"
+
 [total_deaths]
-value  = 130
-source = "The Guardian, 19 May 2026 (replaces the Imperial 16 May 2026 snapshot of 88)"
+value  = 136
+source = "BBC News, 20 May 2026 (https://www.bbc.co.uk/news/articles/ceqp11gn1l8o)"
 
 [reported_cases]
-value  = 500
-source = "The Guardian, 19 May 2026"
+value  = 514
+source = "BBC News, 20 May 2026 (https://www.bbc.co.uk/news/articles/ceqp11gn1l8o)"
 
 [daily_outbound_travellers]
 value  = 1871
