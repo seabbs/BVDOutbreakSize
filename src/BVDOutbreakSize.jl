@@ -19,7 +19,7 @@ import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
-using CairoMakie: Figure, Axis, hist!, vlines!
+using CairoMakie: Figure, Axis, hist!, density!, vlines!
 
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
@@ -657,26 +657,34 @@ end
 """
     plot_no_onward_deaths(df; obs_deaths)
 
-AlgebraOfGraphics density of the projected-total distribution from
-[`predict_no_onward_deaths`](@ref) with a Makie vertical rule at
-`obs_deaths`. The vertical rule marks deaths already observed at
-time `T`; the density to its right is the lower-bound projection
-under the no-onward-transmission counterfactual.
+Two-panel density of the no-onward-transmission counterfactual from
+[`predict_no_onward_deaths`](@ref). The left panel shows the *still
+expected* deaths (`:delta_deaths`, the future deaths in cases already
+infected by `T`, net of the `obs_deaths` already observed). The right
+panel shows the *projected total* (`:total_projected = obs_deaths +
+delta_deaths`) with a dashed black rule at `obs_deaths`. Both are
+lower bounds: they assume every onward transmission stops at time `T`.
 """
 function plot_no_onward_deaths(df::DataFrame; obs_deaths::Real)
-    spec = AoG.data(df) *
-           AoG.mapping(:total_projected =>
-                       "Projected total deaths (no onward transmission)") *
-           AoG.AlgebraOfGraphics.density() *
-           AoG.visual(linewidth = 2, color = :firebrick)
-    fg = AoG.draw(spec;
-        axis = (; ylabel = "Posterior density",
-                  title  = "Lower bound under no onward transmission"),
-        figure = (; size = (760, 420)),
-    )
-    vlines!(fg.figure.content[1], [float(obs_deaths)];
+    fig = Figure(; size = (980, 420))
+
+    ax1 = Axis(fig[1, 1];
+        xlabel = "Still expected deaths (beyond those already observed)",
+        ylabel = "Posterior density",
+        title  = "Still expected (future)")
+    density!(ax1, df.delta_deaths; color = (:firebrick, 0.5),
+             strokecolor = :firebrick, strokewidth = 2)
+
+    ax2 = Axis(fig[1, 2];
+        xlabel = "Projected total deaths (no onward transmission)",
+        ylabel = "Posterior density",
+        title  = "Projected total")
+    density!(ax2, df.total_projected; color = (:firebrick, 0.5),
+             strokecolor = :firebrick, strokewidth = 2)
+    vlines!(ax2, [float(obs_deaths)];
             color = :black, linestyle = :dash, linewidth = 2)
-    return fg
+
+    return fig
 end
 
 ## --- One-week-ahead forecast --------------------------------------------
