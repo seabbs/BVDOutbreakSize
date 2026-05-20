@@ -134,8 +134,18 @@ function load_observations(
     raw = TOML.parsefile(path)
     _val(k) = raw[k]["value"]
     _src(k) = String(raw[k]["source"])
+    as_of = String(raw["as_of_date"])
+    ## Days between the first export death and the cut-off, used as the
+    ## elapsed-time offset for the first-export-death timing term. Stays
+    ## `missing` when the date is absent so the term is a no-op.
+    first_export_death_delta = if haskey(raw, "first_export_death_date")
+        date2epochdays(Date(as_of)) -
+            date2epochdays(Date(String(_val("first_export_death_date"))))
+    else
+        missing
+    end
     return (;
-        as_of_date                   = String(raw["as_of_date"]),
+        as_of_date                   = as_of,
         exported_cases               = Int(_val("exported_cases")),
         exports_deaths               = Int(_val("exports_deaths")),
         total_deaths                 = Int(_val("total_deaths")),
@@ -145,6 +155,7 @@ function load_observations(
         daily_outbound_travellers_sd = float(
             _val("daily_outbound_travellers_sd")),
         source_population            = Int(_val("source_population")),
+        first_export_death_delta     = first_export_death_delta,
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
