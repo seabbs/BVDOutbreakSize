@@ -330,15 +330,17 @@ end
 $(TYPEDSIGNATURES)
 
 `DataFrame` with one row per posterior parameter and columns
-`:quantity, :lo90, :lo60, :lo30, :hi30, :hi60, :hi90` giving
-equal-tailed 30%, 60% and 90% credible intervals.
+`:quantity, :lower_90, :lower_60, :lower_30, :upper_30, :upper_60,
+:upper_90` giving the lower and upper endpoints of the equal-tailed
+30%, 60% and 90% credible intervals.
 """
 function summary_table(chn, params::AbstractVector{Symbol};
         digits::Integer = 2)
     @chain DataFrame(
             quantity = String[],
-            lo90 = Float64[], lo60 = Float64[], lo30 = Float64[],
-            hi30 = Float64[], hi60 = Float64[], hi90 = Float64[],
+            lower_90 = Float64[], lower_60 = Float64[],
+            lower_30 = Float64[], upper_30 = Float64[],
+            upper_60 = Float64[], upper_90 = Float64[],
         ) begin
         let df = _
             for p in params
@@ -364,9 +366,9 @@ function streams_table(streams::Pair{String, <:AbstractVector}...;
     rows = map(streams) do (label, draws)
         s = posterior_summary(draws)
         (stream = label,
-         lo90 = round(s.lo90; digits), lo60 = round(s.lo60; digits),
-         lo30 = round(s.lo30; digits), hi30 = round(s.hi30; digits),
-         hi60 = round(s.hi60; digits), hi90 = round(s.hi90; digits))
+         lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
+         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+         upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
     end
     return DataFrame(rows)
 end
@@ -391,7 +393,8 @@ function comparison_table(C_draws::AbstractVector;
         else
             "outside 90%"
         end
-        (scenario = label, reported_C_T = val, narrowest_CrI = crI)
+        (scenario = label, reported_cases = val,
+         narrowest_interval = crI)
     end
     return DataFrame(rows)
 end
@@ -858,24 +861,26 @@ end
     forecast_table(fc::DataFrame; digits = 0)
 
 Summarise a [`forecast_reported`](@ref) result into a `DataFrame` with
-one row per stream (cases, deaths, exports) and 30/60/90% credible
-intervals for the cumulative forecast and the new-this-week count.
+one row per stream (cases, deaths, exports) and quantity (cumulative
+total by `T + 7`, or new this week), reporting the same equal-tailed
+30/60/90% credible interval endpoints (`lower_90 … upper_90`) as the
+other summary tables.
 """
 function forecast_table(fc::DataFrame; digits::Integer = 0)
+    _row(label, quantity, draws) = begin
+        s = posterior_summary(draws)
+        (stream = label, quantity = quantity,
+         lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
+         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+         upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
+    end
     rows = NamedTuple[]
     for (label, cum, new) in (
-            ("DRC reported cases", :cases_cum,  :cases_new),
-            ("DRC deaths",         :deaths_cum, :deaths_new),
+            ("DRC reported cases", :cases_cum,   :cases_new),
+            ("DRC deaths",         :deaths_cum,  :deaths_new),
             ("Uganda exports",     :exports_cum, :exports_new))
-        sc = posterior_summary(fc[!, cum])
-        sn = posterior_summary(fc[!, new])
-        push!(rows, (
-            stream         = label,
-            cum_lo90 = round(sc.lo90; digits), cum_med = round(quantile(fc[!, cum], 0.5); digits),
-            cum_hi90 = round(sc.hi90; digits),
-            new_lo90 = round(sn.lo90; digits), new_med = round(quantile(fc[!, new], 0.5); digits),
-            new_hi90 = round(sn.hi90; digits),
-        ))
+        push!(rows, _row(label, "cumulative by T+7", fc[!, cum]))
+        push!(rows, _row(label, "new this week",     fc[!, new]))
     end
     return DataFrame(rows)
 end

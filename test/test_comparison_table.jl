@@ -11,12 +11,13 @@ const _CRI_LABELS = Set(["30%", "60%", "90%", "outside 90%"])
 
     df = comparison_table(C)
     @test df isa DataFrame
-    @test names(df) == ["scenario", "reported_C_T", "narrowest_CrI"]
+    @test names(df) ==
+          ["scenario", "reported_cases", "narrowest_interval"]
     @test nrow(df) == length(REPORT_SCENARIOS)
     @test df.scenario == [label for (label, _) in REPORT_SCENARIOS]
-    @test df.reported_C_T == [val for (_, val) in REPORT_SCENARIOS]
+    @test df.reported_cases == [val for (_, val) in REPORT_SCENARIOS]
 
-    for v in df.narrowest_CrI
+    for v in df.narrowest_interval
         @test v in _CRI_LABELS
     end
 end
@@ -27,5 +28,5 @@ end
     rng = MersenneTwister(3)
     C = randn(rng, 1_000) .* 10 .+ 10_000
     df = comparison_table(C)
-    @test all(==("outside 90%"), df.narrowest_CrI)
+    @test all(==("outside 90%"), df.narrowest_interval)
 end

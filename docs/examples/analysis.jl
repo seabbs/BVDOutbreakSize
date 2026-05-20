@@ -47,33 +47,35 @@
 # ## What we do differently from McCabe et al.
 #
 # - *Joint posterior, not 15 scenario estimates.* The doubling time
-#   `τ`, case fatality ratio (CFR), onset-to-death shape and scale,
-#   detection window `w`,
+#   $\tau$, case fatality ratio (CFR), onset-to-death shape and scale,
+#   detection window $w$,
 #   daily traveller volume and surveillance dispersion all have
 #   priors and are sampled jointly. McCabe et al. fix each and
 #   sweep.
 # - *Exact cumulative integral for exports* —
-#   `q · ∫_{T−w}^{T} C(s) ds` with travel rate `q` — rather than
-#   the small-`rw` simplification `q · w · C(T)` used by McCabe et
+#   $q\cdot\int_{T-w}^{T} C(s)\,ds$ with travel rate $q$ — rather than
+#   the small-$rw$ simplification $q\cdot w\cdot C(T)$ used by McCabe et
 #   al. (and by Imai et al. 2020 before them). The two forms agree
-#   as `r → 0`.
+#   as $r \to 0$.
 # - *Numerical (not closed-form) deaths convolution.* For a gamma
 #   delay the convolution integral has an exact closed form that
-#   carries a `γ(α, (β + r)T) / Γ(α)` factor from the finite upper
-#   limit `T`. McCabe et al. use the large-`T` simplification
-#   `D(T) ≈ CFR · C(T) · (1 + r/β)^{−α}`, which drops that factor and
+#   carries a $\gamma(\alpha, (\beta + r)T)/\Gamma(\alpha)$ factor from
+#   the finite upper limit $T$. McCabe et al. use the large-$T$
+#   simplification
+#   $D(T) \approx \mathrm{CFR}\cdot C(T)\cdot(1 + r/\beta)^{-\alpha}$,
+#   which drops that factor and
 #   is therefore an approximation. We evaluate the integral
 #   numerically instead, which recovers the exact value and lets the
 #   onset-to-death distribution be swapped for any other family
 #   without re-deriving the integral.
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list McCabe et al. cite for their
-#   point estimates ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis)),
+#   point estimates [bdbv_linelist_analysis_2026](@cite),
 #   so the priors carry the published 95% credible intervals on
-#   `α` and `θ` rather than collapsing onto Rosello's point
+#   $\alpha$ and $\theta$ rather than collapsing onto Rosello's point
 #   estimate.
 # - *NegBinomial likelihood on deaths and reported cases* with a
-#   single shared surveillance dispersion `k`. McCabe et al. use
+#   single shared surveillance dispersion $k$. McCabe et al. use
 #   Poisson for deaths and do not have a cases-ascertainment
 #   model at all. Exports stay Poisson because two observations
 #   would not identify a separate dispersion. The McCabe et al.
@@ -81,11 +83,11 @@
 #   binomial-inversion procedure, not an estimated dispersion.
 # - *Ascertainment extension* (not in McCabe et al.). A logit-scale
 #   hyperprior on the reporting fraction, applied to the latent
-#   `C(T)`, gives a joint posterior over the reported suspected-case
+#   $C(T)$, gives a joint posterior over the reported suspected-case
 #   count alongside deaths and exports.
 # - *No-onward-transmission counterfactual* (not in McCabe et al.).
 #   Projects the future expected deaths from cases already infected
-#   by `T`, integrating `i(s) · (1 − F_d(T − s))` per draw — a
+#   by $T$, integrating $i(s)\cdot(1 - F_d(T - s))$ per draw — a
 #   lower bound on the eventual death toll if every onward
 #   transmission stopped today.
 #
@@ -108,7 +110,7 @@
 #   independently replicated against the authors' code.
 # - *Prior-driven inference where data is scarce.* Two exports,
 #   ~10² deaths, and a single reported-case total give little
-#   information about `τ`, `m`, the surveillance dispersion, or
+#   information about $\tau$, $m$, the surveillance dispersion, or
 #   the reporting fraction individually. Posteriors track their
 #   priors closely.
 # - *Inherits Imperial's epidemiological assumptions and core
@@ -127,23 +129,32 @@
 #   unmodelled. The baseline fit uses the full Rosello onset-to-death
 #   distribution, as in McCabe et al. The
 #   [delay sensitivity](#Delay-sensitivity) section refits the joint
-#   model with the community-only delay (the `n = 5` cases who died
+#   model with the community-only delay (the $n = 5$ cases who died
 #   without admission, weak evidence of a shorter delay) to show how
 #   much the outbreak-size estimate leans on the delay assumption.
-# - *Detection-window definition is loose.* `w` lumps incubation
+# - *Detection-window definition is loose.* $w$ lumps incubation
 #   and onset-to-detection together — both poorly characterised
 #   for BVD.
 # - *Selection bias in deaths-among-exports.* The deaths-among-
 #   exports likelihood assumes Uganda's surveillance retains detected
 #   exports through to any subsequent death. If the system loses
 #   cases that progress to death, the observed count is biased
-#   downward and the constraint it places on `T` is overstated.
+#   downward and the constraint it places on $T$ is overstated.
 # - *Ascertainment partially pooled, not separately identified.*
 #   Uganda's exported-case ascertainment `p_uganda` and DRC's
 #   reported-case ascertainment `p_drc` share a logit-scale
 #   hyperprior. With only two exports and one export death the Uganda
 #   fraction is weakly identified and leans on the pooled mean and
 #   the DRC side.
+# - *Observation streams share one case pool.* The four streams are
+#   modelled as conditionally independent given the latent cumulative
+#   incidence, but they observe overlapping individuals — exported
+#   cases are a subset of all cases (and may also be DRC-reported),
+#   and expected DRC deaths are computed over all incidence including
+#   those who travelled. Conditional independence ignores this
+#   individual-level overlap, so it can double-count evidence and
+#   understate uncertainty. The effect is small here because the
+#   Uganda counts are small.
 #
 # ## How the model is built up
 #
@@ -199,7 +210,7 @@
 # 2. **Observation submodels** — exports, deaths, cases, deaths-among-
 #    exports. Each takes the growth state as input, introduces the
 #    forward integral it needs and the likelihood, and ties one data
-#    stream to the latent `C(T)`.
+#    stream to the latent $C(T)$.
 # 3. **Composers** — `exports_only_model`, `deaths_only_model`,
 #    `cases_only_model`, `exports_deaths_only_model`,
 #    `imperial_only_model`, `bvd_joint`. Each is a thin wrapper that
@@ -308,42 +319,42 @@ observations_table #hide
 
 # ### Growth — exponential
 #
-# The outbreak is seeded `T` days ago by a single zoonotic case and
-# grows exponentially with doubling time `τ`, giving the cumulative-
+# The outbreak is seeded $T$ days ago by a single zoonotic case and
+# grows exponentially with doubling time $\tau$, giving the cumulative-
 # incidence trajectory
 #
 # ```math
 # C(s) = \exp(r\,s), \qquad r = \frac{\log 2}{\tau}, \tag{1}
 # ```
 #
-# so that the cumulative case count at the cut-off is `C(T) = 2^m`
-# with `m = T / τ` the number of doublings since seeding. Imperial
+# so that the cumulative case count at the cut-off is $C(T) = 2^m$
+# with $m = T/\tau$ the number of doublings since seeding. Imperial
 # varies the doubling time over a sensitivity sweep of 7 / 14 / 21
-# days; here `τ` has a LogNormal prior centred at the main scenario
+# days; here $\tau$ has a LogNormal prior centred at the main scenario
 # (14 d) with log-SD 0.4, giving a 95% prior interval of roughly
-# `(6, 31)` d that encompasses the full sweep:
+# $(6, 31)$ d that encompasses the full sweep:
 #
 # ```math
 # \tau \sim \mathrm{LogNormal}(\log 14,\ 0.4). \tag{2}
 # ```
 #
-# Rather than sampling `τ` and `T` directly (which are ridge-
-# correlated through `C(T) = exp(r T)`), the model samples `τ` and the
-# *doubling-time multiplier* `m = T / τ`. Then `C(T) = 2^m` is near-
-# orthogonal to `τ`. `m` is centred at 7 (`C(T) = 2^7 = 128`) with SD
-# 2.5, truncated to `(0, 13]`:
+# Rather than sampling $\tau$ and $T$ directly (which are ridge-
+# correlated through $C(T) = \exp(r T)$), the model samples $\tau$ and
+# the *doubling-time multiplier* $m = T/\tau$. Then $C(T) = 2^m$ is
+# near-orthogonal to $\tau$. $m$ is centred at 7 ($C(T) = 2^7 = 128$)
+# with SD 2.5, truncated to $(0, 13]$:
 #
 # ```math
 # m \sim \mathrm{Normal}(7,\ 2.5)\ \text{on}\ (0, 13]. \tag{3}
 # ```
 #
-# This gives 95% prior support of roughly `m ∈ (2, 12)` →
-# `C(T) ∈ (4, 4000)`, bracketing Imperial's headline scenario range
-# on the log scale (their lowest `C(T) = 235` is `m ≈ 7.9`, their
-# highest `1008` is `m ≈ 10`). The hard upper bound at 13 caps `C(T)`
-# at ~8000, well above Imperial's tail. The growth rate `r` and the
-# elapsed time `T = m · τ` are exposed as deterministics so they
-# appear in posterior tables and pair plots.
+# This gives 95% prior support of roughly $m \in (2, 12)$ $\to$
+# $C(T) \in (4, 4000)$, bracketing Imperial's headline scenario range
+# on the log scale (their lowest $C(T) = 235$ is $m \approx 7.9$, their
+# highest $1008$ is $m \approx 10$). The hard upper bound at 13 caps
+# $C(T)$ at ~8000, well above Imperial's tail. The growth rate $r$ and
+# the elapsed time $T = m\cdot\tau$ are exposed as deterministics so
+# they appear in posterior tables and pair plots.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exponential_growth_model</summary>
@@ -368,26 +379,27 @@ end
 
 # ### Onset-to-death delay
 #
-# Symptom-onset to death is gamma distributed with shape `α` and
-# scale `θ`, giving density `f` and CDF `F_d`, mean `α·θ` and SD
-# `√α · θ`:
+# Symptom-onset to death is gamma distributed with shape $\alpha$ and
+# scale $\theta$, giving density $f$ and CDF $F_d$, mean $\alpha\cdot\theta$
+# and SD $\sqrt{\alpha}\cdot\theta$:
 #
 # ```math
 # \text{delay} \sim \mathrm{Gamma}(\alpha,\ \theta), \qquad
 # f(\cdot) = \text{density}, \quad F_d(\cdot) = \text{CDF}. \tag{4}
 # ```
 #
-# The Imperial report uses the Rosello et al. 2015 point estimate
+# The Imperial report uses the point estimate from [rosello2015](@cite)
 # (α = 4.42, β = 0.388/day, θ ≈ 2.58 day). The companion Bayesian
 # reanalysis of the same Isiro line list
-# ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis))
-# gives 95% credible intervals (CrIs) of roughly `(2.4, 7.2)` for `α`
-# and `(1.6, 4.8)` for `θ`. The priors here are Normals centred on the
-# bdbv-linelist-analysis posterior mean with standard deviation (SD)
+# [bdbv_linelist_analysis_2026](@cite)
+# gives 95% credible intervals (CrIs) of roughly $(2.4, 7.2)$ for
+# $\alpha$ and $(1.6, 4.8)$ for $\theta$. The priors here are Normals
+# centred on the
+# reanalysis posterior mean with standard deviation (SD)
 # matching the
 # half-width of the published 95% CrIs
-# (`1.22 = (7.2 − 2.4) / 3.92`, `0.82 = (4.8 − 1.6) / 3.92`),
-# truncated at zero to keep `Gamma(α, θ)` defined:
+# ($1.22 = (7.2 - 2.4)/3.92$, $0.82 = (4.8 - 1.6)/3.92$),
+# truncated at zero to keep $\mathrm{Gamma}(\alpha, \theta)$ defined:
 #
 # ```math
 # \alpha \sim \mathrm{Normal}^{+}(4.3,\ 1.22), \qquad
@@ -444,16 +456,18 @@ end
 
 # ### Detection window
 #
-# `w` is the mean time during which a case is still infectious and
+# $w$ is the mean time during which a case is still infectious and
 # detectable abroad (incubation + onset-to-detection). Its prior is
 #
 # ```math
 # w \sim \mathrm{Normal}^{+}(15,\ 5)\ \text{days}. \tag{7}
 # ```
 #
-# `w` enters the export likelihood through the detection probability
-# `p_detect = w · (daily travellers / source population)`; that
-# relationship is set out with the exports observation submodel below.
+# $w$ enters the export likelihood through the detection probability
+# $p_{\text{detect}} = w\cdot(\text{daily travellers} /
+# \text{source population})$;
+# that relationship is set out with the exports observation submodel
+# below.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: detection_window_model</summary>
@@ -472,9 +486,9 @@ end
 # ### Surveillance dispersion
 #
 # Both NegBinomial likelihoods (deaths and reported cases) share a
-# single dispersion `k`, since both arise from the same passive-
-# surveillance system. Under the mean-`μ` / dispersion-`k`
-# parameterisation a count `Y` has
+# single dispersion $k$, since both arise from the same passive-
+# surveillance system. Under the mean-$\mu$ / dispersion-$k$
+# parameterisation a count $Y$ has
 #
 # ```math
 # Y \sim \mathrm{NegBinomial}(\mu,\ k), \qquad
@@ -483,14 +497,14 @@ end
 #
 # The dispersion captures passive-surveillance noise (under-reporting
 # that varies by district, weekend reporting effects, batched updates),
-# not transmission heterogeneity. It is sampled on the `1/√k` scale
-# with a weak prior,
+# not transmission heterogeneity. It is sampled on the $1/\sqrt{k}$
+# scale with a weak prior,
 #
 # ```math
 # 1/\sqrt{k} \sim \mathrm{Normal}^{+}(0, 1), \tag{9}
 # ```
 #
-# giving `k` a prior median near 2 (mild overdispersion). Imperial
+# giving $k$ a prior median near 2 (mild overdispersion). Imperial
 # uses Poisson on deaths (Method 2; their reported CIs are Poisson
 # CIs) and does not model reported suspected cases at all; the switch
 # to NegBinomial here is an intentional deviation from their Method 2
@@ -524,7 +538,7 @@ end
 #
 # Partial pooling sits between the two. Both ascertainment fractions
 # `p_drc` and `p_uganda` share a logit-scale hyperprior with mean
-# `μ` and SD `τ`:
+# $\mu$ and SD $\tau$:
 #
 # ```math
 # \mu \sim \mathrm{Normal}(\mathrm{logit}(0.25),\ 1),
@@ -540,10 +554,12 @@ end
 #     \mathrm{Normal}(\mu,\ \tau), \tag{11}
 # ```
 #
-# with `p = logistic(logit p)`. The hyperprior mean is centred on
-# `logit(0.25)` (a 0.25 reporting fraction). `τ` is the pooling
-# strength: small `τ` pulls the two fractions together (the shared-
-# fraction limit), large `τ` lets them move independently (the
+# with $p = \mathrm{logistic}(\mathrm{logit}\,p)$. The hyperprior mean
+# is centred on
+# $\mathrm{logit}(0.25)$ (a 0.25 reporting fraction). $\tau$ is the
+# pooling
+# strength: small $\tau$ pulls the two fractions together (the shared-
+# fraction limit), large $\tau$ lets them move independently (the
 # separate-fraction limit). The data decide where on that spectrum
 # the fit lands. The cases likelihood uses `p_drc`; the two Uganda-
 # side likelihoods use `p_uganda`.
@@ -568,8 +584,8 @@ end
 #md # </details>
 #md # ```
 
-# A small NegBinomial constructor parameterised by mean `μ` and
-# dispersion `k` (so the variance is given by equation (8)), with
+# A small NegBinomial constructor parameterised by mean $\mu$ and
+# dispersion $k$ (so the variance is given by equation (8)), with
 # NaN / Inf-safe clamping on the success probability so extreme NUTS
 # proposals during warmup do not trip the distribution domain check.
 # It is used by the deaths and cases observation submodels below.
@@ -594,7 +610,7 @@ end
 #
 # With the building blocks in place, each observation submodel takes
 # the growth state as input, introduces the forward integral it needs,
-# and ties one data stream to the latent `C(T)`. The forward integrals
+# and ties one data stream to the latent $C(T)$. The forward integrals
 # (the at-risk person-time integral for exports, the gamma convolution
 # for deaths, and the deaths-among-exports convolution) live in the
 # package as the reusable helpers `integrate_cumulative`,
@@ -606,19 +622,20 @@ end
 # ### Exports — Imperial Method 1 (geographic spread)
 #
 # Each case in the source population travels to Uganda on any given
-# day with probability `q = daily travellers / source population`,
+# day with probability
+# $q = \text{daily travellers}/\text{source population}$,
 # treating cases as exchangeable with the general population. A case
-# is *detection-eligible* for `w` days from infection (equation (7)).
-# For a case infected at outbreak age `s ≤ T`, the accumulated
-# probability of being detected in Uganda by `T` is
+# is *detection-eligible* for $w$ days from infection (equation (7)).
+# For a case infected at outbreak age $s \leq T$, the accumulated
+# probability of being detected in Uganda by $T$ is
 #
 # ```math
 # P(\text{detected by } T \mid \text{infected at } s)
 #     = q \cdot \min(T - s,\ w). \tag{12}
 # ```
 #
-# Splitting at `s = T - w` (full window elapsed before `T-w`, partial
-# window after) and summing across incidence `i(s)` gives the full
+# Splitting at $s = T - w$ (full window elapsed before $T-w$, partial
+# window after) and summing across incidence $i(s)$ gives the full
 # export integral
 #
 # ```math
@@ -628,16 +645,17 @@ end
 # ```
 #
 # which integration by parts collapses to the cleaner at-risk person-
-# time form using the cumulative-incidence trajectory `C(s)` of
+# time form using the cumulative-incidence trajectory $C(s)$ of
 # equation (1):
 #
 # ```math
 # \mathbb{E}[\text{exports by }T] = q \cdot \int_{T-w}^{T} C(s)\, ds. \tag{14}
 # ```
 #
-# For exponential growth this evaluates to `q · (C(T) − C(T−w)) / r`;
-# as `r → 0` it recovers Imperial's small-`rw` simplification
-# `q · w · C(T)`. We evaluate equation (14) numerically with
+# For exponential growth this evaluates to
+# $q\cdot(C(T) - C(T-w))/r$;
+# as $r \to 0$ it recovers Imperial's small-$rw$ simplification
+# $q\cdot w\cdot C(T)$. We evaluate equation (14) numerically with
 # `integrate_cumulative` so the same form works for any growth
 # parameterisation, scale by the Uganda ascertainment fraction
 # `p_uganda` (equation (11)), and apply a Poisson likelihood:
@@ -649,13 +667,15 @@ end
 # ```
 #
 # !!! note "Comparison with Imperial / Imai 2020"
-#     Imperial use the small-`rw` simplification
-#     `μ_e ≈ q · w · C(T)`, the limit of equation (14) as `r → 0`.
-#     For BVD's prior range `rw ∈ 0.33 − 2.0` the simplification
-#     under-estimates `C(T)` by roughly 15-57%. Both Imperial and we
-#     use `Binomial(N, p)`-style observation models; with
-#     `p ≈ q·w ≈ 6·10⁻³` our Poisson is indistinguishable from
-#     Imperial's Binomial in the small-`p` regime.
+#     Imperial use the small-$rw$ simplification
+#     $\mu_e \approx q\cdot w\cdot C(T)$, the limit of equation (14)
+#     as $r \to 0$.
+#     For BVD's prior range $rw \in 0.33 - 2.0$ the simplification
+#     under-estimates $C(T)$ by roughly 15-57%. Both Imperial and we
+#     use $\mathrm{Binomial}(N, p)$-style observation models; with
+#     $p \approx q\cdot w \approx 6\cdot 10^{-3}$ our Poisson is
+#     indistinguishable from
+#     Imperial's Binomial in the small-$p$ regime.
 #
 # **Daily traveller prior.** Imperial Table 3 records mean weekly
 # passenger counts across seven PoEs from one to four weekly sitreps
@@ -708,9 +728,9 @@ end
 
 # ### Deaths — Imperial Method 2 (back-calculation from deaths)
 #
-# Expected cumulative deaths by `T` from a single seeding case is the
+# Expected cumulative deaths by $T$ from a single seeding case is the
 # CFR-weighted convolution of the cumulative-incidence trajectory
-# `C(s)` (equation (1)) with the onset-to-death density `f`
+# $C(s)$ (equation (1)) with the onset-to-death density $f$
 # (equation (4)):
 #
 # ```math
@@ -719,15 +739,17 @@ end
 # ```
 #
 # For a gamma delay this integral has an exact closed form carrying a
-# `γ(α, (β + r)T) / Γ(α)` factor from the finite upper limit; McCabe et
-# al. use the large-`T` simplification
-# `D(T) ≈ CFR · C(T) · (1 + r/β)^{−α}` (valid for `T ⪞ 12/(β+r)`), which
+# $\gamma(\alpha, (\beta + r)T)/\Gamma(\alpha)$ factor from the finite
+# upper limit; McCabe et
+# al. use the large-$T$ simplification
+# $D(T) \approx \mathrm{CFR}\cdot C(T)\cdot(1 + r/\beta)^{-\alpha}$
+# (valid for $T \gtrsim 12/(\beta+r)$), which
 # drops that factor and is therefore an approximation. We evaluate
 # equation (16) numerically with `expected_deaths` instead, which is
 # exact and lets the delay family in `delay_model` be swapped with no
 # change to the quadrature. The
 # observed deaths follow the NegBinomial likelihood of equation (8)
-# with the dispersion `k` of equation (9), supplied by the composer so
+# with the dispersion $k$ of equation (9), supplied by the composer so
 # it can be shared with the cases likelihood:
 #
 # ```math
@@ -773,7 +795,7 @@ end
 #
 # Imperial Methods 1 and 2 use exports and deaths only. Reported
 # suspected cases from the same passive-surveillance system carry
-# information about `C(T)` once the DRC ascertainment fraction `p_drc`
+# information about $C(T)$ once the DRC ascertainment fraction `p_drc`
 # (equation (11)) is introduced:
 #
 # ```math
@@ -782,7 +804,7 @@ end
 # Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_c,\ k). \tag{18}
 # ```
 #
-# The dispersion `k` (equation (9)) is shared with the deaths
+# The dispersion $k$ (equation (9)) is shared with the deaths
 # likelihood; both are sampled once by the composer.
 
 #md # ```@raw html
@@ -815,11 +837,11 @@ end
 # is informative: if the exports happened long ago, more of them would
 # have died by now under the onset-to-death gamma, so the observed
 # deaths-among-exports bound how recently the exports occurred and help
-# constrain `T` (and `C(T)`). The expected count reuses the at-risk
+# constrain $T$ (and $C(T)$). The expected count reuses the at-risk
 # export integrand of equation (14) but weights each case by its
-# probability of having died by `T`, the onset-to-death CDF
-# `F_d(T − s)` (equation (4)), then scales by the CFR, the travel rate
-# `q` and the Uganda ascertainment fraction `p_uganda`:
+# probability of having died by $T$, the onset-to-death CDF
+# $F_d(T - s)$ (equation (4)), then scales by the CFR, the travel rate
+# $q$ and the Uganda ascertainment fraction `p_uganda`:
 #
 # ```math
 # \mathbb{E}[D_{\text{uganda}}]
@@ -828,10 +850,10 @@ end
 # ```
 #
 # The package helper `integrate_exports_deaths` evaluates equation (19)
-# by writing `F_d` as the inner integral of the density `f`, so the
-# whole expression differentiates through `f` alone (the reverse-mode
+# by writing $F_d$ as the inner integral of the density $f$, so the
+# whole expression differentiates through $f$ alone (the reverse-mode
 # AD backend does not support the gamma CDF shape-parameter
-# derivative). The detection window `w` and daily traveller volume are
+# derivative). The detection window $w$ and daily traveller volume are
 # sampled by the exports likelihood and threaded in here so the two
 # Uganda-side observations share the same person-time, and a Poisson
 # likelihood ties the observed count to equation (19):
@@ -846,7 +868,7 @@ end
 #     through to any subsequent death. If the system instead loses
 #     cases that progress to death, the observed deaths-among-exports
 #     count is selection-biased downward and the constraint it places
-#     on `T` is overstated.
+#     on $T$ is overstated.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exports_deaths_model</summary>
@@ -892,11 +914,11 @@ end
 # stream is never left sampled, which would trip Turing's model check).
 #
 # The joint composer samples a single `surveillance_dispersion_model`
-# and passes that same `k` to both deaths and cases likelihoods, so
+# and passes that same $k$ to both deaths and cases likelihoods, so
 # they share one passive-surveillance noise scale. It also samples a
 # single `pooled_ascertainment_model`, threading `p_drc` to the cases
 # likelihood and `p_uganda` to the two Uganda-side likelihoods. The
-# window `w` and daily traveller volume sampled by the exports
+# window $w$ and daily traveller volume sampled by the exports
 # likelihood are reused by the deaths-among-exports likelihood so the
 # two share person-time.
 
@@ -1021,7 +1043,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Joint fit — full posterior over `C(T)` from all data streams
+# ### Joint fit — full posterior over $C(T)$ from all data streams
 #
 # `bvd_joint` is the same generative process conditioned on all four
 # observed streams simultaneously. Each stream argument may be passed
@@ -1162,9 +1184,9 @@ prior_pair_fig #hide
 #
 # NUTS with Mooncake reverse-mode AD, four chains, 1000 post-warmup
 # draws each, `target_accept = 0.9`. Chains initialise from the prior
-# to keep the sampler away from the boundary of `r` and `m`. We fit
+# to keep the sampler away from the boundary of $r$ and $m$. We fit
 # the joint model and the three single-stream models so the four
-# posteriors over `C(T)` can be compared.
+# posteriors over $C(T)$ can be compared.
 
 #md # ```@raw html
 #md # <details><summary>Run the joint and per-stream NUTS fits</summary>
@@ -1226,14 +1248,16 @@ joint_density_fig = plot_cumulative_cases(
 
 joint_density_fig #hide
 
-# The cumulative case count `C(T) = exp(r T)` is set jointly by the
-# doubling time `τ` (equivalently the growth rate `r = log 2 / τ`) and
-# the time since seeding `T`. Read as a calendar date, `T` places the
-# start of sustained transmission at the report date minus `T` days.
+# The cumulative case count $C(T) = \exp(r T)$ is set jointly by the
+# doubling time $\tau$ (equivalently the growth rate
+# $r = \log 2/\tau$) and
+# the time since seeding $T$. Read as a calendar date, $T$ places the
+# start of sustained transmission at the report date minus $T$ days.
 # The left panel below shows the posterior for that start date; the
-# right panel shows the joint `(τ, T)` posterior, which is positively
-# correlated: slower growth (larger `τ`) needs a longer elapsed `T` to
-# reach the same observed counts.
+# right panel shows the joint $(\tau, T)$ posterior, which is
+# positively
+# correlated: slower growth (larger $\tau$) needs a longer elapsed $T$
+# to reach the same observed counts.
 
 #md # ```@raw html
 #md # <details><summary>Outbreak start date and (τ, T) posterior</summary>
@@ -1250,9 +1274,9 @@ start_date_fig #hide
 
 # The full posterior summary table reports equal-tailed 30%, 60% and
 # 90% credible intervals on the key joint-fit parameters: growth rate
-# `r`, doubling-time multiplier `m`, days since seeding `T`, CFR, the
+# $r$, doubling-time multiplier $m$, days since seeding $T$, CFR, the
 # DRC and Uganda ascertainment fractions `p_drc` and `p_uganda`, the
-# pooling SD `τ_logit`, and cumulative cases `C(T)`.
+# pooling SD `τ_logit`, and cumulative cases $C(T)$.
 
 #md # ```@raw html
 #md # <details><summary>Joint posterior summary table</summary>
@@ -1322,13 +1346,14 @@ joint_ppc_fig #hide
 # ## Counterfactual: lower bound under no further transmission
 #
 # Suppose every onward transmission stopped at the report date — the
-# estimation / report-generation time, which we denote `T`. The cohort
-# already infected by `T` still carries future expected deaths in the
-# onset-to-death tail: a case infected at outbreak age `s` has died by
-# the report date with probability `F_d(T − s)` (equation (4)), so a
+# estimation / report-generation time, which we denote $T$. The cohort
+# already infected by $T$ still carries future expected deaths in the
+# onset-to-death tail: a case infected at outbreak age $s$ has died by
+# the report date with probability $F_d(T - s)$ (equation (4)), so a
 # fraction
-# `1 − F_d(T − s)` of its CFR-weighted contribution has not yet been
-# observed. Integrating against the incidence `i(s) = r·exp(r·s)` from
+# $1 - F_d(T - s)$ of its CFR-weighted contribution has not yet been
+# observed. Integrating against the incidence
+# $i(s) = r\cdot\exp(r\cdot s)$ from
 # equation (1) gives the additional future expected deaths
 #
 # ```math
@@ -1337,7 +1362,7 @@ joint_ppc_fig #hide
 # ```
 #
 # and a lower bound on the cumulative-death endpoint of
-# `D(T) + ΔD`, evaluated per posterior draw.
+# $D(T) + \Delta D$, evaluated per posterior draw.
 
 #md # ```@raw html
 #md # <details><summary>Project no-onward deaths and summarise</summary>
@@ -1355,9 +1380,11 @@ no_onward_table = streams_table(
 
 no_onward_table #hide
 
-# Two panels: the *still expected* deaths `ΔD` (future deaths in cases
-# already infected by `T`, net of those already observed) on the left,
-# and the *projected total* `D(T) + ΔD` on the right with the observed
+# Two panels: the *still expected* deaths $\Delta D$ (future deaths in
+# cases
+# already infected by $T$, net of those already observed) on the left,
+# and the *projected total* $D(T) + \Delta D$ on the right with the
+# observed
 # death count marked as a dashed black rule.
 
 #md # ```@raw html
@@ -1376,17 +1403,16 @@ no_onward_fig #hide
 #
 # If the fitted model is taken at face value, what should the next
 # week's situation reports show? We continue the fitted exponential
-# growth `horizon = 7` days past the cut-off `T` and apply the same
+# growth seven days past the report date $T$ and apply the same
 # observation models to forecast the cumulative reported cases (DRC),
-# deaths (DRC) and exports (Uganda) by `T + 7`, and the *new* counts
-# expected over the coming week (cumulative at `T + 7` minus the count
+# deaths (DRC) and exports (Uganda) by $T + 7$, and the *new* counts
+# expected over the coming week (cumulative at $T + 7$ minus the count
 # already observed). These are posterior-predictive: each draw yields a
 # replicated integer count, so the intervals carry both parameter and
 # observation uncertainty.
 #
 # This assumes growth continues unchanged for the week — no
-# interventions and no saturation — so it is a "no-change" projection,
-# not a considered forecast.
+# interventions and no saturation — so it is a "no-change" projection.
 
 #md # ```@raw html
 #md # <details><summary>Generate the one-week-ahead forecast</summary>
@@ -1424,18 +1450,23 @@ forecast_fig #hide
 # ## Delay sensitivity
 #
 # The deaths back-calculation (equation (16)) depends on the onset-to-
-# death delay. The baseline fit anchors the gamma shape `α` and scale
-# `θ` on the all-deaths Isiro mixture (equation (5)). The companion
-# bdbv-linelist-analysis also reports a *community-only* pathway — the
-# `n = 5` cases who died without hospital admission — with a shorter
-# but far more uncertain delay: shape `α ≈ 5.6` (95% CrI 1.0-25.9) and
-# scale `θ ≈ 1.4` (0.3-9.5). A shorter delay means deaths appear sooner
+# death delay. The baseline fit anchors the gamma shape $\alpha$ and
+# scale
+# $\theta$ on the all-deaths Isiro mixture (equation (5)). The companion
+# reanalysis [bdbv_linelist_analysis_2026](@cite) also reports a
+# *community-only* pathway — the
+# $n = 5$ cases who died without hospital admission — with a shorter
+# but far more uncertain delay: a shape of about 5.6
+# (95% CrI 1.0-25.9) and a scale of about 1.4 (95% CrI 0.3-9.5). A
+# shorter delay means deaths appear sooner
 # after infection, so a given death count back-calculates to a smaller
-# `C(T)`.
+# $C(T)$.
 #
-# We refit the joint model once with `delay_model`'s priors re-anchored
-# on the community-only pathway, building truncated-Normal priors
-# centred on those medians with SD = (hi − lo) / 3.92, exactly as the
+# We refit the joint model once with the onset-to-death delay priors
+# re-anchored on the community-only pathway, building truncated-Normal
+# priors
+# centred on those medians with
+# $\mathrm{SD} = (\mathrm{hi} - \mathrm{lo})/3.92$, exactly as the
 # baseline delay priors (equation (5)) are constructed:
 #
 # ```math
@@ -1443,11 +1474,11 @@ forecast_fig #hide
 # \theta \sim \mathrm{Normal}^{+}(1.4,\ 2.35). \tag{22}
 # ```
 #
-# Nothing else changes. The comparison below shows how sensitive the
+# The comparison below shows how sensitive the
 # outbreak-size estimate is to the delay assumption.
 #
 # !!! warning "Sensitivity only, not a preferred estimate"
-#     The community-only delay is fitted from `n = 5` deaths, so the
+#     The community-only delay is fitted from $n = 5$ deaths, so the
 #     evidence is weak and the priors in equation (22) are very wide.
 #     This section is included to probe sensitivity, not as a preferred
 #     alternative to the baseline.
@@ -1489,7 +1520,7 @@ delay_sensitivity_table = streams_table(
 
 delay_sensitivity_table #hide
 
-# Overlaid posterior densities of `C(T)` under the two delay
+# Overlaid posterior densities of $C(T)$ under the two delay
 # assumptions:
 
 #md # ```@raw html
@@ -1510,7 +1541,7 @@ delay_sensitivity_fig #hide
 # ## How the data streams compare
 #
 # Each data stream constrains the latent outbreak size differently.
-# The table below puts the four posteriors over `C(T)` side by side —
+# The table below puts the four posteriors over $C(T)$ side by side —
 # the three single-stream fits and the joint — to show what each stream
 # buys on its own and what the joint combination adds.
 
@@ -1564,7 +1595,7 @@ ppc_grid_fig = plot_posterior_predictive_grid(;
 
 ppc_grid_fig #hide
 
-# Overlaid posterior densities of `C(T)` from the four fits:
+# Overlaid posterior densities of $C(T)$ from the four fits:
 
 #md # ```@raw html
 #md # <details><summary>Overlaid C_T density plot</summary>
@@ -1599,7 +1630,7 @@ cumulative_density_fig #hide
 
 # The sense check (next section) recovers Imperial's Method 2 headline
 # by fixing the Imperial-exact composer to Imperial's central
-# assumptions. We run it here so its `C(T)` estimate can join the
+# assumptions. We run it here so its $C(T)$ estimate can join the
 # comparison table.
 imperial_fixed = Turing.fix(
     imperial_only_model(missing, 88),       # exports missing → pure Method 2
@@ -1627,13 +1658,13 @@ main_comparison = DataFrame(
         "Our model | Imperial main assumptions",
         "Our joint posterior",
     ],
-    C_T_central = [313.0, 501.0,
+    central_estimate = [313.0, 501.0,
                    round(quantile(posterior_C_imperial, 0.5); digits = 0),
                    round(quantile(posterior_C_joint,    0.5); digits = 0)],
-    CrI_lower = [39.0, 402.0,
+    lower_90 = [39.0, 402.0,
                  round(imperial_C_credibles.lo90; digits = 0),
                  round(joint_C_credibles.lo90;    digits = 0)],
-    CrI_upper = [870.0, 612.0,
+    upper_90 = [870.0, 612.0,
                  round(imperial_C_credibles.hi90; digits = 0),
                  round(joint_C_credibles.hi90;    digits = 0)],
 );
@@ -1660,7 +1691,7 @@ coverage_table = comparison_table(posterior_C_joint);
 
 coverage_table #hide
 
-# The joint `C(T)` density again, this time with the 15 published
+# The joint $C(T)$ density again, this time with the 15 published
 # Imperial scenario point estimates overlaid as faint dashed rules:
 
 #md # ```@raw html
@@ -1684,11 +1715,12 @@ imperial_density_fig #hide
 # instantiated — Method 2 backcalculates outbreak size from deaths
 # alone. It is conditioned on Imperial's 16 May 2026 deaths snapshot
 # (88) and `Turing.fix`-pinned to the Method 2 main-scenario values
-# (`τ = 14 d, CFR = 30%, α = 4.42, β = 0.388/d`), with the NegBinomial
+# ($\tau = 14$ d, $\mathrm{CFR} = 30\%$, $\alpha = 4.42$,
+# $\beta = 0.388$/d), with the NegBinomial
 # dispersion pinned at `inv_sqrt_k = 0` so the deaths likelihood
 # collapses to Poisson — Imperial's actual choice (Table 2 reports
-# Poisson CIs). The only sampled latent is `m`, the number of doublings
-# since seeding; `C(T) = 2^m`. The same `m` prior used in the joint fit
+# Poisson CIs). The only sampled latent is $m$, the number of doublings
+# since seeding; $C(T) = 2^m$. The same $m$ prior used in the joint fit
 # applies here without modification.
 
 #md # ```@raw html

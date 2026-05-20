@@ -10,11 +10,13 @@
 
     @test df isa DataFrame
     @test names(df) ==
-          ["stream", "lo90", "lo60", "lo30", "hi30", "hi60", "hi90"]
+          ["stream", "lower_90", "lower_60", "lower_30",
+           "upper_30", "upper_60", "upper_90"]
     @test nrow(df) == 2
     @test df.stream == ["fit A", "fit B"]
 
     for r in eachrow(df)
-        @test r.lo90 <= r.lo60 <= r.lo30 <= r.hi30 <= r.hi60 <= r.hi90
+        @test r.lower_90 <= r.lower_60 <= r.lower_30 <=
+              r.upper_30 <= r.upper_60 <= r.upper_90
     end
 end

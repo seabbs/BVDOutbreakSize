@@ -58,8 +58,12 @@ end
 
     tbl = forecast_table(fc)
     @test tbl isa DataFrame
-    @test nrow(tbl) == 3
-    @test :stream in propertynames(tbl)
+    ## Three streams × two quantities (cumulative, new this week).
+    @test nrow(tbl) == 6
+    @test names(tbl) ==
+          ["stream", "quantity", "lower_90", "lower_60", "lower_30",
+           "upper_30", "upper_60", "upper_90"]
+    @test Set(tbl.quantity) == Set(["cumulative by T+7", "new this week"])
 
     fig = plot_forecast(fc)
     @test fig !== nothing

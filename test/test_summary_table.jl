@@ -16,15 +16,16 @@ end
 
     @test df isa DataFrame
     @test names(df) ==
-          ["quantity", "lo90", "lo60", "lo30", "hi30", "hi60", "hi90"]
+          ["quantity", "lower_90", "lower_60", "lower_30",
+           "upper_30", "upper_60", "upper_90"]
     @test nrow(df) == length(params)
     @test df.quantity == ["a", "b"]
 
     # Each row's quantile columns are monotone (an internal sanity
     # check that the rounded entries still respect the ordering).
     for r in eachrow(df)
-        @test r.lo90 <= r.lo60 <= r.lo30
-        @test r.hi30 <= r.hi60 <= r.hi90
-        @test r.lo30 <= r.hi30
+        @test r.lower_90 <= r.lower_60 <= r.lower_30
+        @test r.upper_30 <= r.upper_60 <= r.upper_90
+        @test r.lower_30 <= r.upper_30
     end
 end
