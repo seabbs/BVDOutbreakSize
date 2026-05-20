@@ -660,12 +660,10 @@ end
 # ```
 #
 # For exponential growth this evaluates to
-# $q\cdot(C(T) - C(T-w))/r$;
-# as $r \to 0$ it recovers McCabe et al.'s small-$rw$ simplification
-# $q\cdot w\cdot C(T)$. We evaluate equation (14) numerically with
-# `integrate_cumulative` so the same form works for any growth
-# parameterisation, scale by the Uganda ascertainment fraction
-# $p_{\text{uganda}}$ (equation (11)), and apply a Poisson likelihood:
+# $q\cdot(C(T) - C(T-w))/r$. We evaluate equation (14) numerically so
+# the same form works for any growth parameterisation, scale by the
+# Uganda ascertainment fraction $p_{\text{uganda}}$ (equation (11)),
+# and apply a Poisson likelihood:
 #
 # ```math
 # \mu_e = p_{\text{uganda}} \cdot q \cdot \int_{T-w}^{T} C(s)\, ds,
@@ -753,9 +751,8 @@ end
 # $D(T) \approx \mathrm{CFR}\cdot C(T)\cdot(1 + r/\beta)^{-\alpha}$
 # (valid for $T \gtrsim 12/(\beta+r)$), which
 # drops that factor and is therefore an approximation. We evaluate
-# equation (16) numerically with `expected_deaths` instead, which is
-# exact and lets the delay family in `delay_model` be swapped with no
-# change to the quadrature. The
+# equation (16) numerically instead, which is exact and lets the delay
+# family be swapped with no change to the quadrature. The
 # observed deaths follow the NegBinomial likelihood of equation (8)
 # with the dispersion $k$ of equation (9), supplied by the composer so
 # it can be shared with the cases likelihood:
