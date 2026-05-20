@@ -958,11 +958,11 @@ end
 #
 # We treat detected export deaths as an inhomogeneous Poisson process
 # with cumulative intensity $\mathbb{E}[D_{\text{uganda}}(t)]$
-# (equation (19), evaluated at any elapsed time $t$). The first death
-# occurred at elapsed time $t_1 = T - \Delta$, where
-# $\Delta = \text{cut-off} - \text{first-death date}$ is a known offset.
-# The probability that no export death is recorded before $t_1$ is the
-# survival of that process,
+# (equation (19), evaluated at any elapsed time $t$). The earliest dated
+# death occurred at elapsed time $t_1 = T - \Delta$, where
+# $\Delta = \text{cut-off} - \text{earliest export-death date}$ is a
+# known offset. The probability that no export death is recorded before
+# $t_1$ is the survival of that process,
 #
 # ```math
 # \Pr(\text{no export death before } t_1)
@@ -975,8 +975,13 @@ end
 # trajectories that would have produced a death *too early*, so it
 # tolerates the death's exact date being late or noisy and does not
 # require an event at $t_1$. With the Uganda events only days before the
-# cut-off ($\Delta$ small), the lever on $T$ is small. Passing
-# `delta = missing` makes the submodel a no-op.
+# cut-off ($\Delta$ small), the lever on $T$ is small.
+#
+# The submodel takes a *list* of export-death dates so further dated
+# deaths can be added as they are reported. The earliest gives the
+# binding one-sided bound used here; the full time-resolved point
+# process $\sum_i \log\lambda(t_i) - \Lambda(T)$ over all dated deaths is
+# the planned extension. An empty list makes the submodel a no-op.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exports_death_timing_model</summary>
@@ -984,16 +989,18 @@ end
 
 @model function exports_death_timing_model(
         growth_state, CFR::Real, delay_dist, p_uganda::Real;
-        delta::Union{Missing, Real},
+        deltas::AbstractVector = Int[],
         window::Real,
         daily_travellers::Real,
         source_population::Real = ITURI_POPULATION)
 
-    if !ismissing(delta)
+    if !isempty(deltas)
         cumulative = growth_state.cumulative
         T          = growth_state.T
-        t1         = T - delta
-        q          = daily_travellers / source_population
+        ## Earliest dated death (largest offset) gives the binding
+        ## one-sided survival bound on T.
+        t1 = T - maximum(deltas)
+        q  = daily_travellers / source_population
         survived_intensity := t1 <= zero(T) ? zero(T) :
             expected_exports_deaths(
                 cumulative, delay_dist, CFR, p_uganda, q, t1, window)
@@ -1225,7 +1232,7 @@ end
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
         source_population::Real = ITURI_POPULATION,
-        first_export_death_delta::Union{Missing, Real} = missing,
+        export_death_deltas::AbstractVector = Int[],
         first_export_detection_delta::Union{Missing, Real} = missing)
 
     growth_state     ~ to_submodel(growth, false)
@@ -1251,7 +1258,7 @@ end
     timing_state ~ to_submodel(
         exports_death_timing(growth_state, deaths_state.CFR,
             deaths_state.delay_dist, p_uganda;
-            delta            = first_export_death_delta,
+            deltas           = export_death_deltas,
             window           = exports_state.w,
             daily_travellers = exports_state.daily_travellers,
             source_population = source_population),

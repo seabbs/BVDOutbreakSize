@@ -32,15 +32,17 @@
     @test !isempty(obs.sources.exported_cases)
 end
 
-## The first-export-death offset is computed at load time as the number
-## of days between the recorded death date and the cut-off. Exercise the
+## The export-death offsets are computed at load time as the number of
+## days between each recorded death date and the cut-off. Exercise the
 ## calculation on synthetic dates rather than asserting the bundled
-## data's value, and check the date-absent path leaves it `missing`.
-function _write_obs(io; as_of, death_date = nothing)
+## data's value, and check the date-absent path returns an empty vector.
+function _write_obs(io; as_of, death_dates = nothing)
     write(io, "as_of_date = \"$as_of\"\n")
-    death_date === nothing ||
-        write(io, "[first_export_death_date]\nvalue = \"$death_date\"\n",
+    death_dates === nothing || begin
+        quoted = join(("\"$d\"" for d in death_dates), ", ")
+        write(io, "[export_death_dates]\nvalue = [$quoted]\n",
               "source = \"x\"\n")
+    end
     for k in ("exported_cases", "exports_deaths", "total_deaths",
               "reported_cases", "daily_outbound_travellers",
               "daily_outbound_travellers_sd", "source_population")
@@ -48,19 +50,20 @@ function _write_obs(io; as_of, death_date = nothing)
     end
 end
 
-@testset "first_export_death_delta is days from death date to cut-off" begin
+@testset "export_death_deltas are days from each death date to cut-off" begin
     mktempdir() do dir
         path = joinpath(dir, "obs.toml")
         open(io -> _write_obs(io; as_of = "2026-05-18",
-                              death_date = "2026-05-04"), path, "w")
-        @test load_observations(path).first_export_death_delta == 14
+                              death_dates = ["2026-05-04", "2026-05-14"]),
+             path, "w")
+        @test load_observations(path).export_death_deltas == [14, 4]
     end
 end
 
-@testset "first_export_death_delta is missing when the date is absent" begin
+@testset "export_death_deltas is empty when no dates are present" begin
     mktempdir() do dir
         path = joinpath(dir, "obs.toml")
         open(io -> _write_obs(io; as_of = "2026-05-18"), path, "w")
-        @test ismissing(load_observations(path).first_export_death_delta)
+        @test load_observations(path).export_death_deltas == Int[]
     end
 end

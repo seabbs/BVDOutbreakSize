@@ -111,9 +111,10 @@ end
 end
 
 @model function timing_m(growth_state, CFR, delay_dist, p_uganda;
-        delta, window, daily_travellers, source_population = ITURI_POPULATION)
-    if !ismissing(delta)
-        T = growth_state.T; t1 = T - delta
+        deltas = Int[], window, daily_travellers,
+        source_population = ITURI_POPULATION)
+    if !isempty(deltas)
+        T = growth_state.T; t1 = T - maximum(deltas)
         q = daily_travellers / source_population
         Λ := t1 <= zero(T) ? zero(T) :
             expected_exports_deaths(growth_state.cumulative, delay_dist, CFR,
@@ -135,7 +136,7 @@ end
     return (;)
 end
 
-@model function joint(ec, td, rc, xd; death_delta = missing,
+@model function joint(ec, td, rc, xd; death_deltas = Int[],
         detect_delta = missing, source_population = ITURI_POPULATION)
     growth_state ~ to_submodel(growth_m(), false)
     disp_state ~ to_submodel(dispersion_m(), false); k = disp_state.k
@@ -149,7 +150,7 @@ end
         daily_travellers = exports_state.daily_travellers,
         source_population), false)
     timing_state ~ to_submodel(timing_m(growth_state, deaths_state.CFR,
-        deaths_state.delay_dist, p_uganda; delta = death_delta,
+        deaths_state.delay_dist, p_uganda; deltas = death_deltas,
         window = exports_state.w,
         daily_travellers = exports_state.daily_travellers,
         source_population), false)
@@ -169,26 +170,26 @@ if get(ENV, "SMOKE", "0") == "1"
     using Turing: Prior, sample
     import MCMCChains
     c = sample(joint(o.exported_cases, o.total_deaths, o.reported_cases,
-                     o.exports_deaths; death_delta = o.first_export_death_delta,
+                     o.exports_deaths; death_deltas = o.export_death_deltas,
                      detect_delta = o.first_export_detection_delta),
                Prior(), 20; chain_type = MCMCChains.Chains, progress = false)
     println("SMOKE OK: drew ", length(vec(Array(c[:T]))), " T values; ",
             "Λ=", :Λ in keys(c), " Λe=", :Λe in keys(c))
     exit(0)
 end
-println("death_delta=", o.first_export_death_delta,
+println("death_deltas=", o.export_death_deltas,
         " detect_delta=", o.first_export_detection_delta)
 
-fit(; death_delta = missing, detect_delta = missing) = nuts_sample(
+fit(; death_deltas = Int[], detect_delta = missing) = nuts_sample(
     joint(o.exported_cases, o.total_deaths, o.reported_cases,
-          o.exports_deaths; death_delta, detect_delta);
+          o.exports_deaths; death_deltas, detect_delta);
     samples = SAMPLES, chains = CHAINS)
 
 variants = (
     ("baseline",   fit()),
-    ("+death",     fit(death_delta = o.first_export_death_delta)),
+    ("+death",     fit(death_deltas = o.export_death_deltas)),
     ("+detection", fit(detect_delta = o.first_export_detection_delta)),
-    ("+both",      fit(death_delta = o.first_export_death_delta,
+    ("+both",      fit(death_deltas = o.export_death_deltas,
                        detect_delta = o.first_export_detection_delta)),
 )
 
