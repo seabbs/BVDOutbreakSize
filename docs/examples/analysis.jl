@@ -342,19 +342,18 @@ observations_table #hide
 
 # #### Building-block submodels
 #
-# The joint model is composed of swappable Turing submodels. Each
-# submodel owns its priors; replacing one (a different delay study,
-# a different growth assumption) requires no edits to the joint
-# structure. Each section below introduces only the mathematical
-# objects and priors for its own parameters — the likelihoods and the
-# forward integrals enter later, in the observation submodels that use
-# them. The code conventions used here (Mooncake [mooncake_jl](@cite)
-# automatic
-# differentiation (AD), the package
-# `integrate` quadrature helpers, NB safe-clamp, FlexiChains,
-# PairPlots [pairplots_jl](@cite)
-# `plot_pair`, AlgebraOfGraphics density layouts) follow the hantavirus
-# modelling project [hantavirus_2026](@cite).
+# Each building-block submodel introduces only the mathematical objects
+# and priors for one parameter family; the likelihoods and forward
+# integrals enter later, in the observation submodels that use them.
+# Swapping a building block (a different delay study, a different growth
+# assumption) needs no edits to the joint structure.
+#
+# The implementation approach taken here is based on the hantavirus
+# modelling project [hantavirus_2026](@cite): Mooncake
+# [mooncake_jl](@cite) automatic differentiation, the
+# Integrals [integrals_jl](@cite) quadrature helpers, a NaN-safe
+# NegBinomial, FlexiChains, and PairPlots [pairplots_jl](@cite) with
+# AlgebraOfGraphics [danisch2021makie](@cite) for the figures.
 
 # ##### Growth — exponential
 #
@@ -387,15 +386,15 @@ observations_table #hide
 # m \sim \mathrm{Normal}(7,\ 2.5)\ \text{on}\ (0, 13]. \tag{3}
 # ```
 #
-# This gives 95% prior support of roughly $m \in (2, 12)$ $\to$
-# $C(T) \in (4, 4000)$, bracketing McCabe et al.'s headline scenario
-# range
-# on the log scale (their lowest $C(T) = 235$ is $m \approx 7.9$, their
-# highest $1008$ is $m \approx 10$). The hard upper bound at 13 caps
-# $C(T)$ at ~8000, well above McCabe et al.'s tail. The growth rate $r$
-# and
-# the elapsed time $T = m\cdot\tau$ are exposed as deterministics so
-# they appear in posterior tables and pair plots.
+# This gives 95% prior support of roughly $m \in (2, 12)$, i.e.
+# $C(T) \in (4, 4000)$. The range is chosen to span the number of
+# doublings plausible under the doubling times McCabe et al. sweep
+# (7–21 days) over a likely few weeks to months of spread since
+# seeding — it is motivated by their scenario *settings*, not by their
+# reported outbreak sizes. The hard upper bound at 13 caps $C(T)$ at
+# ~8000. The growth rate $r$ and the elapsed time $T = m\cdot\tau$ are
+# exposed as deterministics so they appear in posterior tables and
+# pair plots.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exponential_growth_model</summary>
@@ -1257,6 +1256,113 @@ posterior_C_exports_deaths =
 #md # </details>
 #md # ```
 
+# ### Additional analyses
+#
+# Beyond the headline joint fit we run four supporting analyses.
+# Their methods are described here; the outputs appear under Results.
+#
+# #### Counterfactual: no-onward-transmission lower bound
+#
+# Suppose every onward transmission stopped at the report date — the
+# estimation / report-generation time, which we denote $T$. The cohort
+# already infected by $T$ still carries future expected deaths in the
+# onset-to-death tail: a case infected at outbreak age $s$ has died by
+# the report date with probability $F_d(T - s)$ (equation (4)), so a
+# fraction
+# $1 - F_d(T - s)$ of its CFR-weighted contribution has not yet been
+# observed. Integrating against the incidence
+# $i(s) = r\cdot\exp(r\cdot s)$ from
+# equation (1) gives the additional future expected deaths
+#
+# ```math
+# \Delta D = \mathrm{CFR} \cdot \int_0^T r\,\exp(r\,s)
+#            \,\bigl(1 - F_d(T - s)\bigr)\,ds, \tag{21}
+# ```
+#
+# and a lower bound on the cumulative-death endpoint of
+# $D(T) + \Delta D$, evaluated per posterior draw.
+#
+# #### One-week-ahead forecast
+#
+# If the fitted model is taken at face value, what should the next
+# week's situation reports show? We continue the fitted exponential
+# growth seven days past the report date $T$ and apply the same
+# observation models to forecast the cumulative reported cases (DRC),
+# deaths (DRC) and exports (Uganda) by $T + 7$, and the *new* counts
+# expected over the coming week (cumulative at $T + 7$ minus the count
+# already observed). These are posterior-predictive: each draw yields a
+# replicated integer count, so the intervals carry both parameter and
+# observation uncertainty.
+#
+# This assumes growth continues unchanged for the week — no
+# interventions and no saturation — so it is a "no-change" projection.
+#
+# #### Delay sensitivity
+#
+# The deaths back-calculation (equation (16)) depends on the onset-to-
+# death delay. The baseline fit anchors the gamma shape $\alpha$ and
+# scale
+# $\theta$ on the all-deaths Isiro mixture (equation (5)). The companion
+# reanalysis [bdbv_linelist_analysis_2026](@cite) also reports a
+# *community-only* pathway — the
+# $n = 5$ cases who died without hospital admission — with a shorter
+# but far more uncertain delay: a shape of about 5.6
+# (95% CrI 1.0-25.9) and a scale of about 1.4 (95% CrI 0.3-9.5). A
+# shorter delay means deaths appear sooner
+# after infection, so a given death count back-calculates to a smaller
+# $C(T)$.
+#
+# We refit the joint model once with the onset-to-death delay priors
+# re-anchored on the community-only pathway, building truncated-Normal
+# priors
+# centred on those medians with
+# $\mathrm{SD} = (\mathrm{hi} - \mathrm{lo})/3.92$, exactly as the
+# baseline delay priors (equation (5)) are constructed:
+#
+# ```math
+# \alpha \sim \mathrm{Normal}^{+}(5.6,\ 6.35), \qquad
+# \theta \sim \mathrm{Normal}^{+}(1.4,\ 2.35). \tag{22}
+# ```
+#
+# The comparison shows how sensitive the
+# outbreak-size estimate is to the delay assumption.
+#
+# !!! warning "Sensitivity only, not a preferred estimate"
+#     The community-only delay is fitted from $n = 5$ deaths, so the
+#     evidence is weak and the priors in equation (22) are very wide.
+#     This section is included to probe sensitivity, not as a preferred
+#     alternative to the baseline.
+#
+# #### Report reproduction and validation
+#
+# How does our joint posterior sit against what McCabe et al.
+# [mccabe2026](@cite) reported, and how much of any difference is the
+# method rather than the newer data? To separate the two we also fit
+# our full joint model to the report's own data snapshot (16 May 2026,
+# from `data/report-snapshot.toml`), so the only thing that changes
+# between that fit and our headline fit is the data.
+#
+# McCabe et al. Method 2 reports Poisson intervals (no overdispersion,
+# k → ∞). We reproduce it by fixing the exports-and-deaths composer to
+# their Method 2 central assumptions and dropping exports. `inv_sqrt_k`
+# is fixed to a small positive value (k ≈ 1e6, Poisson-like) because
+# exactly 0 gives k ≈ 4.5e15, where the NegBinomial saturates and
+# reverse-mode AD returns NaN gradients.
+#
+# As a sense check we ask whether our machinery recovers McCabe et
+# al.'s Method 2 headline when given their inputs. Their reported
+# Method 2 central estimate is 501 cases. Our reproduction drops
+# exports so only the deaths likelihood is instantiated, conditions on
+# their 16 May 2026 deaths snapshot (88), and `Turing.fix`-pins the
+# Method 2 main-scenario values ($\tau = 14$ d, $\mathrm{CFR} = 30\%$,
+# $\alpha = 4.42$, $\beta = 0.388$/d), with the deaths NegBinomial made
+# Poisson-like. The only sampled latent is $m$, the number of doublings
+# since seeding ($C(T) = 2^m$). A close match confirms the deaths
+# back-calculation is implemented as in the report; the gap between
+# this and our headline estimate is then down to method (joint fit,
+# exact convolution, sampled nuisance parameters) and newer data, not a
+# coding discrepancy.
+
 # ## Results
 #
 # ### Summary
@@ -1423,24 +1529,9 @@ joint_ppc_fig #hide
 
 # ### Counterfactual: lower bound under no further transmission
 #
-# Suppose every onward transmission stopped at the report date — the
-# estimation / report-generation time, which we denote $T$. The cohort
-# already infected by $T$ still carries future expected deaths in the
-# onset-to-death tail: a case infected at outbreak age $s$ has died by
-# the report date with probability $F_d(T - s)$ (equation (4)), so a
-# fraction
-# $1 - F_d(T - s)$ of its CFR-weighted contribution has not yet been
-# observed. Integrating against the incidence
-# $i(s) = r\cdot\exp(r\cdot s)$ from
-# equation (1) gives the additional future expected deaths
-#
-# ```math
-# \Delta D = \mathrm{CFR} \cdot \int_0^T r\,\exp(r\,s)
-#            \,\bigl(1 - F_d(T - s)\bigr)\,ds, \tag{21}
-# ```
-#
-# and a lower bound on the cumulative-death endpoint of
-# $D(T) + \Delta D$, evaluated per posterior draw.
+# The lower bound on cumulative deaths if transmission stopped at the
+# report date (method above): still-expected and projected-total deaths
+# per draw.
 
 #md # ```@raw html
 #md # <details><summary>Project no-onward deaths and summarise</summary>
@@ -1479,18 +1570,8 @@ no_onward_fig #hide
 
 # ### One-week-ahead forecast
 #
-# If the fitted model is taken at face value, what should the next
-# week's situation reports show? We continue the fitted exponential
-# growth seven days past the report date $T$ and apply the same
-# observation models to forecast the cumulative reported cases (DRC),
-# deaths (DRC) and exports (Uganda) by $T + 7$, and the *new* counts
-# expected over the coming week (cumulative at $T + 7$ minus the count
-# already observed). These are posterior-predictive: each draw yields a
-# replicated integer count, so the intervals carry both parameter and
-# observation uncertainty.
-#
-# This assumes growth continues unchanged for the week — no
-# interventions and no saturation — so it is a "no-change" projection.
+# The seven-day no-change projection (method above): cumulative and new
+# expected counts per stream by $T + 7$.
 
 #md # ```@raw html
 #md # <details><summary>Generate the one-week-ahead forecast</summary>
@@ -1527,39 +1608,8 @@ forecast_fig #hide
 
 # ### Delay sensitivity
 #
-# The deaths back-calculation (equation (16)) depends on the onset-to-
-# death delay. The baseline fit anchors the gamma shape $\alpha$ and
-# scale
-# $\theta$ on the all-deaths Isiro mixture (equation (5)). The companion
-# reanalysis [bdbv_linelist_analysis_2026](@cite) also reports a
-# *community-only* pathway — the
-# $n = 5$ cases who died without hospital admission — with a shorter
-# but far more uncertain delay: a shape of about 5.6
-# (95% CrI 1.0-25.9) and a scale of about 1.4 (95% CrI 0.3-9.5). A
-# shorter delay means deaths appear sooner
-# after infection, so a given death count back-calculates to a smaller
-# $C(T)$.
-#
-# We refit the joint model once with the onset-to-death delay priors
-# re-anchored on the community-only pathway, building truncated-Normal
-# priors
-# centred on those medians with
-# $\mathrm{SD} = (\mathrm{hi} - \mathrm{lo})/3.92$, exactly as the
-# baseline delay priors (equation (5)) are constructed:
-#
-# ```math
-# \alpha \sim \mathrm{Normal}^{+}(5.6,\ 6.35), \qquad
-# \theta \sim \mathrm{Normal}^{+}(1.4,\ 2.35). \tag{22}
-# ```
-#
-# The comparison below shows how sensitive the
-# outbreak-size estimate is to the delay assumption.
-#
-# !!! warning "Sensitivity only, not a preferred estimate"
-#     The community-only delay is fitted from $n = 5$ deaths, so the
-#     evidence is weak and the priors in equation (22) are very wide.
-#     This section is included to probe sensitivity, not as a preferred
-#     alternative to the baseline.
+# Refit under the community-only onset-to-death delay (method above):
+# the baseline and re-anchored $C(T)$ posteriors side by side.
 
 #md # ```@raw html
 #md # <details><summary>Refit the joint model with the community-only delay</summary>
@@ -1702,12 +1752,8 @@ cumulative_density_fig #hide
 
 # ### Comparison with McCabe et al.
 #
-# How does our joint posterior sit against what McCabe et al.
-# [mccabe2026](@cite) reported, and how much of any difference is the
-# method rather than the newer data? To separate the two we also fit
-# our full joint model to the report's own data snapshot (16 May 2026,
-# from `data/report-snapshot.toml`), so the only thing that changes
-# between that fit and our headline fit is the data.
+# Our joint fit against the McCabe et al. estimates and our Method 2
+# reproduction (method above): point estimates with 90% intervals.
 
 #md # ```@raw html
 #md # <details><summary>Fit our model to the report-date data, and run the Method 2 reproduction</summary>
@@ -1722,12 +1768,6 @@ chn_joint_report = nuts_sample(
 posterior_C_joint_report =
     vec(Array(chn_joint_report[:cumulative_cases]));
 
-# McCabe et al. Method 2 reports Poisson intervals (no overdispersion,
-# k → ∞). We reproduce it by fixing the exports-and-deaths composer to
-# their Method 2 central assumptions and dropping exports. inv_sqrt_k
-# is fixed to a small positive value (k ≈ 1e6, Poisson-like) because
-# exactly 0 gives k ≈ 4.5e15, where the NegBinomial saturates and
-# reverse-mode AD returns NaN gradients.
 imperial_fixed = Turing.fix(
     imperial_only_model(missing, 88),       # exports missing → pure Method 2
     (τ = 14.0, CFR = 0.30, α = 4.42, θ = 1/0.388,
@@ -1830,16 +1870,8 @@ imperial_density_fig #hide
 
 # ### McCabe et al. report sense check
 #
-# Does our machinery recover McCabe et al.'s Method 2 headline when
-# given their inputs? Their reported Method 2 central estimate is 501
-# cases. Our reproduction (run in the comparison above) drops exports
-# so only the deaths likelihood is instantiated, conditions on their
-# 16 May 2026 deaths snapshot (88), and `Turing.fix`-pins the Method 2
-# main-scenario values ($\tau = 14$ d, $\mathrm{CFR} = 30\%$,
-# $\alpha = 4.42$, $\beta = 0.388$/d), with the deaths NegBinomial
-# made Poisson-like. The only sampled latent is $m$, the number of
-# doublings since seeding ($C(T) = 2^m$). The number below should land
-# on their 501.
+# Whether our reproduction lands on McCabe et al.'s reported 501
+# (method above): the recovered estimate and its summary table.
 
 let
     rep = round(Int, quantile(posterior_C_imperial, 0.5))
