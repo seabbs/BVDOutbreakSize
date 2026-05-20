@@ -9,13 +9,16 @@ using Chain: @chain
 using Random: MersenneTwister
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
+using ChainRulesCore: ChainRulesCore, NoTangent
+using SpecialFunctions: gamma_inc, digamma
+import SpecialFunctions
 using Turing
 using Turing.DynamicPPL: InitFromPrior
 using MCMCChains: Chains
 import MCMCChains
 import FlexiChains
 using DocStringExtensions
-using Distributions: Gamma, ccdf, pdf, Poisson, NegativeBinomial
+using Distributions: Gamma, cdf, ccdf, mgf, pdf, Poisson, NegativeBinomial
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
@@ -276,6 +279,83 @@ function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
         end
     end
     return CFR * integrate(g, zero(T), T; alg)
+end
+
+## Wrapper around `cdf(Gamma(α, θ), x)` exposed as a 3-arg scalar
+## primitive so we can attach a Mooncake-compatible reverse-mode rule.
+##
+## SpecialFunctions.jl's `gamma_inc(a, x)` ChainRule defines only the
+## `x`-partial; the shape (`a`) partial is `@not_implemented`. Mooncake
+## inherits that gap and returns `NaN` for any α-gradient flowing
+## through `cdf(::Gamma, ::Real)`. The two AD-system workarounds
+## (propagating ForwardDiff `Dual` numbers through the implementation;
+## relying on a built-in `a`-partial) both fail because
+## `SpecialFunctions._gamma_inc` is dispatched only on concrete
+## `Float64`/`Float32`/`BigFloat`, so duals never reach it and no
+## reverse-mode rule exists.
+##
+## Instead we attach our own analytic rrule:
+##
+## * `∂F/∂x  = pdf(Gamma(α, θ), x)`
+## * `∂F/∂θ  = -(x/θ) · pdf(Gamma(α, θ), x)`
+## * `∂F/∂α  = -ψ(α)·P(α, y) + (1/Γ(α)) · ∫₀^y t^{α-1} e^{-t} log t dt`,
+##   with `y = x/θ` and `P` the regularized lower incomplete gamma.
+##
+## The `α`-integral is evaluated by the package-wide Gauss-Legendre
+## scheme, so the cost per gradient is one extra ~32-point quadrature.
+## Mooncake picks the rule up via `@from_rrule`. Stan and JAX hand-code
+## the same gradient as a primitive in their AD libraries (Moore 1982,
+## *Algorithm AS 187*); this is the Julia version.
+_gamma_cdf(α, θ, x) = cdf(Gamma(α, θ), x)
+
+function _gamma_cdf_partials(α, θ, x)
+    R = float(promote_type(typeof(α), typeof(θ), typeof(x)))
+    y = x / θ
+    y <= zero(y) && return zero(R), zero(R), zero(R)
+    f      = pdf(Gamma(α, θ), x)
+    df_dx  = f
+    df_dθ  = -y * f
+    P      = first(gamma_inc(α, y))
+    integrand = t -> t > zero(t) ?
+        t^(α - 1) * exp(-t) * log(t) : zero(t)
+    I      = integrate(integrand, zero(y), y; alg = CUMULATIVE_INTEGRAL_ALG)
+    df_dα  = -digamma(α) * P + I / SpecialFunctions.gamma(α)
+    return df_dα, df_dθ, df_dx
+end
+
+function ChainRulesCore.rrule(::typeof(_gamma_cdf),
+        α::Real, θ::Real, x::Real)
+    y = _gamma_cdf(α, θ, x)
+    dα, dθ, dx = _gamma_cdf_partials(α, θ, x)
+    pullback = let dα = dα, dθ = dθ, dx = dx
+        ȳ -> (NoTangent(), ȳ * dα, ȳ * dθ, ȳ * dx)
+    end
+    return y, pullback
+end
+
+Mooncake.@from_rrule Mooncake.DefaultCtx Tuple{typeof(_gamma_cdf), Float64, Float64, Float64}
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative deaths by time `T` from a single seeding case under
+exponential growth at rate `r`, using analytic result specific to the
+Gamma distribution:
+
+```math
+\\mathbb{E}[D_T] = \\mathrm{CFR} \\cdot
+    \\int_0^T e^{r s}\\, f(T - s)\\, ds = \\mathrm{CFR} \\cdot e^{r T} \\cdot M(-r) \\cdot F(T (1 + \\theta r)),
+```
+
+where f is the Gamma(α, θ) density, M is its moment-generating function,
+and F is its CDF. The CDF is routed through [`_gamma_cdf`](@ref) so
+Mooncake reverse-mode AD picks up a shape-parameter gradient (computed
+internally with ForwardDiff).
+"""
+function expected_deaths(CFR, r, T, delay_dist::Gamma)
+    α, θ = delay_dist.α, delay_dist.θ
+    return CFR * exp(r * T) * mgf(delay_dist, -r) *
+           _gamma_cdf(α, θ, T * (1 + θ * r))
 end
 
 """
