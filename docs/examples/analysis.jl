@@ -1,6 +1,6 @@
 # # Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
 #
-# **Authors.** Sam Abbott, Sam Brand and Sebastian Funk.
+# **Authors.** Sam Abbott, Samuel Brand and Sebastian Funk.
 #
 # The abstract below is loaded at build time from the repository
 # `README.md` (between its `ABSTRACT` markers) so the report and the
@@ -1203,10 +1203,10 @@ joint_summary #hide
 #md # ```
 
 pp_joint   = predict(
-    bvd_joint(missing, missing, missing, missing), chn_joint)
-pp_exports = vec(Array(pp_joint[:exported_cases]))
-pp_deaths  = vec(Array(pp_joint[:total_deaths]))
-pp_cases   = vec(Array(pp_joint[:reported_cases]))
+    bvd_joint(missing, missing, missing, missing), chn_joint);
+pp_exports = vec(Array(pp_joint[:exported_cases]));
+pp_deaths  = vec(Array(pp_joint[:total_deaths]));
+pp_cases   = vec(Array(pp_joint[:reported_cases]));
 
 joint_ppc_fig = plot_posterior_predictive(
     pp_exports, pp_deaths,
@@ -1476,11 +1476,11 @@ streams_C_table #hide
 #md # ```
 
 pp_exports_only = vec(Array(predict(
-    exports_only_model(missing), chn_exports)[:exported_cases]))
+    exports_only_model(missing), chn_exports)[:exported_cases]));
 pp_deaths_only  = vec(Array(predict(
-    deaths_only_model(missing),  chn_deaths )[:total_deaths]))
+    deaths_only_model(missing),  chn_deaths )[:total_deaths]));
 pp_cases_only   = vec(Array(predict(
-    cases_only_model(missing),   chn_cases  )[:reported_cases]))
+    cases_only_model(missing),   chn_cases  )[:reported_cases]));
 
 ppc_grid_fig = plot_posterior_predictive_grid(;
     individual = (; exports = pp_exports_only,
@@ -1692,4 +1692,4 @@ CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws)
 # The full analysis code, data and model definitions are in the
 # [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
 # repository. Issues, corrections and suggestions are welcome there.
-# Maintained by Sam Abbott, Sam Brand and Sebastian Funk.
+# Maintained by Sam Abbott, Samuel Brand and Sebastian Funk.
