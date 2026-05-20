@@ -766,19 +766,13 @@ end
     travel_state ~ to_submodel(traveller, false)
     daily_travellers = travel_state.daily_travellers
 
-    window_start = max(T - w, zero(T))
-    cumulative_window_integral := integrate_cumulative(
-        cumulative, window_start, T)
-    expected_exports := max(
-        p_uganda * (daily_travellers / source_population) *
-            cumulative_window_integral,
-        eps(typeof(daily_travellers * one(T) * p_uganda)),
-    )
+    q = daily_travellers / source_population
+    mean_exports = expected_exports(cumulative, p_uganda, q, T, w)
+    expected_exports := mean_exports
 
     exported_cases ~ Poisson(expected_exports)
 
-    return (; w, daily_travellers, p_uganda,
-              cumulative_window_integral, expected_exports)
+    return (; w, daily_travellers, p_uganda, expected_exports)
 end
 
 #md # ```@raw html
@@ -1018,6 +1012,53 @@ end
 #md # </details>
 #md # ```
 
+# ##### First export detection — timing survival term
+#
+# The same logic applies to the *first detected export case* (Uganda's
+# first hospital admission), using the at-risk export person-time
+# intensity $\mathbb{E}[\text{exports}(t)]$ (equation (15)) in place of
+# the export-death intensity. With $\Delta$ the offset from the first
+# admission date to the cut-off and $t_1 = T - \Delta$,
+#
+# ```math
+# \Pr(\text{no export detected before } t_1)
+#     = \exp\!\bigl(-\mathbb{E}[\text{exports}(t_1)]\bigr). \tag{22}
+# ```
+#
+# As with the export-death term, this is one-sided and the lever is
+# small because the Uganda detections sit only days before the cut-off.
+# Passing `delta = missing` makes the submodel a no-op.
+
+#md # ```@raw html
+#md # <details><summary>Submodel: exports_detection_timing_model</summary>
+#md # ```
+
+@model function exports_detection_timing_model(
+        growth_state, p_uganda::Real;
+        delta::Union{Missing, Real},
+        window::Real,
+        daily_travellers::Real,
+        source_population::Real = ITURI_POPULATION)
+
+    if !ismissing(delta)
+        cumulative = growth_state.cumulative
+        T          = growth_state.T
+        t1         = T - delta
+        q          = daily_travellers / source_population
+        survived_exports := t1 <= zero(T) ? zero(T) :
+            expected_exports(cumulative, p_uganda, q, t1, window)
+        ## Survival of the export-detection Poisson process to t1:
+        ## log P(no export detected before t1) = -E[exports(t1)].
+        Turing.@addlogprob! -survived_exports
+    end
+
+    return (;)
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # #### Composers
 #
 # These composers combine the building blocks into the full model for
@@ -1183,10 +1224,12 @@ end
         cases         = cases_model,
         exports_deaths_model = exports_deaths_model,
         exports_death_timing = exports_death_timing_model,
+        exports_detection_timing = exports_detection_timing_model,
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
         source_population::Real = ITURI_POPULATION,
-        first_export_death_delta::Union{Missing, Real} = missing)
+        first_export_death_delta::Union{Missing, Real} = missing,
+        first_export_detection_delta::Union{Missing, Real} = missing)
 
     growth_state     ~ to_submodel(growth, false)
     dispersion_state ~ to_submodel(dispersion, false)
@@ -1212,6 +1255,13 @@ end
         exports_death_timing(growth_state, deaths_state.CFR,
             deaths_state.delay_dist, p_uganda;
             delta            = first_export_death_delta,
+            window           = exports_state.w,
+            daily_travellers = exports_state.daily_travellers,
+            source_population = source_population),
+        false)
+    detection_timing_state ~ to_submodel(
+        exports_detection_timing(growth_state, p_uganda;
+            delta            = first_export_detection_delta,
             window           = exports_state.w,
             daily_travellers = exports_state.daily_travellers,
             source_population = source_population),

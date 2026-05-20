@@ -35,7 +35,7 @@ export REPORT_SCENARIOS,
        DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
        integrate, expected_deaths,
        integrate_cumulative, integrate_exports_deaths,
-       expected_exports_deaths,
+       expected_exports, expected_exports_deaths,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
@@ -135,15 +135,13 @@ function load_observations(
     _val(k) = raw[k]["value"]
     _src(k) = String(raw[k]["source"])
     as_of = String(raw["as_of_date"])
-    ## Days between the first export death and the cut-off, used as the
-    ## elapsed-time offset for the first-export-death timing term. Stays
-    ## `missing` when the date is absent so the term is a no-op.
-    first_export_death_delta = if haskey(raw, "first_export_death_date")
+    ## Days between a recorded event date and the cut-off, used as the
+    ## elapsed-time offset for the timing survival terms. Stays `missing`
+    ## when the date is absent so the corresponding term is a no-op.
+    _delta(k) = haskey(raw, k) ?
         date2epochdays(Date(as_of)) -
-            date2epochdays(Date(String(_val("first_export_death_date"))))
-    else
+            date2epochdays(Date(String(_val(k)))) :
         missing
-    end
     return (;
         as_of_date                   = as_of,
         exported_cases               = Int(_val("exported_cases")),
@@ -155,7 +153,8 @@ function load_observations(
         daily_outbound_travellers_sd = float(
             _val("daily_outbound_travellers_sd")),
         source_population            = Int(_val("source_population")),
-        first_export_death_delta     = first_export_death_delta,
+        first_export_death_delta     = _delta("first_export_death_date"),
+        first_export_detection_delta = _delta("first_export_detection_date"),
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
@@ -362,6 +361,31 @@ function integrate_exports_deaths(cumulative, delay_dist, lo, hi, T;
         s -> cumulative(s) * cdf_to(T - s)
     end
     return integrate(g, lo, hi; alg)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative detected exports by elapsed time `t`, clamped to be
+strictly positive and finite:
+
+```math
+\\mathbb{E}[\\text{exports}(t)] = p_{\\text{uganda}} \\cdot q \\cdot
+    \\int_{t-w}^{t} C(s)\\, ds,
+```
+
+with `cumulative` the trajectory ``C(s)``, `q` the per-capita travel
+rate, and `window` the detection window ``w``. Backs both the exports
+count likelihood (evaluated at `t = T`) and the first-export-detection
+survival term (evaluated at an earlier `t`). Uses
+[`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function expected_exports(cumulative, p_uganda, q, t, window;
+        alg = CUMULATIVE_INTEGRAL_ALG)
+    window_start = max(t - window, zero(t))
+    integral = integrate_cumulative(cumulative, window_start, t; alg)
+    raw = p_uganda * q * integral
+    return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
 end
 
 """
