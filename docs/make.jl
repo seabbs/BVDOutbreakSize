@@ -60,7 +60,7 @@ makedocs(;
 
 deploydocs(;
     repo        = "github.com/epiforecasts/BVDOutbreakSize",
-    target      = "build",
+    target      = joinpath("build", "1"),
     branch      = "gh-pages",
     devbranch   = "main",
     push_preview = true,
