@@ -2,6 +2,7 @@ using Test
 import BVDOutbreakSize
 using BVDOutbreakSize: REPORT_SCENARIOS,
                        summary_table, posterior_summary,
+                       fit_diagnostics, diagnostics_table,
                        streams_table, comparison_table,
                        nuts_sample, default_adtype,
                        load_observations,
@@ -30,6 +31,7 @@ include("test_plots.jl")
 include("test_adtype.jl")
 include("test_nuts_sample.jl")
 include("test_load_observations.jl")
+include("test_diagnostics.jl")
 include("test_no_onward_deaths.jl")
 include("test_cases_model.jl")
 include("test_forecast.jl")

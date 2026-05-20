@@ -6,20 +6,20 @@
 as_of_date = "2026-05-20"
 
 [exported_cases]
-value  = 2
-source = "McCabe et al., Imperial College London report, 18 May 2026 (DOI 10.25560/130007)"
+value  = 12
+source = "WHO situation report, 20 May 2026 — 12 suspected cases in Kampala, Uganda (https://iris.who.int/server/api/core/bitstreams/bb1d4668-04e0-4563-b7c4-d1bdefbc9f05/content)"
 
 [exports_deaths]
 value  = 1
-source = "BBC News, 20 May 2026 — one death in Uganda among the exported cases (https://www.bbc.co.uk/news/articles/ceqp11gn1l8o)"
+source = "WHO situation report, 20 May 2026 — one death in Uganda among the exported cases (https://iris.who.int/server/api/core/bitstreams/bb1d4668-04e0-4563-b7c4-d1bdefbc9f05/content)"
 
 [total_deaths]
-value  = 136
-source = "BBC News, 20 May 2026 (https://www.bbc.co.uk/news/articles/ceqp11gn1l8o)"
+value  = 131
+source = "WHO situation report, 20 May 2026 — 131 deaths in DRC (the deaths model fits the DRC source outbreak; the single Uganda export death is in exports_deaths) (https://iris.who.int/server/api/core/bitstreams/bb1d4668-04e0-4563-b7c4-d1bdefbc9f05/content)"
 
 [reported_cases]
-value  = 514
-source = "BBC News, 20 May 2026 (https://www.bbc.co.uk/news/articles/ceqp11gn1l8o)"
+value  = 516
+source = "WHO situation report, 20 May 2026 — 516 cases in DRC (https://iris.who.int/server/api/core/bitstreams/bb1d4668-04e0-4563-b7c4-d1bdefbc9f05/content)"
 
 [daily_outbound_travellers]
 value  = 1871

@@ -5,10 +5,6 @@
 # **Last updated.** 2026-05-20. This is a live report, re-run as new
 # data arrive, so the estimates change between updates.
 #
-# The abstract below is loaded at build time from the repository
-# `README.md` (between its `ABSTRACT` markers) so the report and the
-# README share a single source.
-#
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
@@ -111,10 +107,10 @@
 #   [mccabe2026](@cite) report and the
 #   companion delay reanalysis, then reviewed and revised. Not
 #   independently replicated against the authors' code.
-# - *Prior-driven inference where data is scarce.* Two exports,
-#   ~$10^2$ deaths, and a single reported-case total give little
-#   information about $\tau$, $m$, the surveillance dispersion, or
-#   the reporting fraction individually. Posteriors track their
+# - *Prior-driven inference where data is scarce.* A dozen suspected
+#   exports, ~$10^2$ deaths, and a single reported-case total give
+#   little information about $\tau$, $m$, the surveillance dispersion,
+#   or the reporting fraction individually. Posteriors track their
 #   priors closely.
 # - *Inherits McCabe et al.'s epidemiological assumptions and core
 #   model structures.* Exponential growth from a single zoonotic
@@ -138,6 +134,13 @@
 # - *Detection-window definition is loose.* $w$ lumps incubation
 #   and onset-to-detection together — both poorly characterised
 #   for BVD.
+# - *Not all Uganda cases are confirmed exports.* The exports
+#   likelihood treats every Uganda case as imported from DRC, but the
+#   12 suspected cases reported in Kampala are not all confirmed to be
+#   importations — some may reflect onward transmission within Uganda
+#   or unrelated suspected cases later discarded. Counting non-exports
+#   as exports inflates the export signal and biases the implied
+#   outbreak size and ascertainment.
 # - *Selection bias in deaths-among-exports.* The deaths-among-
 #   exports likelihood assumes Uganda's surveillance retains detected
 #   exports through to any subsequent death. If the system loses
@@ -146,9 +149,9 @@
 # - *Ascertainment partially pooled, not separately identified.*
 #   Uganda's exported-case ascertainment `p_uganda` and DRC's
 #   reported-case ascertainment `p_drc` share a logit-scale
-#   hyperprior. With only two exports and one export death the Uganda
-#   fraction is weakly identified and leans on the pooled mean and
-#   the DRC side.
+#   hyperprior. With a handful of suspected exports and one export
+#   death the Uganda fraction is weakly identified and leans on the
+#   pooled mean and the DRC side.
 # - *Observation streams share one case pool.* The four streams are
 #   modelled as conditionally independent given the latent cumulative
 #   incidence, but they observe overlapping individuals — exported
@@ -279,39 +282,7 @@ observations_table #hide
 # submodels into the per-stream fits and the joint fit. The diagram
 # below traces that flow:
 #
-# ```mermaid
-# flowchart TD
-#     G["Growth C(s) = exp(r s)<br/>τ, m → r, T, C(T)"]
-#     D["Onset-to-death delay<br/>α, θ → f, F_d"]
-#     CFR["Case-fatality ratio<br/>CFR"]
-#     W["Detection window<br/>w"]
-#     K["Surveillance dispersion<br/>k"]
-#     A["Ascertainment<br/>p_drc, p_uganda"]
-#
-#     OE["Exports submodel<br/>μ_e = p_uganda q ∫ C(s) ds<br/>Poisson"]
-#     OD["Deaths submodel<br/>μ_d = CFR ∫ C(s) f ds<br/>NegBinomial"]
-#     OC["Cases submodel<br/>μ_c = p_drc C(T)<br/>NegBinomial"]
-#     OX["Exports-deaths submodel<br/>μ_xd = CFR p_uganda q ∫ C(s) F_d ds<br/>Poisson"]
-#
-#     CE["exports-only fit"]
-#     CD["deaths-only fit"]
-#     CC["cases-only fit"]
-#     CX["exports-deaths-only fit"]
-#     CI["report reimplementation<br/>(exports + deaths)"]
-#     CJ["joint fit<br/>(all four streams)"]
-#
-#     G --> OE & OD & OC & OX
-#     D --> OD & OX
-#     CFR --> OD & OX
-#     W --> OE & OX
-#     K --> OD & OC
-#     A --> OE & OC & OX
-#
-#     OE --> CE & CI & CJ
-#     OD --> CD & CI & CJ
-#     OC --> CC & CJ
-#     OX --> CX & CJ
-# ```
+# {{MODEL_DIAGRAM}}
 #
 # Reading top to bottom:
 #
@@ -574,7 +545,8 @@ end
 # cases passing through it. Treating the two fractions as identical
 # conflates two different systems; treating them as independent
 # wastes the structural similarity and leaves the Uganda fraction
-# almost wholly prior-driven given only two exports.
+# almost wholly prior-driven given only a handful of suspected
+# exports.
 #
 # Partial pooling sits between the two. Both ascertainment fractions
 # `p_drc` and `p_uganda` share a logit-scale hyperprior with mean
@@ -1256,6 +1228,27 @@ posterior_C_exports_deaths =
 #md # </details>
 #md # ```
 
+# #### Fit diagnostics
+#
+# Fit-quality diagnostics for the joint and per-stream fits: the worst
+# R-hat, the smallest bulk effective sample size, and the number of
+# divergent transitions. Open the panel to inspect them.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "joint" => chn_joint, #hide
+    "exports (cases)" => chn_exports, #hide
+    "exports (deaths)" => chn_exports_deaths, #hide
+    "deaths (DRC)" => chn_deaths, #hide
+    "cases (DRC)" => chn_cases) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ### Additional analyses
 #
 # Beyond the headline joint fit we run four supporting analyses.
@@ -1632,6 +1625,20 @@ posterior_C_community = vec(Array(chn_joint_community[:cumulative_cases]));
 #md # </details>
 #md # ```
 
+# Fit diagnostics for the community-only delay refit. Open the panel to
+# inspect them.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "joint (community-only delay)" => chn_joint_community) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # Baseline versus community-only delay, side by side:
 
 #md # ```@raw html
@@ -1814,6 +1821,21 @@ comparison_fig = plot_estimate_comparison(comparison_rows);
 #md # ```
 
 comparison_fig #hide
+
+# Fit diagnostics for the report-data joint fit and the Method 2
+# reproduction. Open the panel to inspect them.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "joint (report data)" => chn_joint_report, #hide
+    "Method 2 reproduction" => chn_imperial) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # The same comparison as a table:
 
