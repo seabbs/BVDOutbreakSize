@@ -390,35 +390,28 @@ end
 
 # ##### Onset-to-death delay
 #
-# Symptom-onset to death is gamma distributed with shape $\alpha$ and
-# scale $\theta$, giving density $f$ and CDF $F_d$, mean $\alpha\cdot\theta$
-# and SD $\sqrt{\alpha}\cdot\theta$:
+# Following McCabe et al., we assume the symptom-onset-to-death delay is
+# gamma distributed with shape $\alpha$ and scale $\theta$, with density
+# $f$ and CDF $F_d$:
 #
 # ```math
-# \text{delay} \sim \mathrm{Gamma}(\alpha,\ \theta), \qquad
-# f(\cdot) = \text{density}, \quad F_d(\cdot) = \text{CDF}. \tag{4}
+# \text{delay} \sim \mathrm{Gamma}(\alpha,\ \theta). \tag{4}
 # ```
 #
-# McCabe et al. use the point estimate from [rosello2015](@cite)
-# (α = 4.42, β = 0.388/day, θ ≈ 2.58 day). The companion Bayesian
-# reanalysis of the same Isiro line list
-# [bdbv_linelist_analysis_2026](@cite)
-# gives 95% credible intervals (CrIs) of roughly $(2.4, 7.2)$ for
-# $\alpha$ and $(1.6, 4.8)$ for $\theta$. The priors here are Normals
-# centred on the
-# reanalysis posterior mean with standard deviation (SD)
-# matching the
-# half-width of the published 95% CrIs
-# ($1.22 = (7.2 - 2.4)/3.92$, $0.82 = (4.8 - 1.6)/3.92$),
-# truncated at zero to keep $\mathrm{Gamma}(\alpha, \theta)$ defined:
+# The McCabe et al. report uses the point estimate of
+# [rosello2015](@cite). We instead use the companion Bayesian reanalysis
+# of the same Isiro line list [bdbv_linelist_analysis_2026](@cite),
+# which re-estimates the delay with uncertainty. We carry that
+# uncertainty into the fit through truncated Normal priors centred on
+# its estimates:
 #
 # ```math
 # \alpha \sim \mathrm{Normal}^{+}(4.3,\ 1.22), \qquad
 # \theta \sim \mathrm{Normal}^{+}(2.6,\ 0.82). \tag{5}
 # ```
 #
-# Reporting and inference of epidemiological delays follow the
-# recommendations in [charniga2024](@cite).
+# The delay estimation in that reanalysis follows the recommendations
+# of [charniga2024](@cite).
 
 #md # ```@raw html
 #md # <details><summary>Submodel: delay_model</summary>
