@@ -64,6 +64,6 @@ jobs:
             draws, and a copy of the input `observations.toml`.
 
             Rendered walkthrough:
-            https://epiforecasts.github.io/BVDOutbreakSize/dev/analysis/
+            https://epiforecasts.io/BVDOutbreakSize/dev/analysis
           files: output/*
           make_latest: 'true'
