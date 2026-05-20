@@ -16,7 +16,7 @@ extension, a no-onward-transmission projected-deaths counterfactual, a
 one-week-ahead forecast and an onset-to-death delay sensitivity
 analysis are added.
 
-**Authors:** Sam Abbott and contributors.
+**Authors:** Sam Abbott, Sam Brand and Sebastian Funk.
 The model code and analysis were drafted by a language model and
 reviewed and revised under human oversight; the named authors are
 responsible for that oversight.
@@ -93,9 +93,10 @@ the repository root (`output/posterior_summary.csv`,
 If you use or build on this project, please cite the three works
 this repository depends on:
 
-- **This project** — Abbott, S. (2026). *BVDOutbreakSize: joint
-  forward-generative Turing model for the 2026 DRC Bundibugyo
-  outbreak.* <https://github.com/epiforecasts/BVDOutbreakSize>.
+- **This project** — Abbott, S., Brand, S., Funk, S. (2026).
+  *BVDOutbreakSize: joint forward-generative Turing model for the
+  2026 DRC Bundibugyo outbreak.*
+  <https://github.com/epiforecasts/BVDOutbreakSize>.
 - **Imperial / WHO report** that this work re-implements —
   McCabe, R., Ebbarnezh, L., Okware, S., Fotsing, R., Koua, E.,
   Mbaka, P., Lofungola, A., van Elsland, S. L., McMenamin, M.,

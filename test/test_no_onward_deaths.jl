@@ -39,5 +39,5 @@ end
     df = predict_no_onward_deaths(chn; obs_deaths = 50)
     fg = plot_no_onward_deaths(df; obs_deaths = 50)
     @test fg !== nothing
-    @test fg.figure isa CairoMakie.Makie.Figure
+    @test fg isa CairoMakie.Makie.Figure
 end
