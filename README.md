@@ -4,9 +4,10 @@
 
 <!-- ABSTRACT:START -->
 **Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus
-(BVD) is ongoing in the Democratic Republic of the Congo (DRC), with cases
-also detected across the border in Uganda. Estimating the likely
-current size of the outbreak is useful for the response, but most
+(BVD) is ongoing in the Democratic Republic of the Congo (DRC),
+with cases also detected across the border in Uganda. Estimating
+the likely current size of the outbreak is useful for the response,
+but most
 cases are not yet reported and have to be inferred from the data
 streams that are available. The Imperial College London report
 (McCabe et al., [18 May 2026](https://doi.org/10.25560/130007))
@@ -23,9 +24,10 @@ projected-deaths counterfactual, a one-week-ahead forecast and an
 onset-to-death delay sensitivity analysis, and replace two closed-form
 approximations (the deaths convolution and the small-growth-rate
 exports term) with their exact forms. We report the joint posterior
-over the cumulative case count from current data; to separate the effect of newer data
-from the change in method we also fit the model to the data as of the
-report, comparing against both a joint reimplementation of the
+over the cumulative case count from current data; to separate the
+effect of newer data from the change in method we also fit the model
+to the data as of the report, comparing against both a joint
+reimplementation of the
 report's approach and its original published estimates.
 <!-- ABSTRACT:END -->
 
