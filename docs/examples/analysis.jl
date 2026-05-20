@@ -619,6 +619,12 @@ end
 # (the separate-fraction limit). The cases likelihood uses
 # $p_{\text{drc}}$; the two Uganda-side likelihoods use
 # $p_{\text{uganda}}$.
+#
+# We sample this prior in its non-centred form: draw offsets
+# $z_{\text{drc}}, z_{\text{uganda}} \sim \mathrm{Normal}(0, 1)$ and set
+# $\mathrm{logit}(p) = \mu + \tau z$. This is the same prior but avoids
+# the funnel geometry of the centred form, which gave hundreds of
+# divergent transitions.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: pooled_ascertainment_model</summary>
@@ -629,8 +635,10 @@ end
         tau_prior = truncated(Normal(0, 0.5); lower = 1e-4))
     μ_logit  ~ mu_prior
     τ_logit  ~ tau_prior
-    logit_p_drc    ~ Normal(μ_logit, τ_logit)
-    logit_p_uganda ~ Normal(μ_logit, τ_logit)
+    z_drc    ~ Normal(0, 1)
+    z_uganda ~ Normal(0, 1)
+    logit_p_drc    = μ_logit + τ_logit * z_drc
+    logit_p_uganda = μ_logit + τ_logit * z_uganda
     p_drc    := logistic(logit_p_drc)
     p_uganda := logistic(logit_p_uganda)
     return (; μ_logit, τ_logit, p_drc, p_uganda)
