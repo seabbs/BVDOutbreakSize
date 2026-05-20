@@ -676,12 +676,10 @@ end
 #     $\mu_e \approx q\cdot w\cdot C(T)$, the limit of equation (14)
 #     as $r \to 0$.
 #     For BVD's prior range $rw \in 0.33 - 2.0$ the simplification
-#     under-estimates $C(T)$ by roughly $15$-$57\%$. Both McCabe et al.
-#     and we
-#     use $\mathrm{Binomial}(N, p)$-style observation models; with
-#     $p \approx q\cdot w \approx 6\cdot 10^{-3}$ our Poisson is
-#     indistinguishable from
-#     McCabe et al.'s Binomial in the small-$p$ regime.
+#     under-estimates $C(T)$ by roughly $15$-$57\%$. We use a Poisson
+#     likelihood for the detected exports; at the small detection
+#     probability here ($p \approx q\cdot w \approx 6\cdot 10^{-3}$) it
+#     is indistinguishable from a binomial detection model.
 #
 # **Daily traveller prior.** McCabe et al. Table 3 records mean weekly
 # passenger counts across seven PoEs from one to four weekly sitreps
@@ -750,9 +748,9 @@ end
 # al. use the large-$T$ simplification
 # $D(T) \approx \mathrm{CFR}\cdot C(T)\cdot(1 + r/\beta)^{-\alpha}$
 # (valid for $T \gtrsim 12/(\beta+r)$), which
-# drops that factor and is therefore an approximation. We evaluate
-# equation (16) numerically instead, which is exact and lets the delay
-# family be swapped with no change to the quadrature. The
+# drops that factor. We evaluate equation (16) numerically instead,
+# which is exact and lets the delay family be swapped with no change to
+# the quadrature. The
 # observed deaths follow the NegBinomial likelihood of equation (8)
 # with the dispersion $k$ of equation (9), supplied by the composer so
 # it can be shared with the cases likelihood:
@@ -1774,6 +1772,10 @@ imperial_fixed = Turing.fix(
 )
 chn_imperial = nuts_sample(imperial_fixed);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 # The plot places each estimate of $C(T)$ on one axis: the central
 # estimate as a point, the 90% interval as a bar. The top two rows are
