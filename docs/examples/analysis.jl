@@ -489,10 +489,12 @@ end
 
 # ##### Surveillance dispersion
 #
-# Both NegBinomial likelihoods (deaths and reported cases) share a
-# single dispersion $k$, since both arise from the same passive-
-# surveillance system. Under the mean-$\mu$ / dispersion-$k$
-# parameterisation a count $Y$ has
+# We assume the passive-surveillance counts are reported with negative
+# binomial observation error around their expected value, using the
+# same error model for both streams it applies to — suspected deaths
+# and reported cases in the DRC — with a single shared dispersion $k$
+# because they come from the same surveillance system. Under the
+# mean-$\mu$ / dispersion-$k$ parameterisation a count $Y$ has
 #
 # ```math
 # Y \sim \mathrm{NegBinomial}(\mu,\ k), \qquad
@@ -501,8 +503,9 @@ end
 #
 # The dispersion captures passive-surveillance noise (under-reporting
 # that varies by district, weekend reporting effects, batched updates),
-# not transmission heterogeneity. It is sampled on the $1/\sqrt{k}$
-# scale with a weak prior,
+# not transmission heterogeneity. Following the Stan prior-choice
+# recommendations [stan_prior_choice](@cite), it is sampled on the
+# $1/\sqrt{k}$ scale with a weak prior,
 #
 # ```math
 # 1/\sqrt{k} \sim \mathrm{Normal}^{+}(0, 1), \tag{9}
