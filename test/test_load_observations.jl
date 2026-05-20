@@ -30,43 +30,37 @@
     @test obs.sources.source_population isa String
 
     @test !isempty(obs.sources.exported_cases)
+end
 
-    ## First-export-death offset: days from the recorded death date to
-    ## the cut-off. The bundled data has death 2026-05-14, cut-off
-    ## 2026-05-18, so the offset is 4 days.
-    @test obs.first_export_death_delta == 4
+## The first-export-death offset is computed at load time as the number
+## of days between the recorded death date and the cut-off. Exercise the
+## calculation on synthetic dates rather than asserting the bundled
+## data's value, and check the date-absent path leaves it `missing`.
+function _write_obs(io; as_of, death_date = nothing)
+    write(io, "as_of_date = \"$as_of\"\n")
+    death_date === nothing ||
+        write(io, "[first_export_death_date]\nvalue = \"$death_date\"\n",
+              "source = \"x\"\n")
+    for k in ("exported_cases", "exports_deaths", "total_deaths",
+              "reported_cases", "daily_outbound_travellers",
+              "daily_outbound_travellers_sd", "source_population")
+        write(io, "[$k]\nvalue = 1\nsource = \"x\"\n")
+    end
+end
+
+@testset "first_export_death_delta is days from death date to cut-off" begin
+    mktempdir() do dir
+        path = joinpath(dir, "obs.toml")
+        open(io -> _write_obs(io; as_of = "2026-05-18",
+                              death_date = "2026-05-04"), path, "w")
+        @test load_observations(path).first_export_death_delta == 14
+    end
 end
 
 @testset "first_export_death_delta is missing when the date is absent" begin
     mktempdir() do dir
         path = joinpath(dir, "obs.toml")
-        open(path, "w") do io
-            write(io, """
-                as_of_date = "2026-05-18"
-                [exported_cases]
-                value = 2
-                source = "x"
-                [exports_deaths]
-                value = 1
-                source = "x"
-                [total_deaths]
-                value = 131
-                source = "x"
-                [reported_cases]
-                value = 516
-                source = "x"
-                [daily_outbound_travellers]
-                value = 1871
-                source = "x"
-                [daily_outbound_travellers_sd]
-                value = 200
-                source = "x"
-                [source_population]
-                value = 4392200
-                source = "x"
-                """)
-        end
-        obs = load_observations(path)
-        @test ismissing(obs.first_export_death_delta)
+        open(io -> _write_obs(io; as_of = "2026-05-18"), path, "w")
+        @test ismissing(load_observations(path).first_export_death_delta)
     end
 end
