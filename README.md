@@ -46,11 +46,24 @@ up automatically.
 
 ## Results
 
-Each push to `main` regenerates the model outputs and publishes them
-as a GitHub Release. The
+Each push to `main` regenerates the model outputs as part of the
+documentation build and publishes them as a GitHub Release. The
 [latest release](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest)
 bundles the posterior summary tables, thinned posterior draws, and a
 copy of the input `observations.toml` that produced them.
+
+To regenerate the same outputs locally:
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
+julia --project=. scripts/run.jl
+```
+
+This fits the model and writes the CSVs to an `output/` directory at
+the repository root (`output/posterior_summary.csv`,
+`cumulative_cases_by_stream.csv`, `imperial_comparison.csv`,
+`scenario_coverage.csv`, `posterior_draws.csv`, and a copy of
+`observations.toml`).
 
 ## Submodules
 
