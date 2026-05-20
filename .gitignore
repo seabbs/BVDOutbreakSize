@@ -11,6 +11,7 @@
 /output/
 .DS_Store
 .claude/
+CLAUDE.md
 .ipynb_checkpoints/
 *.swp
 *.swo

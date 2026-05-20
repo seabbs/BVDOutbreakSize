@@ -53,9 +53,10 @@ makedocs(;
     plugins  = [bib],
     pages    = [
         "Home"        => "index.md",
-        "Analysis"    => "analysis.md",
-        "News"        => "news.md",
-        "References"  => "references.md",
+        "Analysis"     => "analysis.md",
+        "Contributing" => "contributing.md",
+        "News"         => "news.md",
+        "References"   => "references.md",
     ],
     format   = DocumenterVitepress.MarkdownVitepress(;
         repo      = "github.com/epiforecasts/BVDOutbreakSize",
