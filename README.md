@@ -70,8 +70,11 @@ Each push to `main` regenerates the model outputs as part of the
 documentation build and publishes them as a GitHub Release. The
 [latest release](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest)
 bundles the saved result tables and plots, thinned posterior draws, a
-copy of the input `observations.toml` that produced them, and a
-`site.zip` snapshot of the rendered report site; the same artifacts are
+copy of the input `observations.toml` that produced them, a
+`site.zip` snapshot of the rendered report site, and `analysis.html`,
+a self-contained single-file copy of the report that opens offline
+([download the latest](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest/download/analysis.html));
+the same artifacts are
 written to the repository's `output/` directory on each build. Browse
 [all releases](https://github.com/epiforecasts/BVDOutbreakSize/releases)
 for earlier output bundles — major versions of the report are kept as
