@@ -53,8 +53,8 @@ makedocs(;
     format   = Documenter.HTML(;
         prettyurls = get(ENV, "CI", "false") == "true",
         canonical  = "https://seabbs.github.io/BVDOutbreakSize",
-        size_threshold        = 1_000_000,
-        size_threshold_warn   = 800_000,
+        size_threshold        = 5_000_000,
+        size_threshold_warn   = 4_000_000,
     ),
 )
 

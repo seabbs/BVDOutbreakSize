@@ -24,7 +24,7 @@ using CairoMakie: Figure, Axis, hist!, vlines!
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
        ITURI_DAILY_TRAVEL_SD,
-       EXPORTED_CASES, TOTAL_DEATHS, REPORTED_CASES,
+       EXPORTED_CASES, EXPORTS_DEATHS, TOTAL_DEATHS, REPORTED_CASES,
        load_observations,
        summary_table, posterior_summary,
        streams_table, comparison_table,
@@ -91,6 +91,13 @@ BVD cases detected in Uganda having travelled from Ituri Province.
 const EXPORTED_CASES = 2
 
 """
+    EXPORTS_DEATHS
+
+Deaths recorded in Uganda among the exported BVD cases.
+"""
+const EXPORTS_DEATHS = 1
+
+"""
     TOTAL_DEATHS
 
 Suspected BVD deaths reported in DRC, taken from the most recent
@@ -120,14 +127,16 @@ citation strings so they can be printed alongside the data.
 Fields returned:
 
 - `exported_cases::Int`
+- `exports_deaths::Int`
 - `total_deaths::Int`
 - `reported_cases::Int`
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
-- `sources::NamedTuple{(:exported_cases, :total_deaths, :reported_cases,
-  :daily_outbound_travellers, :daily_outbound_travellers_sd,
-  :source_population), NTuple{6, String}}` — citation per field.
+- `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
+  :reported_cases, :daily_outbound_travellers,
+  :daily_outbound_travellers_sd, :source_population),
+  NTuple{7, String}}` — citation per field.
 """
 function load_observations(
         path::AbstractString = joinpath(@__DIR__, "..", "data",
@@ -138,6 +147,7 @@ function load_observations(
     return (;
         as_of_date                   = String(raw["as_of_date"]),
         exported_cases               = Int(_val("exported_cases")),
+        exports_deaths               = Int(_val("exports_deaths")),
         total_deaths                 = Int(_val("total_deaths")),
         reported_cases               = Int(_val("reported_cases")),
         daily_outbound_travellers    = float(
@@ -147,6 +157,7 @@ function load_observations(
         source_population            = Int(_val("source_population")),
         sources = (;
             exported_cases               = _src("exported_cases"),
+            exports_deaths               = _src("exports_deaths"),
             total_deaths                 = _src("total_deaths"),
             reported_cases               = _src("reported_cases"),
             daily_outbound_travellers    = _src("daily_outbound_travellers"),
