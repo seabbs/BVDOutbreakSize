@@ -23,9 +23,10 @@
 #
 # **Data cut-off and how the numbers differ from Imperial.** Results
 # are reported as of the cut-off date in `data/observations.toml`
-# (currently **2026-05-20**): *by that date there have been the
-# reported counts in the data table below.* These are different, more
-# recent figures than the McCabe et al. report, which uses the
+# (currently **2026-05-18**): *by that date there have been the
+# reported counts in the data table below.* The counts are taken from
+# the WHO AFRO Weekly External Situation Report 01 (data as of
+# 18 May 2026), which differs from the McCabe et al. report's
 # 16 May 2026 snapshot (e.g. 88 suspected deaths against the later
 # figure used here). The joint posterior assumes a single common
 # cut-off for every data stream, so the deaths, exports and reported-

@@ -3,23 +3,23 @@
 # both are loaded by `load_observations` and printed in the
 # walkthrough.
 
-as_of_date = "2026-05-20"
+as_of_date = "2026-05-18"
 
 [exported_cases]
 value  = 2
-source = "McCabe et al., Imperial College London report, 18 May 2026 (DOI 10.25560/130007)"
+source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — two confirmed imported cases in Kampala, Uganda"
 
 [exports_deaths]
 value  = 1
-source = "BBC News, 20 May 2026 — one death in Uganda among the exported cases (https://www.bbc.co.uk/news/articles/ceqp11gn1l8o)"
+source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — one death among the two Uganda imported cases"
 
 [total_deaths]
-value  = 136
-source = "BBC News, 20 May 2026 (https://www.bbc.co.uk/news/articles/ceqp11gn1l8o)"
+value  = 131
+source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — DRC suspected deaths"
 
 [reported_cases]
-value  = 514
-source = "BBC News, 20 May 2026 (https://www.bbc.co.uk/news/articles/ceqp11gn1l8o)"
+value  = 516
+source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — DRC suspected cases"
 
 [daily_outbound_travellers]
 value  = 1871
