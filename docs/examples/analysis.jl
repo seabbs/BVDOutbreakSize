@@ -950,34 +950,32 @@ end
 # ##### First export death — timing survival term
 #
 # Uganda's single death among its detected exports is point-of-entry /
-# hospital-detected, so the *date* it occurred is reliable. That date
-# carries information beyond the count. Had the outbreak begun earlier
-# (larger $T$), more at-risk export person-time would have accrued
-# before the death date, so a death would have been expected sooner.
+# hospital-detected, so the *date* it occurred is recorded directly.
+# That date carries information beyond the count. Had the outbreak
+# begun earlier (larger $T$), more at-risk export person-time would have
+# accrued before the death date, so a death would have been expected sooner.
 # Observing none before the recorded date therefore bounds $T$ from above.
 #
 # We treat detected export deaths as an inhomogeneous Poisson process
 # with cumulative intensity $\mathbb{E}[D_{\text{uganda}}(t)]$
 # (equation (19), evaluated at any elapsed time $t$). The first death
 # occurred at elapsed time $t_1 = T - \Delta$, where
-# $\Delta = \text{cut-off} - \text{first-death date}$ is a known,
-# trustworthy offset. The probability that no export death is recorded
-# before $t_1$ is the survival of that process,
+# $\Delta = \text{cut-off} - \text{first-death date}$ is a known offset.
+# The probability that no export death is recorded before $t_1$ is the
+# survival of that process,
 #
 # ```math
 # \Pr(\text{no export death before } t_1)
 #     = \exp\!\bigl(-\mathbb{E}[D_{\text{uganda}}(t_1)]\bigr), \tag{21}
 # ```
 #
-# which we add to the log density directly. We deliberately use the
-# one-sided survival term rather than the full first-event density
-# $\lambda(t_1)\,e^{-\Lambda(t_1)}$: the survival form only penalises
+# which we add to the log density directly. We use the one-sided
+# survival term rather than the full first-event density
+# $\lambda(t_1)\,e^{-\Lambda(t_1)}$. The survival form only penalises
 # trajectories that would have produced a death *too early*, so it
-# tolerates the death's exact date being slightly late or noisy, and it
-# degrades gracefully for this single, low-count event. With the Uganda
-# events clustered only days before the cut-off ($\Delta$ small), the
-# lever this term has on $T$ is modest; it is included as a principled,
-# trustworthy-date constraint rather than a strong one. Passing
+# tolerates the death's exact date being late or noisy and does not
+# require an event at $t_1$. With the Uganda events only days before the
+# cut-off ($\Delta$ small), the lever on $T$ is small. Passing
 # `delta = missing` makes the submodel a no-op.
 
 #md # ```@raw html
