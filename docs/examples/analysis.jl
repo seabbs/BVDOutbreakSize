@@ -567,9 +567,9 @@ end
 # with $p = \mathrm{logistic}(\mathrm{logit}\,p)$. Here $\tau$ is the
 # pooling strength: small $\tau$ pulls the two fractions together (the
 # shared-fraction limit), large $\tau$ lets them move independently
-# (the separate-fraction limit), and the data decide where on that
-# spectrum the fit lands. The cases likelihood uses $p_{\text{drc}}$;
-# the two Uganda-side likelihoods use $p_{\text{uganda}}$.
+# (the separate-fraction limit). The cases likelihood uses
+# $p_{\text{drc}}$; the two Uganda-side likelihoods use
+# $p_{\text{uganda}}$.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: pooled_ascertainment_model</summary>
@@ -591,11 +591,13 @@ end
 #md # </details>
 #md # ```
 
-# A small NegBinomial constructor parameterised by mean $\mu$ and
-# dispersion $k$ (so the variance is given by equation (8)), with
-# NaN / Inf-safe clamping on the success probability so extreme NUTS
-# proposals during warmup do not trip the distribution domain check.
-# It is used by the deaths and cases observation submodels below.
+# The deaths and reported-case likelihoods both use a negative
+# binomial, so we define a small constructor for it once and share it.
+# It is parameterised by mean $\mu$ and dispersion $k$ (so the variance
+# is given by equation (8)), with NaN / Inf-safe clamping on the
+# success probability so extreme NUTS proposals during warmup do not
+# trip the distribution domain check. It is used by the deaths and
+# cases observation submodels below.
 
 #md # ```@raw html
 #md # <details><summary>Function: safe_nbinomial</summary>
