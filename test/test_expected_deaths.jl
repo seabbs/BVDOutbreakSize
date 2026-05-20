@@ -14,11 +14,16 @@ using BVDOutbreakSize: expected_deaths
     @test analytic ≈ numerical rtol = 1e-6
 end
 
-@testset "Mooncake can AD expected_deaths Gamma method" begin
+@testset "Mooncake AD on expected_deaths Gamma method matches FD" begin
     CFR, r, T = 0.3, 0.05, 30.0
     f = (α, θ) -> expected_deaths(CFR, r, T, Gamma(α, θ))
     α, θ = 4.3, 2.6
     rule = Mooncake.build_rrule(f, α, θ)
     val, grads = Mooncake.value_and_gradient!!(rule, f, α, θ)
-    @test val ≈ f(α, θ) && all(isfinite, grads[2:end])
+    h = 1e-5
+    fd_α = (f(α + h, θ) - f(α - h, θ)) / (2h)
+    fd_θ = (f(α, θ + h) - f(α, θ - h)) / (2h)
+    @test val ≈ f(α, θ)
+    @test grads[2] ≈ fd_α rtol = 1e-6
+    @test grads[3] ≈ fd_θ rtol = 1e-6
 end
