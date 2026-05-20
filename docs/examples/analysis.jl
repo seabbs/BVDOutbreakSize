@@ -511,11 +511,11 @@ end
 # 1/\sqrt{k} \sim \mathrm{Normal}^{+}(0, 1), \tag{9}
 # ```
 #
-# giving $k$ a prior median near 2 (mild overdispersion). McCabe et al.
-# use Poisson on deaths (Method 2; their reported CIs are Poisson
-# CIs) and does not model reported suspected cases at all; the switch
-# to NegBinomial here is an intentional deviation from their Method 2
-# choice.
+# giving $k$ a prior median near 2 (mild overdispersion). This extends
+# the McCabe et al. report, which uses a Poisson likelihood for the
+# Method 2 deaths and does not model the reported case counts at all;
+# the negative binomial adds overdispersion to absorb passive-
+# surveillance noise.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: surveillance_dispersion_model</summary>
