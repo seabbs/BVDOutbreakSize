@@ -29,6 +29,9 @@ export REPORT_SCENARIOS,
        summary_table, posterior_summary,
        streams_table, comparison_table,
        nuts_sample, default_adtype,
+       DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
+       integrate, expected_deaths,
+       integrate_cumulative, integrate_exports_deaths,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair,
@@ -202,6 +205,107 @@ function nuts_sample(model;
     )
 end
 
+## --- Shared Gauss-Legendre quadrature -----------------------------------
+##
+## A single reusable integrator backs every forward integral in the
+## package: the gamma onset-to-death convolution for deaths, the
+## at-risk person-time integral for exports, the deaths-among-exports
+## convolution, and the counterfactual and forecast integrals. Each of
+## those was previously a near-duplicate inline integrand; they now all
+## route through `integrate` and the typed helpers below.
+
+"""
+    DEATH_INTEGRAL_ALG
+
+Gauss-Legendre quadrature scheme (`n = 64`) used for the deaths
+onset-to-death convolution, the no-onward-transmission counterfactual,
+and the forecast deaths integral.
+"""
+const DEATH_INTEGRAL_ALG = GaussLegendre(; n = 64)
+
+"""
+    CUMULATIVE_INTEGRAL_ALG
+
+Gauss-Legendre quadrature scheme (`n = 32`) used for the at-risk
+person-time export integral and the deaths-among-exports convolution
+(outer and inner integrals).
+"""
+const CUMULATIVE_INTEGRAL_ALG = GaussLegendre(; n = 32)
+
+_integrate_kernel(u, p) = p.f(p.halfwidth * (u + 1) + p.lo)
+
+"""
+$(TYPEDSIGNATURES)
+
+Integrate a scalar function `f` over `[lo, hi]` by Gauss-Legendre
+quadrature. The reference domain `[-1, 1]` is mapped onto `[lo, hi]`,
+so any forward integral in the package can share one integrator. Returns
+zero when `hi <= lo`. The default scheme is [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function integrate(f, lo, hi; alg = CUMULATIVE_INTEGRAL_ALG)
+    hi <= lo && return zero(hi - lo)
+    halfwidth = (hi - lo) / 2
+    prob = IntegralProblem(_integrate_kernel, (-1.0, 1.0),
+                           (; f, halfwidth, lo))
+    return halfwidth * solve(prob, alg).u
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative deaths by time `T` from a single seeding case under
+exponential growth at rate `r`:
+
+```math
+\\mathbb{E}[D_T] = \\mathrm{CFR} \\cdot
+    \\int_0^T e^{r s}\\, f(T - s)\\, ds,
+```
+
+with `f` the `delay_dist` onset-to-death density. The integrand returns
+zero past `T` so the convolution support is respected. Uses
+[`DEATH_INTEGRAL_ALG`](@ref).
+"""
+function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
+    g = let r = r, T = T, delay_dist = delay_dist
+        s -> begin
+            d = T - s
+            d <= 0 ? zero(r) : exp(r * s) * pdf(delay_dist, d)
+        end
+    end
+    return CFR * integrate(g, zero(T), T; alg)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Integrate a cumulative-incidence trajectory `cumulative` (a callable
+`C(s)`) over `[lo, hi]`. Backs the at-risk person-time export integral
+``\\int_{T-w}^{T} C(s)\\, ds``. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function integrate_cumulative(cumulative, lo, hi; alg = CUMULATIVE_INTEGRAL_ALG)
+    return integrate(cumulative, lo, hi; alg)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Deaths-among-exports convolution
+``\\int_{lo}^{hi} C(s)\\, F_d(T - s)\\, ds`` with `F_d` the `delay_dist`
+onset-to-death CDF. The CDF is itself written as the inner integral of
+the density, ``F_d(x) = \\int_0^x f_d(u)\\,du``, so the whole expression
+differentiates through the density alone (the reverse-mode AD backend
+does not support the gamma CDF shape-parameter derivative). Outer and
+inner integrals both use [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function integrate_exports_deaths(cumulative, delay_dist, lo, hi, T;
+        alg = CUMULATIVE_INTEGRAL_ALG)
+    cdf_to(x) = integrate(u -> pdf(delay_dist, u), zero(x), x; alg)
+    g = let cumulative = cumulative, T = T
+        s -> cumulative(s) * cdf_to(T - s)
+    end
+    return integrate(g, lo, hi; alg)
+end
+
 _draws(chn, name::Symbol) = vec(Array(chn[name]))
 
 """
@@ -327,8 +431,8 @@ function plot_cumulative_cases(
         figure = (; size = (760, 420)),
     )
 
-    scenario_xs = [val for (_, val) in scenarios if val < xmax]
-    vlines!(fg.figure.content[1], scenario_xs;
+    scenario_xs = Float64[val for (_, val) in scenarios if val < xmax]
+    isempty(scenario_xs) || vlines!(fg.figure.content[1], scenario_xs;
             color = (:grey, 0.4), linestyle = :dash)
     return fg
 end
@@ -497,21 +601,13 @@ end
 ## with `F_d` the Gamma(α, θ) CDF. Total projected cumulative deaths
 ## under the no-onward-transmission counterfactual is `obs_deaths + ΔD`.
 
-const _NO_ONWARD_INTEGRAL_ALG = GaussLegendre(; n = 64)
-
-function _committed_deaths_integrand(u, p)
-    s = p.halfwidth * (u + 1)         # u ∈ [-1, 1] → s ∈ [0, T]
-    return p.r * exp(p.r * s) * ccdf(p.delay_dist, p.T - s)
-end
-
 function _committed_deaths_one(r, T, α, θ, CFR;
-        alg = _NO_ONWARD_INTEGRAL_ALG)
-    halfwidth = T / 2
+        alg = DEATH_INTEGRAL_ALG)
     delay_dist = Gamma(α, θ)
-    params = (; r, T, halfwidth, delay_dist)
-    prob = IntegralProblem(_committed_deaths_integrand,
-                           (-1.0, 1.0), params)
-    return CFR * halfwidth * solve(prob, alg).u
+    g = let r = r, T = T, delay_dist = delay_dist
+        s -> r * exp(r * s) * ccdf(delay_dist, T - s)
+    end
+    return CFR * integrate(g, zero(T), T; alg)
 end
 
 """
@@ -540,7 +636,7 @@ matching the rest of the package.
 """
 function predict_no_onward_deaths(chn;
         obs_deaths::Real,
-        alg = _NO_ONWARD_INTEGRAL_ALG)
+        alg = DEATH_INTEGRAL_ALG)
     r_draws   = _draws(chn, :r)
     T_draws   = _draws(chn, :T)
     α_draws   = _draws(chn, :α)
@@ -593,18 +689,10 @@ end
 ## draw produces a replicated integer count, so the intervals include
 ## both parameter and observation uncertainty.
 
-const _FORECAST_INTEGRAL_ALG = GaussLegendre(; n = 64)
-
-# Deaths convolution evaluated at horizon `Th = T + h`:
-# ∫_0^{Th} exp(r·s) · pdf(Gamma(α, θ), Th − s) ds.
-function _forecast_deaths_mean(r, Th, α, θ, CFR; alg = _FORECAST_INTEGRAL_ALG)
-    halfwidth  = Th / 2
-    delay_dist = Gamma(α, θ)
-    f(u, p) = exp(p.r * (p.halfwidth * (u + 1))) *
-              pdf(p.delay_dist, p.Th - p.halfwidth * (u + 1))
-    prob = IntegralProblem(f, (-1.0, 1.0),
-                           (; r, Th, halfwidth, delay_dist))
-    return CFR * halfwidth * solve(prob, alg).u
+# Deaths convolution evaluated at horizon `Th = T + h`, sharing the
+# package-wide `expected_deaths` integrator.
+function _forecast_deaths_mean(r, Th, α, θ, CFR; alg = DEATH_INTEGRAL_ALG)
+    return expected_deaths(CFR, r, Th, Gamma(α, θ); alg)
 end
 
 function _nb_rand(rng, k, μ)
@@ -642,7 +730,7 @@ function forecast_reported(chn;
         obs_deaths::Real,
         obs_exports::Real,
         seed::Integer          = 20260520,
-        alg                    = _FORECAST_INTEGRAL_ALG)
+        alg                    = DEATH_INTEGRAL_ALG)
     r   = _draws(chn, :r)
     T   = _draws(chn, :T)
     CFR = _draws(chn, :CFR)
