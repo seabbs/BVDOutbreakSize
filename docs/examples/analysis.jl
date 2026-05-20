@@ -1210,9 +1210,10 @@ prior_pair_fig #hide
 
 # #### Fitting the models
 #
-# NUTS with Mooncake reverse-mode AD, four chains, 1000 post-warmup
-# draws each, $\text{target\_accept} = 0.9$. Chains initialise from
-# the prior
+# NUTS [hoffman2014nuts](@cite) with Mooncake [mooncake_jl](@cite)
+# reverse-mode automatic differentiation, four chains, 1000 post-warmup
+# draws each, with a target acceptance probability of 0.9. Chains
+# initialise from the prior
 # to keep the sampler away from the boundary of $r$ and $m$. We fit
 # the joint model and the four single-stream models so the per-stream
 # posteriors over $C(T)$ can be compared with the joint.
