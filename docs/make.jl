@@ -17,9 +17,14 @@ const LITERATE_OUT = joinpath(@__DIR__, "src")
 
 isdir(LITERATE_OUT) || mkpath(LITERATE_OUT)
 
-cp(joinpath(REPO_ROOT, "README.md"),
-   joinpath(LITERATE_OUT, "index.md");
-   force = true)
+# Copy the README to the home page, stripping the ABSTRACT marker
+# comments. The analysis page reads them from the source README to load
+# the abstract, but they must not appear on the rendered home page (the
+# Vitepress typographer mangles the `--` and shows them as text).
+let readme = read(joinpath(REPO_ROOT, "README.md"), String)
+    readme = replace(readme, r"^<!-- ABSTRACT:(START|END) -->\n"m => "")
+    write(joinpath(LITERATE_OUT, "index.md"), readme)
+end
 
 Literate.markdown(
     LITERATE_SRC,

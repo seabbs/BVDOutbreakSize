@@ -14,8 +14,8 @@ value  = 1
 source = "WHO situation report, 20 May 2026 — one death in Uganda among the exported cases (https://iris.who.int/server/api/core/bitstreams/bb1d4668-04e0-4563-b7c4-d1bdefbc9f05/content)"
 
 [total_deaths]
-value  = 132
-source = "WHO situation report, 20 May 2026 — 131 deaths in DRC plus 1 in Uganda (https://iris.who.int/server/api/core/bitstreams/bb1d4668-04e0-4563-b7c4-d1bdefbc9f05/content)"
+value  = 131
+source = "WHO situation report, 20 May 2026 — 131 deaths in DRC (the deaths model fits the DRC source outbreak; the single Uganda export death is in exports_deaths) (https://iris.who.int/server/api/core/bitstreams/bb1d4668-04e0-4563-b7c4-d1bdefbc9f05/content)"
 
 [reported_cases]
 value  = 516

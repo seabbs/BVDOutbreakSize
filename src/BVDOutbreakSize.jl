@@ -12,6 +12,8 @@ using Mooncake: Mooncake
 using Turing
 using Turing.DynamicPPL: InitFromPrior
 using MCMCChains: Chains
+import MCMCChains
+import FlexiChains
 using DocStringExtensions
 using Distributions: Gamma, ccdf, pdf, Poisson, NegativeBinomial
 using Integrals: IntegralProblem, GaussLegendre, solve
@@ -27,6 +29,7 @@ export REPORT_SCENARIOS,
        EXPORTED_CASES, EXPORTS_DEATHS, TOTAL_DEATHS, REPORTED_CASES,
        load_observations,
        summary_table, posterior_summary,
+       fit_diagnostics, diagnostics_table,
        streams_table, comparison_table,
        nuts_sample, default_adtype,
        DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
@@ -350,6 +353,68 @@ function summary_table(chn, params::AbstractVector{Symbol};
             df
         end
     end
+end
+
+## --- Fit diagnostics ----------------------------------------------------
+
+# Flat vector of a scalar diagnostic (R-hat or ESS), one entry per
+# scalar parameter in a FlexiChains summary.
+function _scalar_stats(summary)
+    out = Float64[]
+    for p in FlexiChains.parameters(summary)
+        v = summary[p]
+        if v isa Number
+            ismissing(v) && continue
+            push!(out, Float64(v))
+        else
+            for x in skipmissing(vec(collect(v)))
+                push!(out, Float64(x))
+            end
+        end
+    end
+    return out
+end
+
+# Number of divergent NUTS transitions recorded in the chain.
+function _num_divergences(chn)
+    for e in FlexiChains.extras(chn)
+        e.name === :numerical_error || continue
+        return Int(sum(skipmissing(vec(chn[e]))))
+    end
+    return 0
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+NUTS fit-quality summary for one chain: the worst (maximum) R-hat and
+the smallest bulk effective sample size across parameters, and the
+number of divergent transitions.
+"""
+function fit_diagnostics(chn)
+    rhats = _scalar_stats(MCMCChains.rhat(chn))
+    esses = _scalar_stats(MCMCChains.ess(chn; kind = :bulk))
+    return (max_rhat     = maximum(rhats),
+            min_ess_bulk = minimum(esses),
+            n_divergent  = _num_divergences(chn))
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+`DataFrame` of fit-quality diagnostics with one row per fit. Pass each
+fit as `"label" => chain`. Columns `:fit, :max_rhat, :min_ess_bulk,
+:divergences`.
+"""
+function diagnostics_table(fits::Pair{String}...)
+    rows = map(fits) do (label, chn)
+        d = fit_diagnostics(chn)
+        (fit          = label,
+         max_rhat     = round(d.max_rhat; digits = 3),
+         min_ess_bulk = round(d.min_ess_bulk; digits = 0),
+         divergences  = d.n_divergent)
+    end
+    return DataFrame(rows)
 end
 
 """
