@@ -5,6 +5,7 @@ using Documenter
 using DocumenterCitations
 using DocumenterVitepress
 using Literate
+using BVDOutbreakSize
 using TikzPictures
 
 const bib = CitationBibliography(
@@ -41,10 +42,9 @@ Literate.markdown(
 # page in place of the `{{MODEL_DIAGRAM}}` placeholder. Inlining avoids
 # relying on Vitepress relative-asset copying.
 const DIAGRAM_BODY = raw"""
-\graph[layered layout, grow=down,
-       level distance=18mm, sibling distance=8mm,
-       nodes={draw,rounded corners,align=center,
-              font=\footnotesize,inner sep=3pt},
+\graph[layered layout, grow=right,
+       level distance=34mm, sibling distance=11mm,
+       nodes={draw,rounded corners,align=center,inner sep=5pt},
        edges={->,>={Stealth},gray}]{
   G  [as={Growth\\$C(s)=e^{rs}$}];
   D  [as={Onset-to-death\\delay}];
@@ -52,16 +52,16 @@ const DIAGRAM_BODY = raw"""
   W  [as={Detection\\window}];
   K  [as={Surveillance\\dispersion}];
   A  [as={Ascertainment}];
-  OE [as={Exports\\Poisson}];
-  OD [as={Deaths\\NegBinomial}];
-  OC [as={Cases\\NegBinomial}];
-  OX [as={Exports-deaths\\Poisson}];
-  CE [as={exports\_only}];
-  CD [as={deaths\_only}];
-  CC [as={cases\_only}];
-  CX [as={exports\_deaths\_only}];
-  CI [as={imperial\_only}];
-  CJ [as={bvd\_joint}];
+  OE [as={Exports}];
+  OD [as={Deaths}];
+  OC [as={Cases}];
+  OX [as={Export deaths}];
+  CE [as={Exports only}];
+  CD [as={Deaths only}];
+  CC [as={Cases only}];
+  CX [as={Export deaths\\only}];
+  CI [as={Imperial\\(exports+deaths)}];
+  CJ [as={Joint\\(all streams)}];
   G -> { OE, OD, OC, OX };
   D -> { OD, OX };
   CFR -> { OD, OX };
@@ -113,8 +113,9 @@ makedocs(;
     warnonly = [:missing_docs, :linkcheck, :citations],
     plugins  = [bib],
     pages    = [
-        "Home"        => "index.md",
+        "Home"         => "index.md",
         "Analysis"     => "analysis.md",
+        "API"          => "api.md",
         "Contributing" => "contributing.md",
         "News"         => "news.md",
         "References"   => "references.md",
