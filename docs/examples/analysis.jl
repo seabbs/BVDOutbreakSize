@@ -202,12 +202,6 @@
 #    one-week-ahead forecast, and a `Turing.fix`-pinned reproduction
 #    of Imperial's Method 2 main scenario via the Imperial-exact
 #    composer.
-#
-# Composition is via `~ to_submodel(...)`. Replacing one submodel
-# (e.g. swapping the Gamma onset-to-death for a LogNormal, or
-# swapping exponential growth for a logistic curve) requires editing
-# only that submodel — the integrals (which live in the package) and
-# composers do not change.
 
 #md # ```@raw html
 #md # <details><summary>Load packages and seed the RNG</summary>
@@ -476,10 +470,10 @@ end
 # with a weak prior,
 #
 # ```math
-# 1/\sqrt{k} \sim \mathrm{Exponential}(2), \tag{9}
+# 1/\sqrt{k} \sim \mathrm{Normal}^{+}(0, 1), \tag{9}
 # ```
 #
-# giving `k` a prior median near 4 (mild overdispersion). Imperial
+# giving `k` a prior median near 2 (mild overdispersion). Imperial
 # uses Poisson on deaths (Method 2; their reported CIs are Poisson
 # CIs) and does not model reported suspected cases at all; the switch
 # to NegBinomial here is an intentional deviation from their Method 2
@@ -490,7 +484,7 @@ end
 #md # ```
 
 @model function surveillance_dispersion_model(;
-        inv_sqrt_k_prior = Exponential(2.0))
+        inv_sqrt_k_prior = truncated(Normal(0, 1); lower = 0))
     inv_sqrt_k ~ inv_sqrt_k_prior
     k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
     return (; k, inv_sqrt_k)

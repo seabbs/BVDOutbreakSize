@@ -26,9 +26,7 @@ exports term) with their exact forms. We report the joint posterior
 over `C(T)` from current data; to separate the effect of newer data
 from the change in method we also fit the model to the data as of the
 report, comparing against both a joint reimplementation of the
-report's approach and its original published estimates. This is a
-real-time re-analysis, so the figures will move as the data are
-updated.
+report's approach and its original published estimates.
 <!-- ABSTRACT:END -->
 
 **Use of AI:** The model code and analysis were drafted by a language
