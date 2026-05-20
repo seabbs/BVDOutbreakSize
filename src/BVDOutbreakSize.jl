@@ -13,7 +13,7 @@ using Turing
 using Turing.DynamicPPL: InitFromPrior
 using MCMCChains: Chains
 using DocStringExtensions
-using Distributions: Gamma, ccdf
+using Distributions: Gamma, ccdf, pdf, Poisson, NegativeBinomial
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
@@ -32,7 +32,8 @@ export REPORT_SCENARIOS,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair,
-       predict_no_onward_deaths, plot_no_onward_deaths
+       predict_no_onward_deaths, plot_no_onward_deaths,
+       forecast_reported, forecast_table, plot_forecast
 
 """
     REPORT_SCENARIOS
@@ -569,6 +570,155 @@ function plot_no_onward_deaths(df::DataFrame; obs_deaths::Real)
     vlines!(fg.figure.content[1], [float(obs_deaths)];
             color = :black, linestyle = :dash, linewidth = 2)
     return fg
+end
+
+## --- One-week-ahead forecast --------------------------------------------
+##
+## Continue the fitted exponential growth `h` days past the cut-off `T`
+## and apply the same observation models to forecast the cumulative
+## reported cases (DRC), deaths (DRC) and exports (Uganda) by `T + h`,
+## plus the new counts expected over the coming week (cumulative at
+## `T + h` minus the count observed at `T`). Posterior-predictive: each
+## draw produces a replicated integer count, so the intervals include
+## both parameter and observation uncertainty.
+
+const _FORECAST_INTEGRAL_ALG = GaussLegendre(; n = 64)
+
+# Deaths convolution evaluated at horizon `Th = T + h`:
+# ∫_0^{Th} exp(r·s) · pdf(Gamma(α, θ), Th − s) ds.
+function _forecast_deaths_mean(r, Th, α, θ, CFR; alg = _FORECAST_INTEGRAL_ALG)
+    halfwidth  = Th / 2
+    delay_dist = Gamma(α, θ)
+    f(u, p) = exp(p.r * (p.halfwidth * (u + 1))) *
+              pdf(p.delay_dist, p.Th - p.halfwidth * (u + 1))
+    prob = IntegralProblem(f, (-1.0, 1.0),
+                           (; r, Th, halfwidth, delay_dist))
+    return CFR * halfwidth * solve(prob, alg).u
+end
+
+function _nb_rand(rng, k, μ)
+    μs = max(μ, eps(typeof(μ)))
+    p = clamp(k / (k + μs), eps(typeof(k)), one(k) - eps(typeof(k)))
+    return rand(rng, NegativeBinomial(k, p))
+end
+
+"""
+    forecast_reported(chn; horizon = 7, daily_travellers, source_population,
+                      obs_cases, obs_deaths, obs_exports, seed = 20260520)
+
+One-week-ahead (default `horizon = 7` days) posterior-predictive
+forecast. For each draw, continue exponential growth to `T + horizon`
+and apply the observation models, returning a `DataFrame` with one row
+per draw and columns:
+
+- `:cases_cum`, `:deaths_cum`, `:exports_cum` — replicated cumulative
+  counts reported by `T + horizon`.
+- `:cases_new`, `:deaths_new`, `:exports_new` — new counts over the
+  coming week (`*_cum` minus the corresponding observed count at `T`,
+  floored at zero).
+
+Reads `:r, :T, :CFR, :α, :θ, :w, :p_report, :k` from `chn`. Exports use
+`q = daily_travellers / source_population`. Assumes growth continues
+unchanged over the horizon (no interventions, no saturation).
+"""
+function forecast_reported(chn;
+        horizon::Real          = 7,
+        daily_travellers::Real,
+        source_population::Real,
+        obs_cases::Real,
+        obs_deaths::Real,
+        obs_exports::Real,
+        seed::Integer          = 20260520,
+        alg                    = _FORECAST_INTEGRAL_ALG)
+    r   = _draws(chn, :r)
+    T   = _draws(chn, :T)
+    CFR = _draws(chn, :CFR)
+    α   = _draws(chn, :α)
+    θ   = _draws(chn, :θ)
+    w   = _draws(chn, :w)
+    pr  = _draws(chn, :p_report)
+    k   = _draws(chn, :k)
+
+    rng = MersenneTwister(seed)
+    n = length(r)
+    q = daily_travellers / source_population
+    cases_cum   = Vector{Int}(undef, n)
+    deaths_cum  = Vector{Int}(undef, n)
+    exports_cum = Vector{Int}(undef, n)
+
+    @inbounds for i in 1:n
+        Th = T[i] + horizon
+        ## DRC reported cases: p_report · C(T+h).
+        μ_cases = pr[i] * exp(r[i] * Th)
+        cases_cum[i] = _nb_rand(rng, k[i], μ_cases)
+        ## DRC deaths: CFR · ∫_0^{T+h} exp(r·s) f(T+h−s) ds.
+        μ_deaths = _forecast_deaths_mean(r[i], Th, α[i], θ[i], CFR[i]; alg)
+        deaths_cum[i] = _nb_rand(rng, k[i], μ_deaths)
+        ## Uganda exports: q · ∫_{T+h−w}^{T+h} C(s) ds (closed form for
+        ## exponential growth).
+        lo = max(Th - w[i], zero(Th))
+        μ_exports = q * (exp(r[i] * Th) - exp(r[i] * lo)) / r[i]
+        exports_cum[i] = rand(rng, Poisson(max(μ_exports, eps(μ_exports))))
+    end
+
+    _new(cum, obs) = max.(cum .- round(Int, obs), 0)
+    return DataFrame(
+        cases_cum    = cases_cum,
+        deaths_cum   = deaths_cum,
+        exports_cum  = exports_cum,
+        cases_new    = _new(cases_cum,   obs_cases),
+        deaths_new   = _new(deaths_cum,  obs_deaths),
+        exports_new  = _new(exports_cum, obs_exports),
+    )
+end
+
+"""
+    forecast_table(fc::DataFrame; digits = 0)
+
+Summarise a [`forecast_reported`](@ref) result into a `DataFrame` with
+one row per stream (cases, deaths, exports) and 30/60/90% credible
+intervals for the cumulative forecast and the new-this-week count.
+"""
+function forecast_table(fc::DataFrame; digits::Integer = 0)
+    rows = NamedTuple[]
+    for (label, cum, new) in (
+            ("DRC reported cases", :cases_cum,  :cases_new),
+            ("DRC deaths",         :deaths_cum, :deaths_new),
+            ("Uganda exports",     :exports_cum, :exports_new))
+        sc = posterior_summary(fc[!, cum])
+        sn = posterior_summary(fc[!, new])
+        push!(rows, (
+            stream         = label,
+            cum_lo90 = round(sc.lo90; digits), cum_med = round(quantile(fc[!, cum], 0.5); digits),
+            cum_hi90 = round(sc.hi90; digits),
+            new_lo90 = round(sn.lo90; digits), new_med = round(quantile(fc[!, new], 0.5); digits),
+            new_hi90 = round(sn.hi90; digits),
+        ))
+    end
+    return DataFrame(rows)
+end
+
+"""
+    plot_forecast(fc::DataFrame)
+
+Three-panel histogram of the new-this-week forecast counts (cases,
+deaths, exports) from [`forecast_reported`](@ref).
+"""
+function plot_forecast(fc::DataFrame)
+    fig = Figure(; size = (1100, 360))
+    cols = ((:cases_new,   "New reported cases (DRC)",  :steelblue),
+            (:deaths_new,  "New deaths (DRC)",          :firebrick),
+            (:exports_new, "New exports (Uganda)",      :seagreen))
+    for (i, (col, title, colour)) in enumerate(cols)
+        v = fc[!, col]
+        upper = max(1.0, quantile(v, 0.995))
+        ax = Axis(fig[1, i];
+            xlabel = title, ylabel = "Forecast count",
+            title = "One week ahead", limits = ((0, upper), nothing))
+        hist!(ax, v; bins = range(0, upper; length = 30),
+              color = (colour, 0.7))
+    end
+    return fig
 end
 
 end # module

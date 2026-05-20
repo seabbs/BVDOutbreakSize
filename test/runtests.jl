@@ -7,7 +7,8 @@ using BVDOutbreakSize: REPORT_SCENARIOS,
                        load_observations,
                        plot_cumulative_cases,
                        plot_prior_predictive,
-                       plot_posterior_predictive, plot_pair
+                       plot_posterior_predictive, plot_pair,
+                       forecast_reported, forecast_table, plot_forecast
 using ADTypes: AutoMooncake
 using DataFrames: DataFrame, nrow
 using Distributions: Normal
@@ -30,3 +31,4 @@ include("test_nuts_sample.jl")
 include("test_load_observations.jl")
 include("test_no_onward_deaths.jl")
 include("test_cases_model.jl")
+include("test_forecast.jl")

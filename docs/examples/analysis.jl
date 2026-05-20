@@ -1082,6 +1082,55 @@ no_onward_fig = plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS);
 
 no_onward_fig
 
+# ## One-week-ahead forecast
+#
+# If the fitted model is taken at face value, what should the next
+# week's situation reports show? We continue the fitted exponential
+# growth `horizon = 7` days past the cut-off `T` and apply the same
+# observation models to forecast the cumulative reported cases (DRC),
+# deaths (DRC) and exports (Uganda) by `T + 7`, and the *new* counts
+# expected over the coming week (cumulative at `T + 7` minus the
+# count already observed). These are posterior-predictive: each draw
+# yields a replicated integer count, so the intervals carry both
+# parameter and observation uncertainty.
+#
+# This assumes growth continues unchanged for the week — no
+# interventions and no saturation — so it is a "no-change"
+# projection, not a considered forecast.
+
+#md # ```@raw html
+#md # <details><summary>Generate the one-week-ahead forecast</summary>
+#md # ```
+
+forecast = forecast_reported(chn_joint;
+    horizon           = 7,
+    daily_travellers  = ITURI_DAILY_TRAVEL,
+    source_population = ITURI_POPULATION,
+    obs_cases         = REPORTED_CASES,
+    obs_deaths        = TOTAL_DEATHS,
+    obs_exports       = EXPORTED_CASES);
+forecast_summary = forecast_table(forecast);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+forecast_summary
+
+# New counts expected over the coming week, by stream:
+
+#md # ```@raw html
+#md # <details><summary>One-week-ahead forecast plot</summary>
+#md # ```
+
+forecast_fig = plot_forecast(forecast);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+forecast_fig
+
 # ## Imperial report sense check
 #
 # A quick sanity check that the model can recover Imperial's Method 2
