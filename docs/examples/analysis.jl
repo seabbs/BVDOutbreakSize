@@ -142,6 +142,7 @@ using Distributions
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 using DataFrames: DataFrame
+import CSV
 using Random
 using BVDOutbreakSize
 
@@ -1178,4 +1179,50 @@ coverage_table = comparison_table(posterior_C_joint);
 #md # ```
 
 coverage_table
+
+# ## Saving results
+#
+# The tables above are written to an `output/` directory at the repo
+# root so they can be archived and shared. On every push to `main` a
+# GitHub Actions workflow regenerates these files and publishes them
+# as a GitHub Release, downloadable from the repository's releases
+# page (<https://github.com/epiforecasts/BVDOutbreakSize/releases>).
+# The release bundles the four summary tables, a thinned set of
+# posterior draws, and a copy of the input `observations.toml` so the
+# exact data that produced each result is recorded alongside it.
+
+#md # ```@raw html
+#md # <details><summary>Write outputs to output/</summary>
+#md # ```
+
+output_dir = joinpath(pkgdir(BVDOutbreakSize), "output")
+mkpath(output_dir)
+
+CSV.write(joinpath(output_dir, "posterior_summary.csv"), joint_summary)
+CSV.write(joinpath(output_dir, "cumulative_cases_by_stream.csv"),
+          streams_C_table)
+CSV.write(joinpath(output_dir, "imperial_comparison.csv"), main_comparison)
+CSV.write(joinpath(output_dir, "scenario_coverage.csv"), coverage_table)
+
+## Copy the input data so the release records what produced these
+## results.
+cp(joinpath(pkgdir(BVDOutbreakSize), "data", "observations.toml"),
+   joinpath(output_dir, "observations.toml"); force = true)
+
+## Thinned posterior draws of the key joint parameters (every 10th
+## draw) so downstream users can recompute their own summaries.
+posterior_draws = DataFrame(
+    τ                = vec(Array(chn_joint[:τ])),
+    r                = vec(Array(chn_joint[:r])),
+    m                = vec(Array(chn_joint[:m])),
+    T                = vec(Array(chn_joint[:T])),
+    CFR              = vec(Array(chn_joint[:CFR])),
+    p_report         = vec(Array(chn_joint[:p_report])),
+    cumulative_cases = vec(Array(chn_joint[:cumulative_cases])),
+)[1:10:end, :]
+CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws)
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 

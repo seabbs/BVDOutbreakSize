@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish results
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Instantiate project
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+      - name: Run analysis
+        run: julia -t auto --project=. scripts/run.jl
+      - name: Check outputs
+        run: |
+          set -euo pipefail
+          if [ ! -d output ] || [ -z "$(ls -A output)" ]; then
+            echo "::error::output/ is missing or empty after analysis"
+            exit 1
+          fi
+          ls -l output
+      - name: Publish results release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: results-${{ github.run_number }}
+          name: "Results (build ${{ github.run_number }})"
+          body: |
+            Model outputs and input data regenerated from
+            `scripts/run.jl` at ${{ github.sha }}.
+
+            Bundles the posterior summary tables, thinned posterior
+            draws, and a copy of the input `observations.toml`.
+
+            For a rendered walkthrough see
+            https://epiforecasts.github.io/BVDOutbreakSize/analysis/.
+          files: output/*
+          make_latest: 'true'
+          draft: false
+          prerelease: false
