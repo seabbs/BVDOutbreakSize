@@ -9,6 +9,7 @@ using BVDOutbreakSize: REPORT_SCENARIOS,
                        plot_cumulative_cases,
                        plot_prior_predictive,
                        plot_posterior_predictive, plot_pair,
+                       plot_start_date_pair, plot_estimate_comparison,
                        forecast_reported, forecast_table, plot_forecast
 using ADTypes: AutoMooncake
 using DataFrames: DataFrame, nrow

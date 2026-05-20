@@ -5,6 +5,7 @@ using Documenter
 using DocumenterCitations
 using DocumenterVitepress
 using Literate
+using BVDOutbreakSize
 using TikzPictures
 
 const bib = CitationBibliography(
@@ -112,8 +113,9 @@ makedocs(;
     warnonly = [:missing_docs, :linkcheck, :citations],
     plugins  = [bib],
     pages    = [
-        "Home"        => "index.md",
+        "Home"         => "index.md",
         "Analysis"     => "analysis.md",
+        "API"          => "api.md",
         "Contributing" => "contributing.md",
         "News"         => "news.md",
         "References"   => "references.md",
