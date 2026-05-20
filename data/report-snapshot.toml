@@ -1,0 +1,37 @@
+# Observation snapshot as used by the McCabe et al. Imperial College
+# London report (18 May 2026, DOI 10.25560/130007). Counts are the
+# report's input data as of its cut-off (16 May 2026; the exported-case
+# count is as of 17 May). Fitting our joint model to this snapshot
+# isolates the effect of our method from the effect of newer data: it
+# uses our priors and joint likelihood but the report's data. Update
+# this file if McCabe et al. release a revised report.
+
+as_of_date = "2026-05-16"
+
+[exported_cases]
+value  = 2
+source = "McCabe et al. report — 2 cases confirmed in Kampala among Ituri travellers (as of 17 May 2026)"
+
+[exports_deaths]
+value  = 0
+source = "McCabe et al. report gives no death among the two exported cases as of the report"
+
+[total_deaths]
+value  = 88
+source = "McCabe et al. report — 88 suspected deaths in DRC as of 16 May 2026"
+
+[reported_cases]
+value  = 336
+source = "McCabe et al. report — 336 suspected cases in DRC as of 16 May 2026"
+
+[daily_outbound_travellers]
+value  = 1871
+source = "McCabe et al. Table 3 — mean daily PoE flow, Ituri side"
+
+[daily_outbound_travellers_sd]
+value  = 200
+source = "PoE-to-PoE variation and sitrep sampling uncertainty; ~10% CV"
+
+[source_population]
+value  = 4392200
+source = "McCabe et al. Table 1 — Ituri Province population"

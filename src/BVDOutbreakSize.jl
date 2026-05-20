@@ -7,6 +7,7 @@ using DataFrames: DataFrame
 using DataFramesMeta
 using Chain: @chain
 using Random: MersenneTwister
+using Dates: Date, date2epochdays, epochdays2date
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using Turing
@@ -21,7 +22,8 @@ import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
-using CairoMakie: Figure, Axis, hist!, density!, vlines!
+using CairoMakie: Figure, Axis, hist!, density!, vlines!,
+                  lines!, scatter!
 
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
@@ -37,7 +39,7 @@ export REPORT_SCENARIOS,
        integrate_cumulative, integrate_exports_deaths,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
-       plot_pair,
+       plot_pair, plot_start_date_pair, plot_estimate_comparison,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast
 
@@ -328,19 +330,39 @@ function posterior_summary(xs)
     )
 end
 
+## Human-readable headers for the displayed summary tables. Internal
+## column keys stay machine-friendly; this maps them to nice labels at
+## the point each table is returned.
+const _PRETTY_COLS = Dict(
+    "quantity"           => "Quantity",
+    "stream"             => "Stream",
+    "scenario"           => "Scenario",
+    "central_estimate"   => "Central estimate",
+    "reported_cases"     => "Reported cases",
+    "narrowest_interval" => "Narrowest interval",
+    "lower_90" => "Lower 90%", "lower_60" => "Lower 60%",
+    "lower_30" => "Lower 30%", "upper_30" => "Upper 30%",
+    "upper_60" => "Upper 60%", "upper_90" => "Upper 90%",
+)
+
+_prettify(df::DataFrame) =
+    rename(df, [n => get(_PRETTY_COLS, n, n) for n in names(df)])
+
 """
 $(TYPEDSIGNATURES)
 
-`DataFrame` with one row per posterior parameter and columns
-`:quantity, :lo90, :lo60, :lo30, :hi30, :hi60, :hi90` giving
-equal-tailed 30%, 60% and 90% credible intervals.
+`DataFrame` with one row per posterior parameter and the columns
+`Quantity, Lower 90%, Lower 60%, Lower 30%, Upper 30%, Upper 60%,
+Upper 90%` giving the lower and upper endpoints of the equal-tailed
+30%, 60% and 90% credible intervals.
 """
 function summary_table(chn, params::AbstractVector{Symbol};
         digits::Integer = 2)
-    @chain DataFrame(
+    df = @chain DataFrame(
             quantity = String[],
-            lo90 = Float64[], lo60 = Float64[], lo30 = Float64[],
-            hi30 = Float64[], hi60 = Float64[], hi90 = Float64[],
+            lower_90 = Float64[], lower_60 = Float64[],
+            lower_30 = Float64[], upper_30 = Float64[],
+            upper_60 = Float64[], upper_90 = Float64[],
         ) begin
         let df = _
             for p in params
@@ -353,6 +375,7 @@ function summary_table(chn, params::AbstractVector{Symbol};
             df
         end
     end
+    return _prettify(df)
 end
 
 ## --- Fit diagnostics ----------------------------------------------------
@@ -428,11 +451,11 @@ function streams_table(streams::Pair{String, <:AbstractVector}...;
     rows = map(streams) do (label, draws)
         s = posterior_summary(draws)
         (stream = label,
-         lo90 = round(s.lo90; digits), lo60 = round(s.lo60; digits),
-         lo30 = round(s.lo30; digits), hi30 = round(s.hi30; digits),
-         hi60 = round(s.hi60; digits), hi90 = round(s.hi90; digits))
+         lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
+         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+         upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
     end
-    return DataFrame(rows)
+    return _prettify(DataFrame(rows))
 end
 
 """
@@ -455,9 +478,10 @@ function comparison_table(C_draws::AbstractVector;
         else
             "outside 90%"
         end
-        (scenario = label, reported_C_T = val, narrowest_CrI = crI)
+        (scenario = label, reported_cases = val,
+         narrowest_interval = crI)
     end
-    return DataFrame(rows)
+    return _prettify(DataFrame(rows))
 end
 
 """
@@ -509,12 +533,27 @@ _panel_exports!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     r, c = _panel_pos(pos)
     upper = max(20, ceil(Int, quantile(pp, 0.99)))
     ax = Axis(fig[r, c];
-        xlabel = "Replicated exports",
+        xlabel = "Replicated exported cases",
         ylabel = "$(predictive_label) predictive count",
-        title  = "Exports (Poisson)",
+        title  = "Exports (cases)",
         limits = ((0, upper), nothing),
     )
     hist!(ax, pp; bins = 0:1:upper, color = (:steelblue, 0.7))
+    vlines!(ax, [obs]; color = :red, linewidth = 2)
+    return ax
+end
+
+_panel_exports_deaths!(fig, pos, pp, obs;
+        predictive_label = "Posterior") = begin
+    r, c = _panel_pos(pos)
+    upper = max(3, ceil(Int, quantile(pp, 0.995)))
+    ax = Axis(fig[r, c];
+        xlabel = "Replicated deaths among exports",
+        ylabel = "$(predictive_label) predictive count",
+        title  = "Exports (deaths)",
+        limits = ((0, upper), nothing),
+    )
+    hist!(ax, pp; bins = 0:1:upper, color = (:rebeccapurple, 0.7))
     vlines!(ax, [obs]; color = :red, linewidth = 2)
     return ax
 end
@@ -525,7 +564,7 @@ _panel_deaths!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths",
         ylabel = "$(predictive_label) predictive count",
-        title  = "Deaths (NegBinomial)",
+        title  = "Deaths (DRC)",
         limits = ((0, upper), nothing),
     )
     hist!(ax, pp; bins = range(0, upper; length = 40),
@@ -540,7 +579,7 @@ _panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     ax = Axis(fig[r, c];
         xlabel = "Replicated reported cases",
         ylabel = "$(predictive_label) predictive count",
-        title  = "Reported cases (NegBinomial)",
+        title  = "Reported cases (DRC)",
         limits = ((0, upper), nothing),
     )
     hist!(ax, pp; bins = range(0, upper; length = 40),
@@ -556,20 +595,29 @@ $(TYPEDSIGNATURES)
 
 Posterior predictive histogram with one panel per supplied data
 stream. Pass `pp_exports`/`pp_deaths` as `nothing` to suppress
-either of the first two panels, and supply `pp_cases` to add the
-reported-cases panel. Observed values are drawn as red `vlines`.
+either of the first two panels, and supply `pp_cases` and/or
+`pp_exports_deaths` to add the reported-cases and deaths-among-exports
+panels. Observed values are drawn as red `vlines`. With four streams
+the panels are laid out as a 2×2 grid (exports cases, exports deaths,
+DRC deaths, DRC reported cases); fewer streams are placed in a single
+row.
 """
 function plot_posterior_predictive(
         pp_exports::Union{Nothing, AbstractVector},
         pp_deaths::Union{Nothing, AbstractVector},
         obs_exports::Union{Nothing, Real},
         obs_deaths::Union{Nothing, Real};
-        pp_cases::Union{Nothing, AbstractVector} = nothing,
-        obs_cases::Union{Nothing, Real}          = nothing,
-        predictive_label::AbstractString         = "Posterior")
+        pp_cases::Union{Nothing, AbstractVector}          = nothing,
+        obs_cases::Union{Nothing, Real}                   = nothing,
+        pp_exports_deaths::Union{Nothing, AbstractVector} = nothing,
+        obs_exports_deaths::Union{Nothing, Real}          = nothing,
+        predictive_label::AbstractString                  = "Posterior")
     panels = Tuple{Symbol, Any, Any}[]
     pp_exports === nothing ||
         push!(panels, (:exports, pp_exports, obs_exports))
+    pp_exports_deaths === nothing ||
+        push!(panels, (:exports_deaths, pp_exports_deaths,
+                       obs_exports_deaths))
     pp_deaths === nothing ||
         push!(panels, (:deaths,  pp_deaths,  obs_deaths))
     pp_cases === nothing ||
@@ -578,14 +626,19 @@ function plot_posterior_predictive(
     isempty(panels) && error(
         "plot_posterior_predictive needs at least one stream")
 
-    fig = Figure(; size = (450 * length(panels), 380))
+    ncols = length(panels) >= 4 ? 2 : length(panels)
+    nrows = cld(length(panels), ncols)
+    fig = Figure(; size = (450 * ncols, 380 * nrows))
     for (i, (kind, pp, obs)) in enumerate(panels)
+        pos = (cld(i, ncols), mod1(i, ncols))
         if kind === :exports
-            _panel_exports!(fig, i, pp, obs; predictive_label)
+            _panel_exports!(fig, pos, pp, obs; predictive_label)
+        elseif kind === :exports_deaths
+            _panel_exports_deaths!(fig, pos, pp, obs; predictive_label)
         elseif kind === :deaths
-            _panel_deaths!(fig, i, pp, obs; predictive_label)
+            _panel_deaths!(fig, pos, pp, obs; predictive_label)
         else
-            _panel_cases!(fig, i, pp, obs; predictive_label)
+            _panel_cases!(fig, pos, pp, obs; predictive_label)
         end
     end
     return fig
@@ -594,30 +647,32 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Two-row × three-column comparison of posterior-predictive
-distributions. Top row: replicates from the per-stream fits
-(`exports_only`, `deaths_only`, `cases_only`). Bottom row:
-replicates from the joint fit, conditioning on all three observed
+Two-row × four-column comparison of posterior-predictive
+distributions. Top row: replicates from the per-stream fits. Bottom
+row: replicates from the joint fit, conditioning on all observed
 streams. Observed values shown as red vertical lines.
 
-Each panel is a histogram of replicated counts; rows share the
-same x-axis (the stream's count) so the per-stream and joint
+Each `NamedTuple` carries `(; exports, exports_deaths, deaths,
+cases)`. Each panel is a histogram of replicated counts; rows share
+the same x-axis (the stream's count) so the per-stream and joint
 predictives are directly comparable.
 """
 function plot_posterior_predictive_grid(;
-        individual::NamedTuple,   # (; exports, deaths, cases) of pp draws
-        joint::NamedTuple,        # (; exports, deaths, cases) of pp draws
-        observed::NamedTuple,     # (; exports, deaths, cases) of obs values
+        individual::NamedTuple,
+        joint::NamedTuple,
+        observed::NamedTuple,
     )
-    fig = Figure(; size = (1200, 640))
+    fig = Figure(; size = (1600, 640))
     rows = ((:individual, individual, "per-stream fit"),
             (:joint,      joint,      "joint fit"))
     for (i, (_, pp, label)) in enumerate(rows)
         _panel_exports!(fig, (i, 1), pp.exports, observed.exports;
                         predictive_label = label)
-        _panel_deaths!(fig, (i, 2),  pp.deaths,  observed.deaths;
+        _panel_exports_deaths!(fig, (i, 2), pp.exports_deaths,
+                        observed.exports_deaths; predictive_label = label)
+        _panel_deaths!(fig, (i, 3),  pp.deaths,  observed.deaths;
                        predictive_label = label)
-        _panel_cases!(fig, (i, 3),   pp.cases,   observed.cases;
+        _panel_cases!(fig, (i, 4),   pp.cases,   observed.cases;
                       predictive_label = label)
     end
     return fig
@@ -645,13 +700,92 @@ end
 $(TYPEDSIGNATURES)
 
 PairPlots.jl corner plot over the named posterior parameters,
-thinned by `thin`.
+thinned by `thin`. Pass `prior` (another chain holding the same
+parameters) to overlay the prior as a second series with a legend,
+so the data's contribution to each marginal is visible.
 """
 function plot_pair(chn, params::AbstractVector{Symbol};
-        thin::Integer = 2)
-    cols = NamedTuple(p => _draws(chn, p) for p in params)
-    df = DataFrame(cols)
-    return PairPlots.pairplot(df[1:thin:end, :])
+        thin::Integer = 2, prior = nothing)
+    _table(c) = DataFrame(
+        NamedTuple(p => _draws(c, p) for p in params))[1:thin:end, :]
+    post = _table(chn)
+    prior === nothing && return PairPlots.pairplot(post)
+    colours = CairoMakie.Makie.wong_colors()
+    return PairPlots.pairplot(
+        PairPlots.Series(post;  label = "Posterior", color = colours[1]),
+        PairPlots.Series(_table(prior); label = "Prior",
+                         color = colours[2]),
+    )
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Horizontal point-and-interval comparison of cumulative-case estimates
+from several sources. `rows` is a vector of
+`(label, central, lower, upper)` tuples, drawn top to bottom with the
+central estimate as a point and `[lower, upper]` as a bar. Use it to
+place model posteriors next to published point estimates and their
+intervals.
+"""
+function plot_estimate_comparison(
+        rows::AbstractVector;
+        xlabel::AbstractString = "Cumulative cases C(T)",
+        xmax::Union{Nothing, Real} = nothing)
+    n       = length(rows)
+    labels  = [String(r[1]) for r in rows]
+    central = [float(r[2])  for r in rows]
+    lo      = [float(r[3])  for r in rows]
+    hi      = [float(r[4])  for r in rows]
+    top     = isnothing(xmax) ? maximum(hi) * 1.08 : xmax
+
+    fig = Figure(; size = (840, 120 + 46n))
+    ax = Axis(fig[1, 1];
+        xlabel = xlabel,
+        yticks = (collect(1:n), reverse(labels)),
+        limits = ((0, top), (0.5, n + 0.5)),
+    )
+    for i in 1:n
+        y = n - i + 1
+        lines!(ax, [lo[i], hi[i]], [y, y];
+               color = (:steelblue, 0.8), linewidth = 3)
+        scatter!(ax, [central[i]], [y];
+                 color = :firebrick, markersize = 12)
+    end
+    return fig
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+One-row, two-panel figure summarising when the outbreak began. The
+left panel is the posterior density of the outbreak start date,
+obtained by rescaling the days-since-seeding `T` to a calendar date
+(`as_of_date` minus `T`). The right panel is the joint `(τ, T)`
+posterior pair plot, which is positively correlated: slower growth
+(larger `τ`) needs a longer elapsed `T` to reach the same counts.
+"""
+function plot_start_date_pair(chn;
+        as_of_date::AbstractString, thin::Integer = 2)
+    T_draws     = _draws(chn, :T)
+    cutoff_days = date2epochdays(Date(as_of_date))
+    start_days  = cutoff_days .- T_draws
+
+    fig = Figure(; size = (1100, 460))
+    ax = Axis(fig[1, 1];
+        xlabel = "Outbreak start date",
+        ylabel = "Posterior density",
+        title  = "Implied start of sustained transmission",
+        xticklabelrotation = π / 6,
+    )
+    density!(ax, start_days; color = (:steelblue, 0.5),
+             strokecolor = :steelblue, strokewidth = 2)
+    ax.xtickformat = vals ->
+        [string(epochdays2date(round(Int, v))) for v in vals]
+
+    pair_df = DataFrame(τ = _draws(chn, :τ), T = T_draws)
+    PairPlots.pairplot(fig[1, 2], pair_df[1:thin:end, :])
+    return fig
 end
 
 ## --- Future-expected-deaths counterfactual -----------------------------
@@ -851,26 +985,28 @@ end
     forecast_table(fc::DataFrame; digits = 0)
 
 Summarise a [`forecast_reported`](@ref) result into a `DataFrame` with
-one row per stream (cases, deaths, exports) and 30/60/90% credible
-intervals for the cumulative forecast and the new-this-week count.
+one row per stream (cases, deaths, exports) and quantity (cumulative
+total by `T + 7`, or new this week), reporting the same equal-tailed
+30/60/90% credible interval endpoints (`lower_90 … upper_90`) as the
+other summary tables.
 """
 function forecast_table(fc::DataFrame; digits::Integer = 0)
+    _row(label, quantity, draws) = begin
+        s = posterior_summary(draws)
+        (stream = label, quantity = quantity,
+         lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
+         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+         upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
+    end
     rows = NamedTuple[]
     for (label, cum, new) in (
-            ("DRC reported cases", :cases_cum,  :cases_new),
-            ("DRC deaths",         :deaths_cum, :deaths_new),
+            ("DRC reported cases", :cases_cum,   :cases_new),
+            ("DRC deaths",         :deaths_cum,  :deaths_new),
             ("Uganda exports",     :exports_cum, :exports_new))
-        sc = posterior_summary(fc[!, cum])
-        sn = posterior_summary(fc[!, new])
-        push!(rows, (
-            stream         = label,
-            cum_lo90 = round(sc.lo90; digits), cum_med = round(quantile(fc[!, cum], 0.5); digits),
-            cum_hi90 = round(sc.hi90; digits),
-            new_lo90 = round(sn.lo90; digits), new_med = round(quantile(fc[!, new], 0.5); digits),
-            new_hi90 = round(sn.hi90; digits),
-        ))
+        push!(rows, _row(label, "cumulative by T+7", fc[!, cum]))
+        push!(rows, _row(label, "new this week",     fc[!, new]))
     end
-    return DataFrame(rows)
+    return _prettify(DataFrame(rows))
 end
 
 """
