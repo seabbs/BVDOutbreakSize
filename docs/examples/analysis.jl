@@ -1170,6 +1170,24 @@ posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
 #md # </details>
 #md # ```
 
+# Fit-quality diagnostics for the joint and per-stream fits: the worst
+# R-hat, the smallest bulk effective sample size, and the number of
+# divergent transitions. Open the panel to inspect them.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "joint" => chn_joint, #hide
+    "exports-only" => chn_exports, #hide
+    "deaths-only" => chn_deaths, #hide
+    "cases-only" => chn_cases) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ## Joint model and results
 #
 # The headline result is the joint posterior over `C(T)`, combining
@@ -1409,6 +1427,20 @@ posterior_C_community = vec(Array(chn_joint_community[:cumulative_cases]));
 #md # </details>
 #md # ```
 
+# Fit diagnostics for the community-only delay refit. Open the panel to
+# inspect them.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "joint (community-only delay)" => chn_joint_community) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # Baseline versus community-only delay, side by side:
 
 #md # ```@raw html
@@ -1544,6 +1576,20 @@ imperial_fixed = Turing.fix(
 )
 chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# Fit diagnostics for the Imperial-exact sense-check fit. Open the
+# panel to inspect them.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "Imperial-exact (Method 2)" => chn_imperial) #hide
 
 #md # ```@raw html
 #md # </details>
