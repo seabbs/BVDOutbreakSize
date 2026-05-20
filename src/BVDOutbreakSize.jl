@@ -137,11 +137,20 @@ function load_observations(
     as_of = String(raw["as_of_date"])
     _gap(d) = date2epochdays(Date(as_of)) - date2epochdays(Date(String(d)))
     ## Days between a recorded event date and the cut-off, used as the
-    ## elapsed-time offset for the timing survival terms. A scalar date
-    ## gives a `missing` offset when absent (so its term is a no-op); a
-    ## list of dates gives a (possibly empty) vector of offsets.
-    _delta(k)  = haskey(raw, k) ? _gap(_val(k)) : missing
-    _deltas(k) = haskey(raw, k) ? Int[_gap(d) for d in _val(k)] : Int[]
+    ## elapsed-time offset for the timing terms. A scalar date gives a
+    ## `missing` offset when absent (so its term is a no-op).
+    _delta(k) = haskey(raw, k) ? _gap(_val(k)) : missing
+    ## Export deaths as a daily series from the earliest dated death to
+    ## the cut-off: entry `i` (i = 1 earliest) counts deaths whose offset
+    ## is `n - i + 1`, where `n` is the earliest death's offset. Empty
+    ## when no dates are present. Drives the binned-Poisson likelihood.
+    export_deaths_daily = if haskey(raw, "export_death_dates")
+        offs = Int[_gap(d) for d in _val("export_death_dates")]
+        isempty(offs) ? Int[] :
+            Int[count(==(δ), offs) for δ in maximum(offs):-1:1]
+    else
+        Int[]
+    end
     return (;
         as_of_date                   = as_of,
         exported_cases               = Int(_val("exported_cases")),
@@ -153,7 +162,7 @@ function load_observations(
         daily_outbound_travellers_sd = float(
             _val("daily_outbound_travellers_sd")),
         source_population            = Int(_val("source_population")),
-        export_death_deltas          = _deltas("export_death_dates"),
+        export_deaths_daily          = export_deaths_daily,
         first_export_detection_delta = _delta("first_export_detection_date"),
         sources = (;
             exported_cases               = _src("exported_cases"),

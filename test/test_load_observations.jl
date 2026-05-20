@@ -32,9 +32,9 @@
     @test !isempty(obs.sources.exported_cases)
 end
 
-## The export-death offsets are computed at load time as the number of
-## days between each recorded death date and the cut-off. Exercise the
-## calculation on synthetic dates rather than asserting the bundled
+## Export deaths are loaded as a daily series from the earliest dated
+## death to the cut-off (entry i = day at offset n-i+1). Exercise the
+## construction on synthetic dates rather than asserting the bundled
 ## data's value, and check the date-absent path returns an empty vector.
 function _write_obs(io; as_of, death_dates = nothing)
     write(io, "as_of_date = \"$as_of\"\n")
@@ -50,20 +50,27 @@ function _write_obs(io; as_of, death_dates = nothing)
     end
 end
 
-@testset "export_death_deltas are days from each death date to cut-off" begin
+@testset "export_deaths_daily is a daily series to the cut-off" begin
     mktempdir() do dir
         path = joinpath(dir, "obs.toml")
         open(io -> _write_obs(io; as_of = "2026-05-18",
                               death_dates = ["2026-05-04", "2026-05-14"]),
              path, "w")
-        @test load_observations(path).export_death_deltas == [14, 4]
+        daily = load_observations(path).export_deaths_daily
+        ## Offsets 14 (2026-05-04) and 4 (2026-05-14); earliest = 14, so
+        ## the series spans offsets 14..1 (length 14), with one death at
+        ## index 1 (offset 14) and one at index 11 (offset 4).
+        @test length(daily) == 14
+        @test sum(daily) == 2
+        @test daily[1] == 1
+        @test daily[11] == 1
     end
 end
 
-@testset "export_death_deltas is empty when no dates are present" begin
+@testset "export_deaths_daily is empty when no dates are present" begin
     mktempdir() do dir
         path = joinpath(dir, "obs.toml")
         open(io -> _write_obs(io; as_of = "2026-05-18"), path, "w")
-        @test load_observations(path).export_death_deltas == Int[]
+        @test load_observations(path).export_deaths_daily == Int[]
     end
 end

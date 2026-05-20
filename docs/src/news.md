@@ -8,10 +8,12 @@ each push to `main` also republishes the rendered analysis and the
 
 ## Unreleased
 
-- First-export-death and first-export-detection timing terms: one-sided
-  survival likelihoods on the reliable Uganda admission and death dates
-  that bound the elapsed time `T`. Off by default; enabled by supplying
-  the dates in `data/observations.toml`.
+- Export deaths modelled as a time-resolved binned Poisson process: a
+  continuous survival weight for the no-death stretch before the first
+  dated death, then a per-day Poisson from that day to the cut-off,
+  bounding the elapsed time `T`. A first-export-detection survival term
+  uses the Uganda admission date likewise. Dates supplied in
+  `data/observations.toml`.
 
 ## v1.0.0
 

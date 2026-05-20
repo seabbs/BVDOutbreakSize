@@ -19,7 +19,7 @@ source = "WHO DON 2026-DON602 — first Uganda export hospital-admitted 11 May 2
 
 [export_death_dates]
 value  = ["2026-05-14"]
-source = "WHO DON 2026-DON602 — the fatal Uganda export was hospital-admitted 11 May 2026 and died 14 May 2026 (hospital-recorded death date). A list so further dated export deaths can be added; the earliest gives the one-sided timing bound on T."
+source = "WHO DON 2026-DON602 — the fatal Uganda export was hospital-admitted 11 May 2026 and died 14 May 2026 (hospital-recorded death date). A list of dated export deaths; loaded as a daily series and fitted with a binned-Poisson likelihood that bounds T."
 
 [total_deaths]
 value  = 131

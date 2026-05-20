@@ -191,7 +191,7 @@
 #md # ```
 
 using Turing
-using Turing: to_submodel
+using Turing: to_submodel, @varname
 using Distributions
 using StatsFuns: logit, logistic
 using DataFrames: DataFrame
@@ -905,13 +905,34 @@ end
 # through $f$ alone (the reverse-mode AD backend does not support the
 # gamma CDF shape-parameter derivative). The detection window $w$ and
 # daily traveller volume are shared with the exports likelihood so the
-# two Uganda-side observations use the same person-time, and a Poisson
-# likelihood ties the observed count to equation (19):
+# two Uganda-side observations use the same person-time.
+#
+# Uganda's export deaths are point-of-entry / hospital-detected, so
+# their dates are recorded directly and carry information beyond the
+# total count: a death seen early bounds how old the outbreak can be. We
+# model the detected export deaths as an inhomogeneous Poisson process
+# with cumulative intensity $\mathbb{E}[D_{\text{uganda}}(t)]$
+# (equation (19), at any elapsed time $t$) and use its time-resolved
+# likelihood, not just the total. Splitting $[0, T]$ at the earliest
+# dated death (offset $\Delta_1$ before the cut-off, elapsed time
+# $T-\Delta_1$): before it no export death was seen, contributing one
+# continuous survival term over $[0, T-\Delta_1]$; from that day to the
+# cut-off each day $d$ carries a Poisson count of the export deaths that
+# day, with bin mean $\mu_d$,
 #
 # ```math
-# Y_{\text{exports-deaths}} \sim
-#     \mathrm{Poisson}(\mathbb{E}[D_{\text{uganda}}]). \tag{20}
+# \log L = \sum_d y_d \log \mu_d - \mathbb{E}[D_{\text{uganda}}(T)],
+# \quad
+# \mu_d = \mathbb{E}[D_{\text{uganda}}(t_d)]
+#         - \mathbb{E}[D_{\text{uganda}}(t_{d-1})]. \tag{20}
 # ```
+#
+# The continuous term collapses the long pre-death zero stretch into a
+# single weight, so there is no per-day vector of zeros, while the
+# recent window is resolved per day. The number of daily bins is fixed
+# by the earliest death's date, so the likelihood is well defined even
+# though $T$ is latent; with one death the series is a single count, and
+# it takes more dated deaths as they are reported.
 #
 # !!! note "Selection-bias caveat"
 #     This assumes Uganda's surveillance retains detected exports
@@ -925,7 +946,7 @@ end
 #md # ```
 
 @model function exports_deaths_model(
-        exports_deaths::Union{Missing, Integer},
+        export_deaths_daily::AbstractVector,
         growth_state, CFR::Real, delay_dist, p_uganda::Real;
         window::Real,
         daily_travellers::Real,
@@ -933,88 +954,30 @@ end
 
     cumulative = growth_state.cumulative
     T          = growth_state.T
+    q          = daily_travellers / source_population
+    n          = length(export_deaths_daily)   # days from earliest death to cut-off
 
-    q = daily_travellers / source_population
-    expected_exports_deaths_T := expected_exports_deaths(
-        cumulative, delay_dist, CFR, p_uganda, q, T, window)
+    Λ(t) = expected_exports_deaths(
+        cumulative, delay_dist, CFR, p_uganda, q, t, window)
 
-    exports_deaths ~ Poisson(expected_exports_deaths_T)
+    ## Continuous zero-weighting: all export-death mass before the
+    ## earliest dated death (elapsed [0, T-n]), observed as no deaths.
+    ## Collapses the long pre-death zero stretch into one term.
+    pre = T - n > zero(T) ? Λ(T - n) : zero(T)
+    Turing.@addlogprob! -pre
 
-    return (; expected_exports_deaths = expected_exports_deaths_T)
-end
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-# ##### First export death — timing survival term
-#
-# Uganda's single death among its detected exports is point-of-entry /
-# hospital-detected, so the *date* it occurred is recorded directly.
-# That date carries information beyond the count. Had the outbreak
-# begun earlier (larger $T$), more at-risk export person-time would have
-# accrued before the death date, so a death would have been expected sooner.
-# Observing none before the recorded date therefore bounds $T$ from above.
-#
-# We treat detected export deaths as an inhomogeneous Poisson process
-# with cumulative intensity $\mathbb{E}[D_{\text{uganda}}(t)]$
-# (equation (19), evaluated at any elapsed time $t$). The earliest dated
-# death occurred at elapsed time $t_1 = T - \Delta$, where
-# $\Delta = \text{cut-off} - \text{earliest export-death date}$ is a
-# known offset. The probability that no export death is recorded before
-# $t_1$ is the survival of that process,
-#
-# ```math
-# \Pr(\text{no export death before } t_1)
-#     = \exp\!\bigl(-\mathbb{E}[D_{\text{uganda}}(t_1)]\bigr), \tag{21}
-# ```
-#
-# which we add to the log density directly. We use the one-sided
-# survival term rather than the full first-event density
-# $\lambda(t_1)\,e^{-\Lambda(t_1)}$. The survival form only penalises
-# trajectories that would have produced a death *too early*, so it
-# tolerates the death's exact date being late or noisy and does not
-# require an event at $t_1$. With the Uganda events only days before the
-# cut-off ($\Delta$ small), the lever on $T$ is small.
-#
-# The submodel takes a *list* of export-death dates so further dated
-# deaths can be added as they are reported. The earliest gives the
-# binding one-sided bound used here; the full time-resolved point
-# process $\sum_i \log\lambda(t_i) - \Lambda(T)$ over all dated deaths is
-# the planned extension. An empty list makes the submodel a no-op.
-
-#md # ```@raw html
-#md # <details><summary>Submodel: exports_death_timing_model</summary>
-#md # ```
-
-@model function exports_death_timing_model(
-        growth_state, CFR::Real, delay_dist, p_uganda::Real;
-        deltas::AbstractVector = Int[],
-        window::Real,
-        daily_travellers::Real,
-        source_population::Real = ITURI_POPULATION)
-
-    if !isempty(deltas)
-        cumulative = growth_state.cumulative
-        T          = growth_state.T
-        ## Earliest dated death (largest offset) gives the binding
-        ## one-sided survival bound on T.
-        t1 = T - maximum(deltas)
-        q  = daily_travellers / source_population
-        survived_intensity := t1 <= zero(T) ? zero(T) :
-            expected_exports_deaths(
-                cumulative, delay_dist, CFR, p_uganda, q, t1, window)
-        ## Survival of the export-death Poisson process to t1:
-        ## log P(no death before t1) = -E[D_uganda(t1)].
-        Turing.@addlogprob! -survived_intensity
+    ## Per-day Poisson from the earliest death day to the cut-off. Day i
+    ## (i = 1 earliest) is the elapsed bin [T-n+i-1, T-n+i]; its mean is
+    ## the increment in the cumulative export-death intensity.
+    for i in 1:n
+        λlo = Λ(T - n + (i - 1))
+        λhi = Λ(T - n + i)
+        μ_day = max(λhi - λlo, eps(typeof(λhi)))
+        export_deaths_daily[i] ~ Poisson(μ_day)
     end
 
     return (;)
 end
-
-#md # ```@raw html
-#md # </details>
-#md # ```
 
 # ##### First export detection — timing survival term
 #
@@ -1171,7 +1134,7 @@ end
 #md # ```
 
 @model function exports_deaths_only_model(
-        exports_deaths::Union{Missing, Integer};
+        export_deaths_daily::AbstractVector;
         growth        = exponential_growth_model(),
         delay         = delay_model(),
         cfr           = cfr_model(),
@@ -1191,7 +1154,7 @@ end
     daily_travellers = travel_state.daily_travellers
 
     exports_deaths_state ~ to_submodel(
-        exports_deaths_model(exports_deaths, growth_state,
+        exports_deaths_model(export_deaths_daily, growth_state,
             cfr_state.CFR, delay_state.dist, asc_state.p_uganda;
             window           = window_state.w,
             daily_travellers = daily_travellers,
@@ -1221,18 +1184,16 @@ end
         exported_cases::Union{Missing, Integer},
         total_deaths::Union{Missing, Integer},
         reported_cases::Union{Missing, Integer} = missing,
-        exports_deaths::Union{Missing, Integer} = missing;
+        export_deaths_daily::AbstractVector = Int[];
         growth        = exponential_growth_model(),
         exports       = exports_model,
         deaths        = deaths_model,
         cases         = cases_model,
         exports_deaths_model = exports_deaths_model,
-        exports_death_timing = exports_death_timing_model,
         exports_detection_timing = exports_detection_timing_model,
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
         source_population::Real = ITURI_POPULATION,
-        export_death_deltas::AbstractVector = Int[],
         first_export_detection_delta::Union{Missing, Real} = missing)
 
     growth_state     ~ to_submodel(growth, false)
@@ -1249,16 +1210,8 @@ end
     cases_state ~ to_submodel(
         cases(reported_cases, growth_state, k, p_drc), false)
     exports_deaths_state ~ to_submodel(
-        exports_deaths_model(exports_deaths, growth_state,
+        exports_deaths_model(export_deaths_daily, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;
-            window           = exports_state.w,
-            daily_travellers = exports_state.daily_travellers,
-            source_population = source_population),
-        false)
-    timing_state ~ to_submodel(
-        exports_death_timing(growth_state, deaths_state.CFR,
-            deaths_state.delay_dist, p_uganda;
-            deltas           = export_death_deltas,
             window           = exports_state.w,
             daily_travellers = exports_state.daily_travellers,
             source_population = source_population),
@@ -1335,7 +1288,7 @@ end
 #md # <details><summary>Sample the joint prior</summary>
 #md # ```
 
-prior_chn = sample(bvd_joint(missing, missing, missing, missing),
+prior_chn = sample(bvd_joint(missing, missing, missing, Int[]),
                    Prior(), 2_000; progress = false);
 
 prior_C_table = summary_table(prior_chn, [:cumulative_cases]; digits = 0);
@@ -1379,13 +1332,14 @@ prior_pair_fig #hide
 
 chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
-              obs.reported_cases, obs.exports_deaths));
+              obs.reported_cases, obs.export_deaths_daily;
+              first_export_detection_delta = obs.first_export_detection_delta));
 
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
 chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths));
 chn_cases   = nuts_sample(cases_only_model(obs.reported_cases));
 chn_exports_deaths = nuts_sample(
-    exports_deaths_only_model(obs.exports_deaths));
+    exports_deaths_only_model(obs.export_deaths_daily));
 
 posterior_C_joint   = vec(Array(chn_joint[:cumulative_cases]));
 posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]));
@@ -1692,11 +1646,17 @@ posterior_pair_fig #hide
 #md # ```
 
 pp_joint   = predict(
-    bvd_joint(missing, missing, missing, missing), chn_joint);
+    bvd_joint(missing, missing, missing,
+              fill(missing, length(obs.export_deaths_daily));
+              first_export_detection_delta = obs.first_export_detection_delta),
+    chn_joint);
 pp_exports        = vec(Array(pp_joint[:exported_cases]));
 pp_deaths         = vec(Array(pp_joint[:total_deaths]));
 pp_cases          = vec(Array(pp_joint[:reported_cases]));
-pp_exports_deaths = vec(Array(pp_joint[:exports_deaths]));
+## Export deaths are a per-day series held as one vector-valued variable
+## in the FlexiChains predictive; sum each draw's daily counts for the
+## total-count posterior predictive.
+pp_exports_deaths = vec(sum.(pp_joint[@varname(export_deaths_daily)]));
 
 joint_ppc_fig = plot_posterior_predictive(
     pp_exports, pp_deaths,
@@ -1805,7 +1765,8 @@ community_delay = delay_model(;
 
 chn_joint_community = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
-              obs.reported_cases, obs.exports_deaths;
+              obs.reported_cases, obs.export_deaths_daily;
+              first_export_detection_delta = obs.first_export_detection_delta,
               deaths = (total_deaths, growth_state, k) ->
                   deaths_model(total_deaths, growth_state, k;
                                delay = community_delay)));
@@ -1902,9 +1863,9 @@ pp_deaths_only  = vec(Array(predict(
     deaths_only_model(missing),  chn_deaths )[:total_deaths]));
 pp_cases_only   = vec(Array(predict(
     cases_only_model(missing),   chn_cases  )[:reported_cases]));
-pp_exports_deaths_only = vec(Array(predict(
-    exports_deaths_only_model(missing),
-    chn_exports_deaths)[:exports_deaths]));
+pp_exports_deaths_only = vec(sum.(predict(
+    exports_deaths_only_model(fill(missing, length(obs.export_deaths_daily))),
+    chn_exports_deaths)[@varname(export_deaths_daily)]));
 
 ppc_grid_fig = plot_posterior_predictive_grid(;
     individual = (; exports = pp_exports_only,
@@ -1961,7 +1922,9 @@ obs_report = load_observations(
 
 chn_joint_report = nuts_sample(
     bvd_joint(obs_report.exported_cases, obs_report.total_deaths,
-              obs_report.reported_cases, obs_report.exports_deaths));
+              obs_report.reported_cases, obs_report.export_deaths_daily;
+              first_export_detection_delta =
+                  obs_report.first_export_detection_delta));
 posterior_C_joint_report =
     vec(Array(chn_joint_report[:cumulative_cases]));
 
