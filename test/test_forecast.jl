@@ -61,9 +61,10 @@ end
     ## Three streams × two quantities (cumulative, new this week).
     @test nrow(tbl) == 6
     @test names(tbl) ==
-          ["stream", "quantity", "lower_90", "lower_60", "lower_30",
-           "upper_30", "upper_60", "upper_90"]
-    @test Set(tbl.quantity) == Set(["cumulative by T+7", "new this week"])
+          ["Stream", "Quantity", "Lower 90%", "Lower 60%", "Lower 30%",
+           "Upper 30%", "Upper 60%", "Upper 90%"]
+    @test Set(tbl[!, "Quantity"]) ==
+          Set(["cumulative by T+7", "new this week"])
 
     fig = plot_forecast(fc)
     @test fig !== nothing

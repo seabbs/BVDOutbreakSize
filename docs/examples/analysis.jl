@@ -1191,8 +1191,8 @@ prior_pair_fig #hide
 # NUTS with Mooncake reverse-mode AD, four chains, 1000 post-warmup
 # draws each, `target_accept = 0.9`. Chains initialise from the prior
 # to keep the sampler away from the boundary of $r$ and $m$. We fit
-# the joint model and the three single-stream models so the four
-# posteriors over $C(T)$ can be compared.
+# the joint model and the four single-stream models so the per-stream
+# posteriors over $C(T)$ can be compared with the joint.
 
 #md # ```@raw html
 #md # <details><summary>Run the joint and per-stream NUTS fits</summary>
@@ -1205,11 +1205,15 @@ chn_joint = nuts_sample(
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
 chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths));
 chn_cases   = nuts_sample(cases_only_model(obs.reported_cases));
+chn_exports_deaths = nuts_sample(
+    exports_deaths_only_model(obs.exports_deaths));
 
 posterior_C_joint   = vec(Array(chn_joint[:cumulative_cases]));
 posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]));
 posterior_C_deaths  = vec(Array(chn_deaths[:cumulative_cases]));
 posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
+posterior_C_exports_deaths =
+    vec(Array(chn_exports_deaths[:cumulative_cases]));
 
 #md # ```@raw html
 #md # </details>
@@ -1549,18 +1553,19 @@ delay_sensitivity_fig #hide
 # ### How the data streams compare
 #
 # Each data stream constrains the latent outbreak size differently.
-# The table below puts the four posteriors over $C(T)$ side by side —
-# the three single-stream fits and the joint — to show what each stream
-# buys on its own and what the joint combination adds.
+# The table below puts the posteriors over $C(T)$ side by side — the
+# four single-stream fits and the joint — to show what each stream buys
+# on its own and what the joint combination adds.
 
 #md # ```@raw html
 #md # <details><summary>Per-stream C_T table</summary>
 #md # ```
 
 streams_C_table = streams_table(
-    "exports-only" => posterior_C_exports,
-    "deaths-only"  => posterior_C_deaths,
-    "cases-only"   => posterior_C_cases,
+    "exports (cases)" => posterior_C_exports,
+    "exports (deaths)" => posterior_C_exports_deaths,
+    "deaths (DRC)"  => posterior_C_deaths,
+    "cases (DRC)"   => posterior_C_cases,
     "joint"        => posterior_C_joint);
 
 #md # ```@raw html
@@ -1569,7 +1574,7 @@ streams_C_table = streams_table(
 
 streams_C_table #hide
 
-# The 2×3 grid below has replicates from the per-stream fits on the
+# The 2×4 grid below has replicates from the per-stream fits on the
 # top row and the joint fit on the bottom row, comparable column-wise
 # so it is easy to see what each per-stream fit constrains and how the
 # joint combination shifts the predictives.
@@ -1584,15 +1589,21 @@ pp_deaths_only  = vec(Array(predict(
     deaths_only_model(missing),  chn_deaths )[:total_deaths]));
 pp_cases_only   = vec(Array(predict(
     cases_only_model(missing),   chn_cases  )[:reported_cases]));
+pp_exports_deaths_only = vec(Array(predict(
+    exports_deaths_only_model(missing),
+    chn_exports_deaths)[:exports_deaths]));
 
 ppc_grid_fig = plot_posterior_predictive_grid(;
     individual = (; exports = pp_exports_only,
+                    exports_deaths = pp_exports_deaths_only,
                     deaths  = pp_deaths_only,
                     cases   = pp_cases_only),
     joint      = (; exports = pp_exports,
+                    exports_deaths = pp_exports_deaths,
                     deaths  = pp_deaths,
                     cases   = pp_cases),
     observed   = (; exports = obs.exported_cases,
+                    exports_deaths = obs.exports_deaths,
                     deaths  = obs.total_deaths,
                     cases   = obs.reported_cases),
 );
@@ -1610,9 +1621,10 @@ ppc_grid_fig #hide
 #md # ```
 
 cumulative_density_fig = plot_cumulative_cases(
-    "exports-only" => posterior_C_exports,
-    "deaths-only"  => posterior_C_deaths,
-    "cases-only"   => posterior_C_cases,
+    "exports (cases)" => posterior_C_exports,
+    "exports (deaths)" => posterior_C_exports_deaths,
+    "deaths (DRC)"  => posterior_C_deaths,
+    "cases (DRC)"   => posterior_C_cases,
     "joint"        => posterior_C_joint;
     scenarios = []);
 
@@ -1640,12 +1652,17 @@ cumulative_density_fig #hide
 # by fixing the Imperial-exact composer to Imperial's central
 # assumptions. We run it here so its $C(T)$ estimate can join the
 # comparison table.
+# Method 2 reports Poisson intervals, i.e. no overdispersion (k → ∞).
+# We approximate that by fixing inv_sqrt_k to a small positive value
+# (k ≈ 1e6, indistinguishable from Poisson for these counts). Fixing it
+# to exactly 0 gives k = 1/eps ≈ 4.5e15, where the NegBinomial
+# saturates and reverse-mode AD returns NaN gradients.
 imperial_fixed = Turing.fix(
     imperial_only_model(missing, 88),       # exports missing → pure Method 2
     (τ = 14.0, CFR = 0.30, α = 4.42, θ = 1/0.388,
-     inv_sqrt_k = 0.0),
+     inv_sqrt_k = 1e-3),
 )
-chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2);
+chn_imperial = nuts_sample(imperial_fixed);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 
 #md # ```@raw html
@@ -1660,19 +1677,19 @@ joint_C_credibles    = posterior_summary(posterior_C_joint)
 imperial_C_credibles = posterior_summary(posterior_C_imperial)
 
 main_comparison = DataFrame(
-    source = [
-        "Imperial Method 1 (Ituri, w=15 d)",
-        "Imperial Method 2 (τ=14 d, CFR=30%)",
-        "Our model | Imperial main assumptions",
+    "Source" => [
+        "McCabe et al. Method 1 (Ituri, w=15 d)",
+        "McCabe et al. Method 2 (τ=14 d, CFR=30%)",
+        "Our model | McCabe et al. main assumptions",
         "Our joint posterior",
     ],
-    central_estimate = [313.0, 501.0,
+    "Central estimate" => [313.0, 501.0,
                    round(quantile(posterior_C_imperial, 0.5); digits = 0),
                    round(quantile(posterior_C_joint,    0.5); digits = 0)],
-    lower_90 = [39.0, 402.0,
+    "Lower 90%" => [39.0, 402.0,
                  round(imperial_C_credibles.lo90; digits = 0),
                  round(joint_C_credibles.lo90;    digits = 0)],
-    upper_90 = [870.0, 612.0,
+    "Upper 90%" => [870.0, 612.0,
                  round(imperial_C_credibles.hi90; digits = 0),
                  round(joint_C_credibles.hi90;    digits = 0)],
 );

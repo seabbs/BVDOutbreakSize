@@ -42,6 +42,19 @@ end
     @test fig isa CairoMakie.Makie.Figure
 end
 
+@testset "plot_posterior_predictive_grid lays out four columns" begin
+    rng = MersenneTwister(17)
+    streams = (; exports        = rand(rng, 0:10, 300),
+                 exports_deaths = rand(rng, 0:3, 300),
+                 deaths         = rand(rng, 0:60, 300),
+                 cases          = rand(rng, 0:30, 300))
+    observed = (; exports = 2, exports_deaths = 1,
+                  deaths = 40, cases = 20)
+    fig = BVDOutbreakSize.plot_posterior_predictive_grid(;
+        individual = streams, joint = streams, observed = observed)
+    @test fig isa CairoMakie.Makie.Figure
+end
+
 @testset "plot_pair returns a renderable object" begin
     chn = sample(_plot_model(), Prior(), 200;
                  chain_type = MCMCChains.Chains, progress = false)

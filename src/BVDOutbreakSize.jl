@@ -326,17 +326,35 @@ function posterior_summary(xs)
     )
 end
 
+## Human-readable headers for the displayed summary tables. Internal
+## column keys stay machine-friendly; this maps them to nice labels at
+## the point each table is returned.
+const _PRETTY_COLS = Dict(
+    "quantity"           => "Quantity",
+    "stream"             => "Stream",
+    "scenario"           => "Scenario",
+    "central_estimate"   => "Central estimate",
+    "reported_cases"     => "Reported cases",
+    "narrowest_interval" => "Narrowest interval",
+    "lower_90" => "Lower 90%", "lower_60" => "Lower 60%",
+    "lower_30" => "Lower 30%", "upper_30" => "Upper 30%",
+    "upper_60" => "Upper 60%", "upper_90" => "Upper 90%",
+)
+
+_prettify(df::DataFrame) =
+    rename(df, [n => get(_PRETTY_COLS, n, n) for n in names(df)])
+
 """
 $(TYPEDSIGNATURES)
 
-`DataFrame` with one row per posterior parameter and columns
-`:quantity, :lower_90, :lower_60, :lower_30, :upper_30, :upper_60,
-:upper_90` giving the lower and upper endpoints of the equal-tailed
+`DataFrame` with one row per posterior parameter and the columns
+`Quantity, Lower 90%, Lower 60%, Lower 30%, Upper 30%, Upper 60%,
+Upper 90%` giving the lower and upper endpoints of the equal-tailed
 30%, 60% and 90% credible intervals.
 """
 function summary_table(chn, params::AbstractVector{Symbol};
         digits::Integer = 2)
-    @chain DataFrame(
+    df = @chain DataFrame(
             quantity = String[],
             lower_90 = Float64[], lower_60 = Float64[],
             lower_30 = Float64[], upper_30 = Float64[],
@@ -353,6 +371,7 @@ function summary_table(chn, params::AbstractVector{Symbol};
             df
         end
     end
+    return _prettify(df)
 end
 
 """
@@ -370,7 +389,7 @@ function streams_table(streams::Pair{String, <:AbstractVector}...;
          lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
          upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
     end
-    return DataFrame(rows)
+    return _prettify(DataFrame(rows))
 end
 
 """
@@ -396,7 +415,7 @@ function comparison_table(C_draws::AbstractVector;
         (scenario = label, reported_cases = val,
          narrowest_interval = crI)
     end
-    return DataFrame(rows)
+    return _prettify(DataFrame(rows))
 end
 
 """
@@ -479,7 +498,7 @@ _panel_deaths!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths",
         ylabel = "$(predictive_label) predictive count",
-        title  = "Deaths in the DRC",
+        title  = "Deaths (DRC)",
         limits = ((0, upper), nothing),
     )
     hist!(ax, pp; bins = range(0, upper; length = 40),
@@ -494,7 +513,7 @@ _panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     ax = Axis(fig[r, c];
         xlabel = "Replicated reported cases",
         ylabel = "$(predictive_label) predictive count",
-        title  = "Reported cases in the DRC",
+        title  = "Reported cases (DRC)",
         limits = ((0, upper), nothing),
     )
     hist!(ax, pp; bins = range(0, upper; length = 40),
@@ -562,30 +581,32 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Two-row × three-column comparison of posterior-predictive
-distributions. Top row: replicates from the per-stream fits
-(`exports_only`, `deaths_only`, `cases_only`). Bottom row:
-replicates from the joint fit, conditioning on all three observed
+Two-row × four-column comparison of posterior-predictive
+distributions. Top row: replicates from the per-stream fits. Bottom
+row: replicates from the joint fit, conditioning on all observed
 streams. Observed values shown as red vertical lines.
 
-Each panel is a histogram of replicated counts; rows share the
-same x-axis (the stream's count) so the per-stream and joint
+Each `NamedTuple` carries `(; exports, exports_deaths, deaths,
+cases)`. Each panel is a histogram of replicated counts; rows share
+the same x-axis (the stream's count) so the per-stream and joint
 predictives are directly comparable.
 """
 function plot_posterior_predictive_grid(;
-        individual::NamedTuple,   # (; exports, deaths, cases) of pp draws
-        joint::NamedTuple,        # (; exports, deaths, cases) of pp draws
-        observed::NamedTuple,     # (; exports, deaths, cases) of obs values
+        individual::NamedTuple,
+        joint::NamedTuple,
+        observed::NamedTuple,
     )
-    fig = Figure(; size = (1200, 640))
+    fig = Figure(; size = (1600, 640))
     rows = ((:individual, individual, "per-stream fit"),
             (:joint,      joint,      "joint fit"))
     for (i, (_, pp, label)) in enumerate(rows)
         _panel_exports!(fig, (i, 1), pp.exports, observed.exports;
                         predictive_label = label)
-        _panel_deaths!(fig, (i, 2),  pp.deaths,  observed.deaths;
+        _panel_exports_deaths!(fig, (i, 2), pp.exports_deaths,
+                        observed.exports_deaths; predictive_label = label)
+        _panel_deaths!(fig, (i, 3),  pp.deaths,  observed.deaths;
                        predictive_label = label)
-        _panel_cases!(fig, (i, 3),   pp.cases,   observed.cases;
+        _panel_cases!(fig, (i, 4),   pp.cases,   observed.cases;
                       predictive_label = label)
     end
     return fig
@@ -882,7 +903,7 @@ function forecast_table(fc::DataFrame; digits::Integer = 0)
         push!(rows, _row(label, "cumulative by T+7", fc[!, cum]))
         push!(rows, _row(label, "new this week",     fc[!, new]))
     end
-    return DataFrame(rows)
+    return _prettify(DataFrame(rows))
 end
 
 """
