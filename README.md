@@ -13,7 +13,7 @@ the likely current size of the outbreak is useful for the response,
 but most
 cases are not yet reported and have to be inferred from the data
 streams that are available. The Imperial College London report
-(McCabe et al., [18 May 2026](https://doi.org/10.25560/130007))
+(McCabe et al., [18 May 2026](https://www.imperial.ac.uk/mrc-global-infectious-disease-analysis/research-themes/preparedness-and-response-to-emerging-threats/report-ebola-18-05-2026/))
 estimates the size with two analyses, geographic spread from the cases
 exported to Uganda and back-calculation from suspected deaths in DRC.
 Building on that work, we re-analyse the same problem as a single joint
@@ -125,7 +125,7 @@ this repository depends on:
   Ferguson, N., le Polain de Waroux, O., Cori, A. (2026).
   *Estimation of the size of the outbreak of Ebola disease caused
   by Bundibugyo virus in DRC.* Imperial College London, 18 May 2026.
-  DOI: [10.25560/130007](https://doi.org/10.25560/130007).
+  [Report page](https://www.imperial.ac.uk/mrc-global-infectious-disease-analysis/research-themes/preparedness-and-response-to-emerging-threats/report-ebola-18-05-2026/).
 - **Onset-to-death delay reanalysis** that this work uses for
   delay priors — Funk, S. (2026). *bdbv-linelist-analysis:
   Bayesian reanalysis of the 2012 Isiro Bundibugyo line list.*

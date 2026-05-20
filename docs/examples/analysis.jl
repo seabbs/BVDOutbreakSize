@@ -170,6 +170,13 @@
 #   individual-level overlap, so it can double-count evidence and
 #   understate uncertainty. The effect is small here because the
 #   Uganda counts are small.
+# - *Data conflict not explored in detail.* We combine four data
+#   streams jointly but have not systematically checked whether they
+#   conflict — whether, say, the exports and the deaths streams imply
+#   different outbreak sizes. Characterising data-source properties and
+#   conflict is part of the modelling workflow we otherwise follow
+#   [abbott_workflow](@cite); a fuller treatment is left for future
+#   work.
 #
 #md # ```@raw html
 #md # <details><summary>Load packages and seed the RNG</summary>
@@ -187,6 +194,10 @@ using Dates: Date, Day
 using BVDOutbreakSize
 using BVDOutbreakSize: integrate_cumulative, integrate_exports_deaths,
                        expected_deaths
+import CairoMakie
+
+## Render figures at higher resolution so they stay crisp in the docs.
+CairoMakie.activate!(type = "png", px_per_unit = 3)
 
 Random.seed!(20260518)
 
@@ -1368,6 +1379,13 @@ diagnostics_table( #hide
 # this and our headline estimate is then down to method (joint fit,
 # exact convolution, sampled nuisance parameters) and newer data, not a
 # coding discrepancy.
+#
+# This sense check covers the deaths (Method 2) side. The exports
+# (Method 1) side differs by construction: we use the exact cumulative
+# integral $q\int_{T-w}^{T} C(s)\,ds$ rather than the small-$rw$
+# simplification $q\,w\,C(T)$, so our exports-implied size is expected
+# to sit above a Method 1 reproduction (by the $15$-$57\%$ noted
+# earlier) rather than match it.
 
 # ## Results
 #
