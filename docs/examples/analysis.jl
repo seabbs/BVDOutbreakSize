@@ -31,11 +31,11 @@
 # separate scenario analyses (see
 # [What we do differently](#What-we-do-differently-from-McCabe-et-al.)
 # below). Second, the data: results are reported as of the cut-off
-# date in `data/observations.toml` (currently **2026-05-20**): *by
-# that date there have been the reported counts in the data table
-# below.* These are more recent figures than the report, which uses
-# the 16 May 2026 snapshot (e.g. $88$ suspected deaths against the later
-# figure used here). The joint posterior assumes a single common
+# date in `data/observations.toml` (currently **2026-05-20**), using
+# the reported counts in the data table below. These are more recent
+# figures than the report, which uses the 16 May 2026 snapshot (e.g.
+# $88$ suspected deaths against the later figure used here). The joint
+# posterior assumes a single common
 # cut-off for every data stream, so the deaths, exports and reported-
 # case counts must all be kept in sync to the same date.
 #
@@ -435,18 +435,18 @@ end
 # ##### Case-fatality ratio
 #
 # The US Centers for Disease Control and Prevention (CDC) summary for
-# the two previous BVD outbreaks is 55 deaths /
-# 169 cases ≈ 33% with confidence bands spanning roughly 24-40%. The
-# companion Bundibugyo virus (BDBV) reanalysis reports a baseline of
-# 0.47 (95% CrI 0.31-0.65) for non-healthcare-worker (non-HCW)
-# confirmed cases. The prior on the
+# the two previous BVD outbreaks is $55$ deaths in $169$ cases
+# ($\approx 33\%$), with confidence bands spanning roughly
+# $24$-$40\%$. The companion Bundibugyo virus (BDBV) reanalysis reports
+# a baseline of $0.47$ ($95\%$ CrI $0.31$-$0.65$) for
+# non-healthcare-worker (non-HCW) confirmed cases. The prior on the
 # case-fatality ratio is
 #
 # ```math
 # \mathrm{CFR} \sim \mathrm{Beta}(6,\ 14), \tag{6}
 # ```
 #
-# with mean 0.30 and 95% interval roughly 0.13-0.51.
+# with mean $0.30$ and $95\%$ interval roughly $0.13$-$0.51$.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: cfr_model</summary>
@@ -511,7 +511,8 @@ end
 # 1/\sqrt{k} \sim \mathrm{Normal}^{+}(0, 1), \tag{9}
 # ```
 #
-# giving $k$ a prior median near 2 (mild overdispersion). This extends
+# giving $k$ a prior median near $2$ (mild overdispersion). This
+# extends
 # the McCabe et al. report, which uses a Poisson likelihood for the
 # Method 2 deaths and does not model the reported case counts at all;
 # the negative binomial adds overdispersion to absorb passive-
@@ -679,7 +680,8 @@ end
 #     $\mu_e \approx q\cdot w\cdot C(T)$, the limit of equation (14)
 #     as $r \to 0$.
 #     For BVD's prior range $rw \in 0.33 - 2.0$ the simplification
-#     under-estimates $C(T)$ by roughly 15-57%. Both McCabe et al. and we
+#     under-estimates $C(T)$ by roughly $15$-$57\%$. Both McCabe et al.
+#     and we
 #     use $\mathrm{Binomial}(N, p)$-style observation models; with
 #     $p \approx q\cdot w \approx 6\cdot 10^{-3}$ our Poisson is
 #     indistinguishable from
@@ -687,11 +689,11 @@ end
 #
 # **Daily traveller prior.** McCabe et al. Table 3 records mean weekly
 # passenger counts across seven PoEs from one to four weekly sitreps
-# per PoE. The Ituri-side daily total of 1871 is a sample mean across
-# roughly 15-21 PoE-weeks. The prior here is a Normal centred on 1871
-# with SD 200 (≈ 10% CV), truncated at zero, covering point-of-entry
-# variation and the sitrep sampling uncertainty; source population is
-# kept fixed (census).
+# per PoE. The Ituri-side daily total of $1871$ is a sample mean across
+# roughly $15$-$21$ PoE-weeks. The prior here is a Normal centred on
+# $1871$ with SD $200$ ($\approx 10\%$ CV), truncated at zero, covering
+# point-of-entry variation and the sitrep sampling uncertainty; source
+# population is kept fixed (census).
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exports_model</summary>
@@ -1295,18 +1297,16 @@ diagnostics_table( #hide
 # reanalysis [bdbv_linelist_analysis_2026](@cite) also reports a
 # *community-only* pathway — the
 # $n = 5$ cases who died without hospital admission — with a shorter
-# but far more uncertain delay: a shape of about 5.6
-# (95% CrI 1.0-25.9) and a scale of about 1.4 (95% CrI 0.3-9.5). A
-# shorter delay means deaths appear sooner
+# but far more uncertain delay: a shape of about $5.6$
+# ($95\%$ CrI $1.0$-$25.9$) and a scale of about $1.4$
+# ($95\%$ CrI $0.3$-$9.5$). A shorter delay means deaths appear sooner
 # after infection, so a given death count back-calculates to a smaller
 # $C(T)$.
 #
 # We refit the joint model once with the onset-to-death delay priors
 # re-anchored on the community-only pathway, building truncated-Normal
-# priors
-# centred on those medians with
-# $\mathrm{SD} = (\mathrm{hi} - \mathrm{lo})/3.92$, exactly as the
-# baseline delay priors (equation (5)) are constructed:
+# priors from those credible intervals exactly as the baseline delay
+# priors (equation (5)) are constructed:
 #
 # ```math
 # \alpha \sim \mathrm{Normal}^{+}(5.6,\ 6.35), \qquad
@@ -1332,17 +1332,18 @@ diagnostics_table( #hide
 # between that fit and our headline fit is the data.
 #
 # McCabe et al. Method 2 reports Poisson intervals (no overdispersion,
-# k → ∞). We reproduce it by fixing the exports-and-deaths composer to
-# their Method 2 central assumptions and dropping exports. `inv_sqrt_k`
-# is fixed to a small positive value (k ≈ 1e6, Poisson-like) because
-# exactly 0 gives k ≈ 4.5e15, where the NegBinomial saturates and
-# reverse-mode AD returns NaN gradients.
+# $k \to \infty$). We reproduce it by fixing the exports-and-deaths
+# composer to their Method 2 central assumptions and dropping exports.
+# `inv_sqrt_k` is fixed to a small positive value ($k \approx 10^6$,
+# Poisson-like) because exactly $0$ gives $k \approx 4.5\times10^{15}$,
+# where the NegBinomial saturates and reverse-mode AD returns NaN
+# gradients.
 #
 # As a sense check we ask whether our machinery recovers McCabe et
 # al.'s Method 2 headline when given their inputs. Their reported
-# Method 2 central estimate is 501 cases. Our reproduction drops
+# Method 2 central estimate is $501$ cases. Our reproduction drops
 # exports so only the deaths likelihood is instantiated, conditions on
-# their 16 May 2026 deaths snapshot (88), and `Turing.fix`-pins the
+# their 16 May 2026 deaths snapshot ($88$), and `Turing.fix`-pins the
 # Method 2 main-scenario values ($\tau = 14$ d, $\mathrm{CFR} = 30\%$,
 # $\alpha = 4.42$, $\beta = 0.388$/d), with the deaths NegBinomial made
 # Poisson-like. The only sampled latent is $m$, the number of doublings
@@ -1372,13 +1373,13 @@ let
     start = Date(obs.as_of_date) - Day(T_med)
     factor = round(c_med / obs.reported_cases; digits = 1)
     Markdown.parse("""
-    - **Current cumulative case load:** about $c_med cases
-      (90% CrI $c_lo–$c_hi), combining all four data streams. This counts
-      both reported and as-yet-unreported cases.
+    - **Current cumulative case load:** about $(c_med) cases
+      (90% CrI $(c_lo)–$(c_hi)), combining all four data streams. This
+      counts both reported and as-yet-unreported cases.
     - That is roughly $(factor)× the $(obs.reported_cases) cases reported
       to date, so most infections are not yet in the reported counts.
-    - **Time since seeding:** about $T_med days, placing the start of
-      sustained transmission around $start.
+    - **Time since seeding:** about $(T_med) days, placing the start of
+      sustained transmission around $(start).
     """)
 end
 
@@ -1897,8 +1898,9 @@ let
     hi  = round(Int, imperial_C_credibles.hi90)
     delta = round(100 * (rep - 501) / 501; digits = 1)
     Markdown.parse("""
-    Our reproduction: **$rep cases** (90% CrI $lo–$hi) against McCabe
-    et al.'s reported **501** — a difference of $delta%. A close match
+    Our reproduction: **$(rep) cases** (90% CrI $(lo)–$(hi)) against
+    McCabe et al.'s reported **501** — a difference of $(delta)%. A close
+    match
     confirms the deaths back-calculation is implemented as in the
     report; the gap between this and our headline estimate is then
     down to method (joint fit, exact convolution, sampled nuisance
