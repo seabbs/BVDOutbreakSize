@@ -2,10 +2,6 @@
 #
 # **Authors.** Sam Abbott, Samuel Brand and Sebastian Funk.
 #
-# The abstract below is loaded at build time from the repository
-# `README.md` (between its `ABSTRACT` markers) so the report and the
-# README share a single source.
-#
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
@@ -144,39 +140,7 @@
 # state. The *composers* glue the observation submodels into the
 # per-stream fits and the joint fit. The diagram below traces that flow:
 #
-# ```mermaid
-# flowchart TD
-#     G["Growth C(s) = exp(r s)<br/>τ, m → r, T, C(T)"]
-#     D["Onset-to-death delay<br/>α, θ → f, F_d"]
-#     CFR["Case-fatality ratio<br/>CFR"]
-#     W["Detection window<br/>w"]
-#     K["Surveillance dispersion<br/>k"]
-#     A["Ascertainment<br/>p_drc, p_uganda"]
-#
-#     OE["Exports submodel<br/>μ_e = p_uganda q ∫ C(s) ds<br/>Poisson"]
-#     OD["Deaths submodel<br/>μ_d = CFR ∫ C(s) f ds<br/>NegBinomial"]
-#     OC["Cases submodel<br/>μ_c = p_drc C(T)<br/>NegBinomial"]
-#     OX["Exports-deaths submodel<br/>μ_xd = CFR p_uganda q ∫ C(s) F_d ds<br/>Poisson"]
-#
-#     CE["exports_only_model"]
-#     CD["deaths_only_model"]
-#     CC["cases_only_model"]
-#     CX["exports_deaths_only_model"]
-#     CI["imperial_only_model<br/>(exports + deaths)"]
-#     CJ["bvd_joint<br/>(all four streams)"]
-#
-#     G --> OE & OD & OC & OX
-#     D --> OD & OX
-#     CFR --> OD & OX
-#     W --> OE & OX
-#     K --> OD & OC
-#     A --> OE & OC & OX
-#
-#     OE --> CE & CI & CJ
-#     OD --> CD & CI & CJ
-#     OC --> CC & CJ
-#     OX --> CX & CJ
-# ```
+# {{MODEL_DIAGRAM}}
 #
 # Reading top to bottom:
 #
@@ -1171,6 +1135,24 @@ posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
 #md # </details>
 #md # ```
 
+# Fit-quality diagnostics for the joint and per-stream fits: the worst
+# R-hat, the smallest bulk effective sample size, and the number of
+# divergent transitions. Open the panel to inspect them.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "joint" => chn_joint, #hide
+    "exports-only" => chn_exports, #hide
+    "deaths-only" => chn_deaths, #hide
+    "cases-only" => chn_cases) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ## Joint model and results
 #
 # The headline result is the joint posterior over `C(T)`, combining
@@ -1410,6 +1392,20 @@ posterior_C_community = vec(Array(chn_joint_community[:cumulative_cases]));
 #md # </details>
 #md # ```
 
+# Fit diagnostics for the community-only delay refit. Open the panel to
+# inspect them.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "joint (community-only delay)" => chn_joint_community) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # Baseline versus community-only delay, side by side:
 
 #md # ```@raw html
@@ -1545,6 +1541,20 @@ imperial_fixed = Turing.fix(
 )
 chn_imperial = nuts_sample(imperial_fixed; samples = 500, chains = 2);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# Fit diagnostics for the Imperial-exact sense-check fit. Open the
+# panel to inspect them.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "Imperial-exact (Method 2)" => chn_imperial) #hide
 
 #md # ```@raw html
 #md # </details>
