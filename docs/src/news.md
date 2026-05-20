@@ -6,23 +6,22 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
-## Unreleased
+## v1.0.0
 
-- Maths-first rewrite of the analysis page: explanatory text refers to
-  mathematical objects throughout, with code folded behind dropdowns.
-- Shared Gauss-Legendre quadrature helpers (`integrate`,
-  `expected_deaths`, `integrate_cumulative`, `integrate_exports_deaths`)
-  in the package, replacing the inline integrands.
-- Composers conditionally include only their streams' likelihoods; new
-  Imperial-exact composer (`imperial_only_model`) for the Method 2
-  sense check.
-- Results reordered: joint headline, counterfactual, one-week-ahead
-  forecast, delay sensitivity, stream comparison, Imperial comparison,
-  Imperial sense check.
-- Onset-to-death delay sensitivity analysis: joint refit with the
-  community-only delay alongside the baseline.
-- Component-connection diagram of the model build-up.
-- One-week-ahead forecast of newly reported cases, deaths and exports.
-- Pooled exports / cases ascertainment and a deaths-among-exports
-  likelihood.
-- Model outputs published as a GitHub Release on each `main` build.
+First release.
+A joint Bayesian re-analysis of the McCabe et al. report that fits all
+data streams together in a single Turing model over the latent
+cumulative case count.
+
+- Conditions on the exported cases and DRC deaths the report uses,
+  plus reported DRC cases (with an ascertainment component) and deaths
+  among exported cases.
+- Adds a no-onward-transmission projected-deaths counterfactual, a
+  one-week-ahead forecast of newly reported cases, deaths and exports,
+  and an onset-to-death delay sensitivity analysis.
+- Replaces the deaths-convolution and small-growth-rate exports
+  closed-form approximations with their exact forms.
+- Maths-first analysis page with code folded behind dropdowns and a
+  diagram of the model build-up.
+- Compares against a joint reimplementation of the report's approach
+  and its original published estimates.
