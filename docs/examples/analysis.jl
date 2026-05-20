@@ -94,8 +94,8 @@
 #   language model from the published Imperial report and the
 #   companion delay reanalysis, then reviewed and revised. Not
 #   independently replicated against the authors' code.
-# - *Prior-driven inference where data is scarce.* Two exports,
-#   ~10² deaths, and a single reported-case total give little
+# - *Prior-driven inference where data is scarce.* A dozen suspected
+#   exports, ~10² deaths, and a single reported-case total give little
 #   information about `τ`, `m`, the surveillance dispersion, or
 #   the reporting fraction individually. Posteriors track their
 #   priors closely.
@@ -121,6 +121,13 @@
 # - *Detection-window definition is loose.* `w` lumps incubation
 #   and onset-to-detection together — both poorly characterised
 #   for BVD.
+# - *Not all Uganda cases are confirmed exports.* The exports
+#   likelihood treats every Uganda case as imported from DRC, but the
+#   12 suspected cases reported in Kampala are not all confirmed to be
+#   importations — some may reflect onward transmission within Uganda
+#   or unrelated suspected cases later discarded. Counting non-exports
+#   as exports inflates the export signal and biases the implied
+#   outbreak size and ascertainment.
 # - *Selection bias in deaths-among-exports.* The deaths-among-
 #   exports likelihood assumes Uganda's surveillance retains detected
 #   exports through to any subsequent death. If the system loses
@@ -129,9 +136,9 @@
 # - *Ascertainment partially pooled, not separately identified.*
 #   Uganda's exported-case ascertainment `p_uganda` and DRC's
 #   reported-case ascertainment `p_drc` share a logit-scale
-#   hyperprior. With only two exports and one export death the Uganda
-#   fraction is weakly identified and leans on the pooled mean and
-#   the DRC side.
+#   hyperprior. With a handful of suspected exports and one export
+#   death the Uganda fraction is weakly identified and leans on the
+#   pooled mean and the DRC side.
 #
 # ## How the model is built up
 #
