@@ -150,8 +150,8 @@
 #   cases that progress to death, the observed count is biased
 #   downward and the constraint it places on $T$ is overstated.
 # - *Ascertainment partially pooled, not separately identified.*
-#   Uganda's exported-case ascertainment `p_uganda` and DRC's
-#   reported-case ascertainment `p_drc` share a logit-scale
+#   Uganda's exported-case ascertainment $p_{\text{uganda}}$ and DRC's
+#   reported-case ascertainment $p_{\text{drc}}$ share a logit-scale
 #   hyperprior. With a handful of suspected exports and one export
 #   death the Uganda fraction is weakly identified and leans on the
 #   pooled mean and the DRC side.
@@ -535,19 +535,20 @@ end
 
 # ##### Ascertainment — partial pooling between DRC and Uganda
 #
-# Two surveillance systems detect cases: DRC passive surveillance
-# (which produces the reported suspected-case count) and Uganda's
-# point-of-entry / hospital surveillance (which produces the
-# exported-case count). Each captures only a fraction of the true
-# cases passing through it. Treating the two fractions as identical
-# conflates two different systems; treating them as independent
-# wastes the structural similarity and leaves the Uganda fraction
-# almost wholly prior-driven given only a handful of suspected
-# exports.
+# Two surveillance systems detect cases: DRC passive surveillance (the
+# reported suspected-case count) and Uganda's point-of-entry / hospital
+# surveillance (the exported-case count). Each captures only a fraction
+# of the true cases passing through it, and each fraction is informed
+# by essentially a single aggregate data point — the one reported-case
+# total and the one export count — so neither is well identified on its
+# own. We therefore centre the prior on an assumed reporting fraction
+# of 25% and partially pool the two fractions so they share strength:
+# treating them as identical would conflate two different systems,
+# while treating them as independent would leave the Uganda fraction
+# almost wholly prior-driven.
 #
-# Partial pooling sits between the two. Both ascertainment fractions
-# `p_drc` and `p_uganda` share a logit-scale hyperprior with mean
-# $\mu$ and SD $\tau$:
+# Both ascertainment fractions $p_{\text{drc}}$ and $p_{\text{uganda}}$
+# share a logit-scale hyperprior with mean $\mu$ and SD $\tau$:
 #
 # ```math
 # \mu \sim \mathrm{Normal}(\mathrm{logit}(0.25),\ 1),
@@ -563,15 +564,12 @@ end
 #     \mathrm{Normal}(\mu,\ \tau), \tag{11}
 # ```
 #
-# with $p = \mathrm{logistic}(\mathrm{logit}\,p)$. The hyperprior mean
-# is centred on
-# $\mathrm{logit}(0.25)$ (a 0.25 reporting fraction). $\tau$ is the
-# pooling
-# strength: small $\tau$ pulls the two fractions together (the shared-
-# fraction limit), large $\tau$ lets them move independently (the
-# separate-fraction limit). The data decide where on that spectrum
-# the fit lands. The cases likelihood uses `p_drc`; the two Uganda-
-# side likelihoods use `p_uganda`.
+# with $p = \mathrm{logistic}(\mathrm{logit}\,p)$. Here $\tau$ is the
+# pooling strength: small $\tau$ pulls the two fractions together (the
+# shared-fraction limit), large $\tau$ lets them move independently
+# (the separate-fraction limit), and the data decide where on that
+# spectrum the fit lands. The cases likelihood uses $p_{\text{drc}}$;
+# the two Uganda-side likelihoods use $p_{\text{uganda}}$.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: pooled_ascertainment_model</summary>
@@ -667,7 +665,7 @@ end
 # $q\cdot w\cdot C(T)$. We evaluate equation (14) numerically with
 # `integrate_cumulative` so the same form works for any growth
 # parameterisation, scale by the Uganda ascertainment fraction
-# `p_uganda` (equation (11)), and apply a Poisson likelihood:
+# $p_{\text{uganda}}$ (equation (11)), and apply a Poisson likelihood:
 #
 # ```math
 # \mu_e = p_{\text{uganda}} \cdot q \cdot \int_{T-w}^{T} C(s)\, ds,
@@ -805,7 +803,7 @@ end
 #
 # Methods 1 and 2 use exports and deaths only. Reported
 # suspected cases from the same passive-surveillance system carry
-# information about $C(T)$ once the DRC ascertainment fraction `p_drc`
+# information about $C(T)$ once the DRC ascertainment fraction $p_{\text{drc}}$
 # (equation (11)) is introduced:
 #
 # ```math
@@ -851,7 +849,7 @@ end
 # export integrand of equation (14) but weights each case by its
 # probability of having died by $T$, the onset-to-death CDF
 # $F_d(T - s)$ (equation (4)), then scales by the CFR, the travel rate
-# $q$ and the Uganda ascertainment fraction `p_uganda`:
+# $q$ and the Uganda ascertainment fraction $p_{\text{uganda}}$:
 #
 # ```math
 # \mathbb{E}[D_{\text{uganda}}]
@@ -926,8 +924,8 @@ end
 # The joint composer samples a single `surveillance_dispersion_model`
 # and passes that same $k$ to both deaths and cases likelihoods, so
 # they share one passive-surveillance noise scale. It also samples a
-# single `pooled_ascertainment_model`, threading `p_drc` to the cases
-# likelihood and `p_uganda` to the two Uganda-side likelihoods. The
+# single `pooled_ascertainment_model`, threading $p_{\text{drc}}$ to the cases
+# likelihood and $p_{\text{uganda}}$ to the two Uganda-side likelihoods. The
 # window $w$ and daily traveller volume sampled by the exports
 # likelihood are reused by the deaths-among-exports likelihood so the
 # two share person-time.
@@ -1449,7 +1447,7 @@ start_date_fig #hide
 # The full posterior summary table reports equal-tailed 30%, 60% and
 # 90% credible intervals on the key joint-fit parameters: growth rate
 # $r$, doubling-time multiplier $m$, days since seeding $T$, CFR, the
-# DRC and Uganda ascertainment fractions `p_drc` and `p_uganda`, the
+# DRC and Uganda ascertainment fractions $p_{\text{drc}}$ and $p_{\text{uganda}}$, the
 # pooling SD `τ_logit`, and cumulative cases $C(T)$.
 
 #md # ```@raw html
