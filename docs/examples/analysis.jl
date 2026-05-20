@@ -29,10 +29,13 @@
 #   than the small-`rw` simplification `q · w · C(T)` used by
 #   McCabe et al. (and by Imai et al. 2020 before them). The two
 #   forms agree as `r → 0`.
-# - *Exact gamma convolution for deaths.* McCabe et al. use the
-#   closed-form approximation `D_T ≈ CFR · C_T · (1 + r/β)^{−α}`;
-#   we evaluate the integral numerically so the delay family
-#   stays a runtime parameter.
+# - *Numerical (not closed-form) deaths convolution.* For a gamma
+#   delay the convolution integral has an exact closed form; McCabe
+#   et al. derive it and use the large-`T` simplification
+#   `D_T ≈ CFR · C_T · (1 + r/β)^{−α}`. We evaluate the integral
+#   numerically instead — not for accuracy (the gamma case is
+#   exact either way) but so the onset-to-death distribution can be
+#   swapped for any other family without re-deriving the integral.
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list McCabe et al. cite for their
 #   point estimates ([sbfnk/bdbv-linelist-analysis](https://github.com/sbfnk/bdbv-linelist-analysis)),
@@ -406,12 +409,13 @@ end
 #
 # where `f(·; α, θ)` is the gamma onset-to-death density. The
 # integral is evaluated by Gauss-Legendre quadrature with `n = 64`.
-# Imperial use the closed-form approximation
-# `D_T ≈ CFR · C_T · (1 + r/β)^{−α}` (valid for
-# `T ⪞ 12 / (β + r)`); we evaluate the exact integral so the delay
-# family stays a runtime parameter — swapping `Gamma(α, θ)` for any
-# other continuous distribution in `delay_model` requires no
-# changes to the quadrature.
+# For a gamma delay this integral has an exact closed form;
+# McCabe et al. derive it and use the large-`T` simplification
+# `D_T ≈ CFR · C_T · (1 + r/β)^{−α}` (valid for `T ⪞ 12/(β+r)`).
+# We integrate numerically instead — not because the gamma case
+# needs it, but so swapping `Gamma(α, θ)` in `delay_model` for any
+# other continuous distribution requires no changes to the
+# quadrature.
 
 const DEATH_INTEGRAL_ALG = GaussLegendre(; n = 64)
 
