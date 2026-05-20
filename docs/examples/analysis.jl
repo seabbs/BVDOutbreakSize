@@ -767,12 +767,12 @@ end
     daily_travellers = travel_state.daily_travellers
 
     q = daily_travellers / source_population
-    mean_exports = expected_exports(cumulative, p_uganda, q, T, w)
-    expected_exports := mean_exports
+    expected_exports_T := expected_exports(cumulative, p_uganda, q, T, w)
 
-    exported_cases ~ Poisson(expected_exports)
+    exported_cases ~ Poisson(expected_exports_T)
 
-    return (; w, daily_travellers, p_uganda, expected_exports)
+    return (; w, daily_travellers, p_uganda,
+              expected_exports = expected_exports_T)
 end
 
 #md # ```@raw html
@@ -935,13 +935,12 @@ end
     T          = growth_state.T
 
     q = daily_travellers / source_population
-    mean_exports_deaths = expected_exports_deaths(
+    expected_exports_deaths_T := expected_exports_deaths(
         cumulative, delay_dist, CFR, p_uganda, q, T, window)
-    expected_exports_deaths := mean_exports_deaths
 
-    exports_deaths ~ Poisson(expected_exports_deaths)
+    exports_deaths ~ Poisson(expected_exports_deaths_T)
 
-    return (; expected_exports_deaths)
+    return (; expected_exports_deaths = expected_exports_deaths_T)
 end
 
 #md # ```@raw html
