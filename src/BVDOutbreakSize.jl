@@ -35,6 +35,7 @@ export REPORT_SCENARIOS,
        DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
        integrate, expected_deaths,
        integrate_cumulative, integrate_exports_deaths,
+       expected_exports_deaths,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
@@ -350,6 +351,33 @@ function integrate_exports_deaths(cumulative, delay_dist, lo, hi, T;
         s -> cumulative(s) * cdf_to(T - s)
     end
     return integrate(g, lo, hi; alg)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative deaths among detected exports by elapsed time `t`,
+clamped to be strictly positive and finite:
+
+```math
+\\mathbb{E}[D_{\\text{uganda}}(t)] = \\mathrm{CFR} \\cdot
+    p_{\\text{uganda}} \\cdot q \\cdot
+    \\int_{t-w}^{t} C(s)\\, F_d(t - s)\\, ds,
+```
+
+with `cumulative` the trajectory ``C(s)``, `delay_dist` the onset-to-death
+distribution (CDF ``F_d``), `q` the per-capita travel rate, and `window`
+the detection window ``w``. Backs both the deaths-among-exports count
+likelihood (evaluated at `t = T`) and the first-export-death survival
+term (evaluated at an earlier `t`). Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function expected_exports_deaths(cumulative, delay_dist, CFR, p_uganda, q,
+        t, window; alg = CUMULATIVE_INTEGRAL_ALG)
+    window_start = max(t - window, zero(t))
+    integral = integrate_exports_deaths(
+        cumulative, delay_dist, window_start, t, t; alg)
+    raw = CFR * p_uganda * q * integral
+    return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
 end
 
 _draws(chn, name::Symbol) = vec(Array(chn[name]))
