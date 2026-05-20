@@ -42,7 +42,7 @@
 # cut-off for every data stream, so the deaths, exports and reported-
 # case counts must all be kept in sync to the same date.
 #
-# **→ Jump to the [joint posterior results](#Joint-model-and-results).**
+# **→ Jump to the [joint posterior results](#Joint-model-estimates).**
 #
 # ## What we do differently from McCabe et al.
 #
@@ -156,7 +156,87 @@
 #   understate uncertainty. The effect is small here because the
 #   Uganda counts are small.
 #
-# ## How the model is built up
+#md # ```@raw html
+#md # <details><summary>Load packages and seed the RNG</summary>
+#md # ```
+
+using Turing
+using Turing: to_submodel
+using Distributions
+using StatsFuns: logit, logistic
+using DataFrames: DataFrame
+import CSV
+using Random
+using BVDOutbreakSize
+using BVDOutbreakSize: integrate_cumulative, integrate_exports_deaths,
+                       expected_deaths
+
+Random.seed!(20260518)
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# ## Methods
+#
+# ### Data
+#
+# Observations are loaded from `data/observations.toml`. The source
+# population is treated as fixed (census data); the daily outbound
+# traveller volume is given a normal prior centred at the Imperial
+# figure with an SD covering point-of-entry variation.
+
+#md # ```@raw html
+#md # <details><summary>Loading observations and building the data table</summary>
+#md # ```
+
+obs = load_observations()
+observations_table = DataFrame(
+    field = [
+        "exported_cases",
+        "exports_deaths",
+        "total_deaths",
+        "reported_cases",
+        "daily_outbound_travellers",
+        "daily_outbound_travellers_sd",
+        "source_population",
+    ],
+    value = [
+        obs.exported_cases,
+        obs.exports_deaths,
+        obs.total_deaths,
+        obs.reported_cases,
+        obs.daily_outbound_travellers,
+        obs.daily_outbound_travellers_sd,
+        obs.source_population,
+    ],
+    source = [
+        obs.sources.exported_cases,
+        obs.sources.exports_deaths,
+        obs.sources.total_deaths,
+        obs.sources.reported_cases,
+        obs.sources.daily_outbound_travellers,
+        obs.sources.daily_outbound_travellers_sd,
+        obs.sources.source_population,
+    ],
+);
+
+const ITURI_POPULATION    = obs.source_population
+const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
+const EXPORTED_CASES      = obs.exported_cases
+const EXPORTS_DEATHS      = obs.exports_deaths
+const TOTAL_DEATHS        = obs.total_deaths
+const REPORTED_CASES      = obs.reported_cases
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+observations_table #hide
+
+# ### Model
+#
+# #### Model overview
 #
 # The model is assembled from small reusable Turing submodels rather
 # than written as one monolithic block. Each *building-block submodel*
@@ -227,83 +307,7 @@
 #    of Imperial's Method 2 main scenario via the Imperial-exact
 #    composer.
 
-#md # ```@raw html
-#md # <details><summary>Load packages and seed the RNG</summary>
-#md # ```
-
-using Turing
-using Turing: to_submodel
-using Distributions
-using StatsFuns: logit, logistic
-using DataFrames: DataFrame
-import CSV
-using Random
-using BVDOutbreakSize
-using BVDOutbreakSize: integrate_cumulative, integrate_exports_deaths,
-                       expected_deaths
-
-Random.seed!(20260518)
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-# ## Data
-#
-# Observations are loaded from `data/observations.toml`. The source
-# population is treated as fixed (census data); the daily outbound
-# traveller volume is given a normal prior centred at the Imperial
-# figure with an SD covering point-of-entry variation.
-
-#md # ```@raw html
-#md # <details><summary>Loading observations and building the data table</summary>
-#md # ```
-
-obs = load_observations()
-observations_table = DataFrame(
-    field = [
-        "exported_cases",
-        "exports_deaths",
-        "total_deaths",
-        "reported_cases",
-        "daily_outbound_travellers",
-        "daily_outbound_travellers_sd",
-        "source_population",
-    ],
-    value = [
-        obs.exported_cases,
-        obs.exports_deaths,
-        obs.total_deaths,
-        obs.reported_cases,
-        obs.daily_outbound_travellers,
-        obs.daily_outbound_travellers_sd,
-        obs.source_population,
-    ],
-    source = [
-        obs.sources.exported_cases,
-        obs.sources.exports_deaths,
-        obs.sources.total_deaths,
-        obs.sources.reported_cases,
-        obs.sources.daily_outbound_travellers,
-        obs.sources.daily_outbound_travellers_sd,
-        obs.sources.source_population,
-    ],
-);
-
-const ITURI_POPULATION    = obs.source_population
-const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
-const EXPORTED_CASES      = obs.exported_cases
-const EXPORTS_DEATHS      = obs.exports_deaths
-const TOTAL_DEATHS        = obs.total_deaths
-const REPORTED_CASES      = obs.reported_cases
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-observations_table #hide
-
-# ## Building-block submodels
+# #### Building-block submodels
 #
 # The joint model is composed of swappable Turing submodels. Each
 # submodel owns its priors; replacing one (a different delay study,
@@ -317,7 +321,7 @@ observations_table #hide
 # `plot_pair`, AlgebraOfGraphics density layouts) follow the hantavirus
 # modelling project [hantavirus_2026](@cite).
 
-# ### Growth — exponential
+# ##### Growth — exponential
 #
 # The outbreak is seeded $T$ days ago by a single zoonotic case and
 # grows exponentially with doubling time $\tau$, giving the cumulative-
@@ -377,7 +381,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Onset-to-death delay
+# ##### Onset-to-death delay
 #
 # Symptom-onset to death is gamma distributed with shape $\alpha$ and
 # scale $\theta$, giving density $f$ and CDF $F_d$, mean $\alpha\cdot\theta$
@@ -425,7 +429,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Case-fatality ratio
+# ##### Case-fatality ratio
 #
 # The US Centers for Disease Control and Prevention (CDC) summary for
 # the two previous BVD outbreaks is 55 deaths /
@@ -454,7 +458,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Detection window
+# ##### Detection window
 #
 # $w$ is the mean time during which a case is still infectious and
 # detectable abroad (incubation + onset-to-detection). Its prior is
@@ -483,7 +487,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Surveillance dispersion
+# ##### Surveillance dispersion
 #
 # Both NegBinomial likelihoods (deaths and reported cases) share a
 # single dispersion $k$, since both arise from the same passive-
@@ -525,7 +529,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Ascertainment — partial pooling between DRC and Uganda
+# ##### Ascertainment — partial pooling between DRC and Uganda
 #
 # Two surveillance systems detect cases: DRC passive surveillance
 # (which produces the reported suspected-case count) and Uganda's
@@ -606,7 +610,7 @@ end
 #md # </details>
 #md # ```
 
-# ## Observation submodels
+# #### Observation submodels
 #
 # With the building blocks in place, each observation submodel takes
 # the growth state as input, introduces the forward integral it needs,
@@ -619,7 +623,7 @@ end
 # submodel introduces its likelihood by referring back to the
 # parameters defined in equations (1)-(11) rather than restating them.
 
-# ### Exports — Imperial Method 1 (geographic spread)
+# ##### Exports — Imperial Method 1 (geographic spread)
 #
 # Each case in the source population travels to Uganda on any given
 # day with probability
@@ -726,7 +730,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Deaths — Imperial Method 2 (back-calculation from deaths)
+# ##### Deaths — Imperial Method 2 (back-calculation from deaths)
 #
 # Expected cumulative deaths by $T$ from a single seeding case is the
 # CFR-weighted convolution of the cumulative-incidence trajectory
@@ -791,7 +795,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Cases — ascertainment extension (no Imperial counterpart)
+# ##### Cases — ascertainment extension (no Imperial counterpart)
 #
 # Imperial Methods 1 and 2 use exports and deaths only. Reported
 # suspected cases from the same passive-surveillance system carry
@@ -831,7 +835,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Deaths among exports — fourth observation likelihood
+# ##### Deaths among exports — fourth observation likelihood
 #
 # Uganda reports a single death among its detected exports. That count
 # is informative: if the exports happened long ago, more of them would
@@ -901,7 +905,7 @@ end
 #md # </details>
 #md # ```
 
-# ## Composers
+# #### Composers
 #
 # These composers stitch the building blocks into the **full
 # generative models** for each analysis. Imperial inverts a
@@ -922,7 +926,7 @@ end
 # likelihood are reused by the deaths-among-exports likelihood so the
 # two share person-time.
 
-# ### Exports-only fit — Imperial Method 1 analogue
+# ##### Exports-only fit — Imperial Method 1 analogue
 
 #md # ```@raw html
 #md # <details><summary>Composer: exports_only_model</summary>
@@ -947,7 +951,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Deaths-only fit — Imperial Method 2 analogue
+# ##### Deaths-only fit — Imperial Method 2 analogue
 
 #md # ```@raw html
 #md # <details><summary>Composer: deaths_only_model</summary>
@@ -973,7 +977,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Cases-only fit — ascertainment extension (no Imperial counterpart)
+# ##### Cases-only fit — ascertainment extension (no Imperial counterpart)
 
 #md # ```@raw html
 #md # <details><summary>Composer: cases_only_model</summary>
@@ -1001,7 +1005,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Deaths-among-exports-only fit (no Imperial counterpart)
+# ##### Deaths-among-exports-only fit (no Imperial counterpart)
 
 #md # ```@raw html
 #md # <details><summary>Composer: exports_deaths_only_model</summary>
@@ -1043,7 +1047,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Joint fit — full posterior over $C(T)$ from all data streams
+# ##### Joint fit — full posterior over $C(T)$ from all data streams
 #
 # `bvd_joint` is the same generative process conditioned on all four
 # observed streams simultaneously. Each stream argument may be passed
@@ -1097,7 +1101,7 @@ end
 #md # </details>
 #md # ```
 
-# ### Imperial-exact fit — exports and deaths only
+# ##### Imperial-exact fit — exports and deaths only
 #
 # Imperial's joint configuration uses exactly two data sources: the
 # geographic-spread exports (Method 1) and the back-calculation from
@@ -1141,7 +1145,9 @@ end
 #md # </details>
 #md # ```
 
-# ## Prior predictive check
+# ### Model fitting and evaluation
+#
+# #### Prior predictive check
 #
 # Before any observation is taken into account, what does the joint
 # prior imply about replicated exports, deaths, reported cases and
@@ -1180,7 +1186,7 @@ prior_pair_fig = plot_pair(prior_chn,
 
 prior_pair_fig #hide
 
-# ## Fitting the models
+# #### Fitting the models
 #
 # NUTS with Mooncake reverse-mode AD, four chains, 1000 post-warmup
 # draws each, `target_accept = 0.9`. Chains initialise from the prior
@@ -1209,7 +1215,9 @@ posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
 #md # </details>
 #md # ```
 
-# ## Joint model and results
+# ## Results
+#
+# ### Joint model estimates
 #
 # Our main result is an estimate of the current cumulative case load —
 # both reported and unreported cases — at the report date. It is the
@@ -1343,7 +1351,7 @@ joint_ppc_fig = plot_posterior_predictive(
 
 joint_ppc_fig #hide
 
-# ## Counterfactual: lower bound under no further transmission
+# ### Counterfactual: lower bound under no further transmission
 #
 # Suppose every onward transmission stopped at the report date — the
 # estimation / report-generation time, which we denote $T$. The cohort
@@ -1399,7 +1407,7 @@ no_onward_fig = plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS);
 
 no_onward_fig #hide
 
-# ## One-week-ahead forecast
+# ### One-week-ahead forecast
 #
 # If the fitted model is taken at face value, what should the next
 # week's situation reports show? We continue the fitted exponential
@@ -1447,7 +1455,7 @@ forecast_fig = plot_forecast(forecast);
 
 forecast_fig #hide
 
-# ## Delay sensitivity
+# ### Delay sensitivity
 #
 # The deaths back-calculation (equation (16)) depends on the onset-to-
 # death delay. The baseline fit anchors the gamma shape $\alpha$ and
@@ -1538,7 +1546,7 @@ delay_sensitivity_fig = plot_cumulative_cases(
 
 delay_sensitivity_fig #hide
 
-# ## How the data streams compare
+# ### How the data streams compare
 #
 # Each data stream constrains the latent outbreak size differently.
 # The table below puts the four posteriors over $C(T)$ side by side —
@@ -1614,7 +1622,7 @@ cumulative_density_fig = plot_cumulative_cases(
 
 cumulative_density_fig #hide
 
-# ## Imperial comparison
+# ### Imperial comparison
 #
 # How does the joint posterior sit against what Imperial actually
 # reported? The table below compares Imperial's two main scenarios
@@ -1706,7 +1714,7 @@ imperial_density_fig = plot_cumulative_cases("joint" => posterior_C_joint);
 
 imperial_density_fig #hide
 
-# ## Imperial report sense check
+# ### Imperial report sense check
 #
 # A quick sanity check that the model can recover Imperial's Method 2
 # headline when given Imperial's inputs. The fit ran in the comparison
