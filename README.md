@@ -1,6 +1,6 @@
 # Replicating and expanding the Imperial 2026 DRC Bundibugyo outbreak analysis with joint Bayesian modelling
 
-**Authors:** Sam Abbott, Sam Brand and Sebastian Funk.
+**Authors:** Sam Abbott, Samuel Brand and Sebastian Funk.
 
 <!-- ABSTRACT:START -->
 **Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus
