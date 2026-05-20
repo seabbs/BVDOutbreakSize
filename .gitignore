@@ -8,6 +8,7 @@
 /docs/src/index.md
 /docs/src/references.md
 /docs/node_modules/
+/output/
 .DS_Store
 .claude/
 .ipynb_checkpoints/

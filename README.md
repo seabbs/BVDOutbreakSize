@@ -44,6 +44,14 @@ Updating the observation counts for a new sitrep is a single-file
 edit of `data/observations.toml`; the literate picks the new numbers
 up automatically.
 
+## Results
+
+Each push to `main` regenerates the model outputs and publishes them
+as a GitHub Release. The
+[latest release](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest)
+bundles the posterior summary tables, thinned posterior draws, and a
+copy of the input `observations.toml` that produced them.
+
 ## Submodules
 
 - `external/bdbv-linelist-analysis` — Bayesian reanalysis of the 2012
