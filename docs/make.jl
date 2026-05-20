@@ -5,6 +5,7 @@ using Documenter
 using DocumenterCitations
 using DocumenterVitepress
 using Literate
+using BVDOutbreakSize
 
 const bib = CitationBibliography(
     joinpath(@__DIR__, "src", "refs.bib");
@@ -49,6 +50,7 @@ makedocs(;
     pages    = [
         "Home"        => "index.md",
         "Analysis"    => "analysis.md",
+        "API"         => "api.md",
         "News"        => "news.md",
         "References"  => "references.md",
     ],

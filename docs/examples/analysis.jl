@@ -1189,12 +1189,70 @@ posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
 
 # ## Joint model and results
 #
-# The headline result is the joint posterior over `C(T)`, combining
-# all four data streams. The summary table below reports equal-tailed
-# 30%, 60% and 90% credible intervals on the key joint-fit parameters:
-# growth rate `r`, doubling-time multiplier `m`, days since seeding
-# `T`, CFR, the DRC and Uganda ascertainment fractions `p_drc` and
-# `p_uganda`, the pooling SD `τ`, and cumulative cases `C(T)`.
+# Our main result is an estimate of the current cumulative case load —
+# both reported and unreported cases — at the report date. It is the
+# joint posterior over the cumulative case count, obtained by fitting
+# all four data streams together: the cases exported to Uganda, the
+# suspected deaths in the DRC, the reported cases in the DRC (with an
+# ascertainment component) and the deaths among exported cases in
+# Uganda.
+#
+# We report the cumulative case count first as a credible-interval
+# table and then as a posterior density.
+
+#md # ```@raw html
+#md # <details><summary>Cumulative case count summary table</summary>
+#md # ```
+
+cumulative_cases_summary = summary_table(
+    chn_joint, [:cumulative_cases]; digits = 0);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+cumulative_cases_summary #hide
+
+#md # ```@raw html
+#md # <details><summary>Cumulative case count density</summary>
+#md # ```
+
+joint_density_fig = plot_cumulative_cases(
+    "joint" => posterior_C_joint; scenarios = []);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+joint_density_fig #hide
+
+# The cumulative case count `C(T) = exp(r T)` is set jointly by the
+# doubling time `τ` (equivalently the growth rate `r = log 2 / τ`) and
+# the time since seeding `T`. Read as a calendar date, `T` places the
+# start of sustained transmission at the report date minus `T` days.
+# The left panel below shows the posterior for that start date; the
+# right panel shows the joint `(τ, T)` posterior, which is positively
+# correlated: slower growth (larger `τ`) needs a longer elapsed `T` to
+# reach the same observed counts.
+
+#md # ```@raw html
+#md # <details><summary>Outbreak start date and (τ, T) posterior</summary>
+#md # ```
+
+start_date_fig = plot_start_date_pair(chn_joint;
+    as_of_date = obs.as_of_date);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+start_date_fig #hide
+
+# The full posterior summary table reports equal-tailed 30%, 60% and
+# 90% credible intervals on the key joint-fit parameters: growth rate
+# `r`, doubling-time multiplier `m`, days since seeding `T`, CFR, the
+# DRC and Uganda ascertainment fractions `p_drc` and `p_uganda`, the
+# pooling SD `τ_logit`, and cumulative cases `C(T)`.
 
 #md # ```@raw html
 #md # <details><summary>Joint posterior summary table</summary>
@@ -1210,10 +1268,31 @@ joint_summary = summary_table(chn_joint,
 
 joint_summary #hide
 
+# The posterior pair plot shows the joint distribution of the key
+# parameters, with the prior overlaid so the data's contribution to
+# each marginal is visible.
+
+#md # ```@raw html
+#md # <details><summary>Posterior pair plot (prior overlaid)</summary>
+#md # ```
+
+posterior_pair_fig = plot_pair(chn_joint,
+    [:τ, :m, :cumulative_cases, :CFR, :w, :k,
+     :p_drc, :p_uganda, :τ_logit];
+    prior = prior_chn);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+posterior_pair_fig #hide
+
 # A posterior predictive check draws replicated observations from the
 # fitted joint model and compares them to the observed counts. If the
 # fit is reasonable the observed value (red line) sits inside the bulk
-# of its replicate distribution.
+# of its replicate distribution. The four panels are the four data
+# streams: exported cases and deaths among exports (Uganda), and deaths
+# and reported cases (DRC).
 
 #md # ```@raw html
 #md # <details><summary>Joint posterior predictive plot</summary>
@@ -1221,15 +1300,18 @@ joint_summary #hide
 
 pp_joint   = predict(
     bvd_joint(missing, missing, missing, missing), chn_joint);
-pp_exports = vec(Array(pp_joint[:exported_cases]));
-pp_deaths  = vec(Array(pp_joint[:total_deaths]));
-pp_cases   = vec(Array(pp_joint[:reported_cases]));
+pp_exports        = vec(Array(pp_joint[:exported_cases]));
+pp_deaths         = vec(Array(pp_joint[:total_deaths]));
+pp_cases          = vec(Array(pp_joint[:reported_cases]));
+pp_exports_deaths = vec(Array(pp_joint[:exports_deaths]));
 
 joint_ppc_fig = plot_posterior_predictive(
     pp_exports, pp_deaths,
     obs.exported_cases, obs.total_deaths;
-    pp_cases  = pp_cases,
-    obs_cases = obs.reported_cases);
+    pp_cases           = pp_cases,
+    obs_cases          = obs.reported_cases,
+    pp_exports_deaths  = pp_exports_deaths,
+    obs_exports_deaths = obs.exports_deaths);
 
 #md # ```@raw html
 #md # </details>
@@ -1237,49 +1319,14 @@ joint_ppc_fig = plot_posterior_predictive(
 
 joint_ppc_fig #hide
 
-# The joint posterior density of `C(T)`:
-
-#md # ```@raw html
-#md # <details><summary>Joint C_T density plot</summary>
-#md # ```
-
-joint_density_fig = plot_cumulative_cases(
-    "joint" => posterior_C_joint; scenarios = []);
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-joint_density_fig #hide
-
-# The cumulative case count `C(T) = exp(r T)` is set jointly by the
-# doubling time `τ` (equivalently the growth rate `r = log 2 / τ`) and
-# the time since seeding `T`. As a calendar date, `T` places the start
-# of sustained transmission at the data cut-off minus `T` days, so a
-# reader who holds prior information on the growth rate or on the
-# outbreak's origin date can read off the corresponding region of the
-# joint `(τ, T)` posterior below and locate the implied outbreak size.
-# The two are positively correlated: a slower growth (larger `τ`) needs
-# a longer elapsed `T` to reach the same observed counts.
-
-#md # ```@raw html
-#md # <details><summary>Joint (τ, T) posterior pair plot</summary>
-#md # ```
-
-tau_T_fig = plot_pair(chn_joint, [:τ, :T]);
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-tau_T_fig #hide
-
 # ## Counterfactual: lower bound under no further transmission
 #
-# Suppose every onward transmission stopped today. The cohort already
-# infected by `T` still carries future expected deaths in the onset-to-
-# death tail: a case infected at outbreak age `s` has died by `T` with
-# probability `F_d(T − s)` (equation (4)), so a fraction
+# Suppose every onward transmission stopped at the report date — the
+# estimation / report-generation time, which we denote `T`. The cohort
+# already infected by `T` still carries future expected deaths in the
+# onset-to-death tail: a case infected at outbreak age `s` has died by
+# the report date with probability `F_d(T − s)` (equation (4)), so a
+# fraction
 # `1 − F_d(T − s)` of its CFR-weighted contribution has not yet been
 # observed. Integrating against the incidence `i(s) = r·exp(r·s)` from
 # equation (1) gives the additional future expected deaths
