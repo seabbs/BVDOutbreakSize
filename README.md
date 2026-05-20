@@ -2,6 +2,8 @@
 
 **Authors:** Sam Abbott, Samuel Brand and Sebastian Funk.
 
+[![DOI](https://zenodo.org/badge/1243778099.svg)](https://doi.org/10.5281/zenodo.20312758)
+
 <!-- ABSTRACT:START -->
 **Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus
 (BVD) is ongoing in the Democratic Republic of the Congo, with cases
@@ -109,6 +111,7 @@ this repository depends on:
   *BVDOutbreakSize: joint forward-generative Turing model for the
   2026 DRC Bundibugyo outbreak.*
   <https://github.com/epiforecasts/BVDOutbreakSize>.
+  DOI: [10.5281/zenodo.20312758](https://doi.org/10.5281/zenodo.20312758).
 - **Imperial report** that this work re-implements —
   McCabe, R., Ebbarnezh, L., Okware, S., Fotsing, R., Koua, E.,
   Mbaka, P., Lofungola, A., van Elsland, S. L., McMenamin, M.,
