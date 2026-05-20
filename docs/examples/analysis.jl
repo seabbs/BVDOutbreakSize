@@ -2,10 +2,6 @@
 #
 # **Authors.** Sam Abbott, Samuel Brand and Sebastian Funk.
 #
-# The abstract below is loaded at build time from the repository
-# `README.md` (between its `ABSTRACT` markers) so the report and the
-# README share a single source.
-#
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
