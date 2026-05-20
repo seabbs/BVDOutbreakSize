@@ -58,9 +58,9 @@ end
              path, "w")
         daily = load_observations(path).export_deaths_daily
         ## Offsets 14 (2026-05-04) and 4 (2026-05-14); earliest = 14, so
-        ## the series spans offsets 14..1 (length 14), with one death at
+        ## the series spans offsets 14..0 (length 15), with one death at
         ## index 1 (offset 14) and one at index 11 (offset 4).
-        @test length(daily) == 14
+        @test length(daily) == 15
         @test sum(daily) == 2
         @test daily[1] == 1
         @test daily[11] == 1

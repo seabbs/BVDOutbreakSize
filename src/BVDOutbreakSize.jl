@@ -141,13 +141,14 @@ function load_observations(
     ## `missing` offset when absent (so its term is a no-op).
     _delta(k) = haskey(raw, k) ? _gap(_val(k)) : missing
     ## Export deaths as a daily series from the earliest dated death to
-    ## the cut-off: entry `i` (i = 1 earliest) counts deaths whose offset
-    ## is `n - i + 1`, where `n` is the earliest death's offset. Empty
-    ## when no dates are present. Drives the binned-Poisson likelihood.
+    ## the cut-off day: entry `i` (i = 1 earliest) counts deaths at offset
+    ## `maximum(offs) - i + 1`, ending at offset 0 (the cut-off day) so a
+    ## death recorded on the cut-off date is kept. Empty when no dates are
+    ## present. Drives the binned-Poisson likelihood.
     export_deaths_daily = if haskey(raw, "export_death_dates")
         offs = Int[_gap(d) for d in _val("export_death_dates")]
         isempty(offs) ? Int[] :
-            Int[count(==(δ), offs) for δ in maximum(offs):-1:1]
+            Int[count(==(δ), offs) for δ in maximum(offs):-1:0]
     else
         Int[]
     end
