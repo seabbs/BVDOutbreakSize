@@ -290,8 +290,9 @@ observations_table #hide
 # Reading top to bottom:
 #
 # 1. **Building-block submodels** — one per parameter family
-#    (growth, onset-to-death delay, CFR, detection window,
-#    surveillance dispersion, ascertainment). Each samples its own
+#    (growth, onset-to-death delay, CFR, detection window, daily
+#    traveller volume, surveillance dispersion, ascertainment). Each
+#    samples its own
 #    priors and returns a small NamedTuple of values. These sections
 #    introduce only the maths for their own parameters.
 # 2. **Observation submodels** — exports, deaths, cases, deaths-among-
@@ -481,6 +482,33 @@ end
         window_prior = truncated(Normal(15.0, 5.0); lower = 0))
     w ~ window_prior
     return (; w)
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# ##### Daily traveller volume
+#
+# The number of people crossing from the source area to Uganda each day
+# sets the travel rate in the exports likelihood. We treat it as an
+# estimated quantity rather than a fixed input. McCabe et al. Table 3
+# records mean weekly passenger counts across seven points of entry; the
+# Ituri-side daily total of $1871$ is a sample mean across roughly
+# $15$-$21$ point-of-entry-weeks. We use a Normal prior centred on
+# $1871$ with SD $200$ ($\approx 10\%$ CV), truncated at zero, covering
+# point-of-entry variation and the sitrep sampling uncertainty; the
+# source population is kept fixed (census).
+
+#md # ```@raw html
+#md # <details><summary>Submodel: traveller volume</summary>
+#md # ```
+
+@model function traveller_volume_model(;
+        mean::Real = ITURI_DAILY_TRAVEL,
+        sd::Real   = ITURI_DAILY_TRAVEL_SD)
+    daily_travellers ~ truncated(Normal(mean, sd); lower = 0)
+    return (; daily_travellers)
 end
 
 #md # ```@raw html
@@ -680,14 +708,6 @@ end
 #     likelihood for the detected exports; at the small detection
 #     probability here ($p \approx q\cdot w \approx 6\cdot 10^{-3}$) it
 #     is indistinguishable from a binomial detection model.
-#
-# **Daily traveller prior.** McCabe et al. Table 3 records mean weekly
-# passenger counts across seven PoEs from one to four weekly sitreps
-# per PoE. The Ituri-side daily total of $1871$ is a sample mean across
-# roughly $15$-$21$ PoE-weeks. The prior here is a Normal centred on
-# $1871$ with SD $200$ ($\approx 10\%$ CV), truncated at zero, covering
-# point-of-entry variation and the sitrep sampling uncertainty; source
-# population is kept fixed (census).
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exports_model</summary>
@@ -696,10 +716,9 @@ end
 @model function exports_model(
         exported_cases::Union{Missing, Integer},
         growth_state, p_uganda::Real;
-        travellers_mean::Real   = ITURI_DAILY_TRAVEL,
-        travellers_sd::Real     = ITURI_DAILY_TRAVEL_SD,
         source_population::Real = ITURI_POPULATION,
-        window                  = detection_window_model())
+        window                  = detection_window_model(),
+        traveller               = traveller_volume_model())
 
     cumulative = growth_state.cumulative
     T          = growth_state.T
@@ -707,9 +726,8 @@ end
     window_state ~ to_submodel(window, false)
     w = window_state.w
 
-    daily_travellers ~ truncated(
-        Normal(travellers_mean, travellers_sd);
-        lower = 0)
+    travel_state ~ to_submodel(traveller, false)
+    daily_travellers = travel_state.daily_travellers
 
     window_start = max(T - w, zero(T))
     cumulative_window_integral := integrate_cumulative(
@@ -852,13 +870,12 @@ end
 #       \cdot \int_{T-w}^{T} C(s)\, F_d(T - s)\, ds. \tag{19}
 # ```
 #
-# The package helper `integrate_exports_deaths` evaluates equation (19)
-# by writing $F_d$ as the inner integral of the density $f$, so the
-# whole expression differentiates through $f$ alone (the reverse-mode
-# AD backend does not support the gamma CDF shape-parameter
-# derivative). The detection window $w$ and daily traveller volume are
-# sampled by the exports likelihood and threaded in here so the two
-# Uganda-side observations share the same person-time, and a Poisson
+# Equation (19) is evaluated numerically, writing $F_d$ as the inner
+# integral of the density $f$ so the whole expression differentiates
+# through $f$ alone (the reverse-mode AD backend does not support the
+# gamma CDF shape-parameter derivative). The detection window $w$ and
+# daily traveller volume are shared with the exports likelihood so the
+# two Uganda-side observations use the same person-time, and a Poisson
 # likelihood ties the observed count to equation (19):
 #
 # ```math
@@ -910,8 +927,9 @@ end
 # generative models** for each analysis. McCabe et al. invert a
 # deterministic summary formula at fixed nuisance parameters; here we
 # sample the entire generative process — growth, delay, CFR, detection
-# window, dispersion, ascertainment — and condition on the observed
-# counts. Each composer conditionally includes only the likelihoods
+# window, traveller volume, dispersion, ascertainment — and condition
+# on the observed counts. Each composer conditionally includes only the
+# likelihoods
 # for the streams it carries, so a single-stream composer never
 # instantiates the other observation submodels (and so a discrete
 # stream is never left sampled, which would trip Turing's model check).
@@ -1016,10 +1034,9 @@ end
         delay         = delay_model(),
         cfr           = cfr_model(),
         window        = detection_window_model(),
+        traveller     = traveller_volume_model(),
         exports_deaths_model = exports_deaths_model,
         ascertainment = pooled_ascertainment_model(),
-        travellers_mean::Real   = ITURI_DAILY_TRAVEL,
-        travellers_sd::Real     = ITURI_DAILY_TRAVEL_SD,
         source_population::Real = ITURI_POPULATION)
 
     growth_state ~ to_submodel(growth, false)
@@ -1028,8 +1045,8 @@ end
     window_state ~ to_submodel(window, false)
     asc_state    ~ to_submodel(ascertainment, false)
 
-    daily_travellers ~ truncated(
-        Normal(travellers_mean, travellers_sd); lower = 0)
+    travel_state ~ to_submodel(traveller, false)
+    daily_travellers = travel_state.daily_travellers
 
     exports_deaths_state ~ to_submodel(
         exports_deaths_model(exports_deaths, growth_state,
