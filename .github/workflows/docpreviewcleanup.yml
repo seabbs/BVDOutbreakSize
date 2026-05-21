@@ -4,10 +4,6 @@ on:
   pull_request:
     types: [closed]
 
-# Serialise concurrent cleanup runs. The non-force push below is what
-# guards against clobbering a julia-docdeploy push: if a deploy lands
-# first the push is rejected as non-fast-forward rather than overwriting
-# it, so no history is lost.
 concurrency:
   group: gh-pages-cleanup
   cancel-in-progress: false
