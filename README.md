@@ -5,6 +5,10 @@
 **Last updated:** 20 May 2026. This is a live report, re-run as new
 data arrive, so the estimates change between updates.
 
+**Data as of:** 18 May 2026, the release date of the WHO AFRO External
+Situation Report 01 the counts are taken from. Estimates are reported
+as of this date; it can lag the update date above.
+
 [![DOI](https://zenodo.org/badge/1243778099.svg)](https://doi.org/10.5281/zenodo.20312758)
 
 **→ Jump to the results.** The headline estimate and every figure are on
@@ -23,7 +27,8 @@ the likely current size of the outbreak is useful for the response,
 but most
 cases are not yet reported and have to be inferred from the data
 streams that are available. The Imperial College London report
-(McCabe et al., [18 May 2026](https://www.imperial.ac.uk/mrc-global-infectious-disease-analysis/research-themes/preparedness-and-response-to-emerging-threats/report-ebola-18-05-2026/))
+(McCabe et al., [18 May 2026](https://www.imperial.ac.uk/mrc-global-infectious-disease-analysis/research-themes/preparedness-and-response-to-emerging-threats/report-ebola-18-05-2026/),
+revised in a [20 May 2026 update](https://www.imperial.ac.uk/media/imperial-college/medicine/mrc-gida/Report-ebola-update-20-05-2026.pdf))
 estimates the size with two analyses, geographic spread from the cases
 exported to Uganda and back-calculation from suspected deaths in DRC.
 Building on that work, we re-analyse the same problem as a single joint
@@ -39,9 +44,9 @@ approximations (the deaths convolution and the small-growth-rate
 exports term) with their exact forms. We report the joint posterior
 over the cumulative case count from current data; to separate the
 effect of newer data from the change in method we also fit the model
-to the data as of the report, comparing against both a joint
-reimplementation of the
-report's approach and its original published estimates.
+to the data as of each report version in sequence (18 May, then the
+20 May update), comparing against both a joint reimplementation of the
+report's approach and its original published estimates at each version.
 <!-- ABSTRACT:END -->
 
 **Use of AI:** The model code and analysis were drafted by a language
@@ -52,11 +57,12 @@ are responsible for that oversight.
 First, the method: we fit all data streams jointly in a single
 Bayesian model rather than combining separate scenario analyses (the
 abstract above and the analysis page list the full set of changes).
-Second, the data: we use the 20 May 2026 snapshot (sources per
+Second, the data: we use the 18 May 2026 snapshot (sources per
 [`data/observations.toml`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/data/observations.toml)),
-more recent than the 16 May 2026 figures in the McCabe et al. report.
-To separate these two effects we also refit the model to the report's
-own data. The joint posterior assumes a single common cut-off for
+at or beyond the cut-offs used in either McCabe et al. report version.
+To separate these two effects we also refit the model to each report
+version's own data (18 May, then the 20 May update).
+The joint posterior assumes a single common cut-off for
 every data stream, so the counts must be kept in sync to the same
 date.
 
@@ -169,13 +175,21 @@ this repository depends on:
   2026 DRC Bundibugyo outbreak.*
   <https://github.com/epiforecasts/BVDOutbreakSize>.
   DOI: [10.5281/zenodo.20312758](https://doi.org/10.5281/zenodo.20312758).
-- **Imperial report** that this work re-implements —
+- **Imperial reports** that this work re-implements and compares
+  against, in both released versions —
   McCabe, R., Ebbarnezh, L., Okware, S., Fotsing, R., Koua, E.,
   Mbaka, P., Lofungola, A., van Elsland, S. L., McMenamin, M.,
   Ferguson, N., le Polain de Waroux, O., Cori, A. (2026).
   *Estimation of the size of the outbreak of Ebola disease caused
   by Bundibugyo virus in DRC.* Imperial College London, 18 May 2026.
+  DOI: [10.25560/130007](https://doi.org/10.25560/130007).
   [Report page](https://www.imperial.ac.uk/mrc-global-infectious-disease-analysis/research-themes/preparedness-and-response-to-emerging-threats/report-ebola-18-05-2026/).
+  McCabe, R. and others (2026).
+  *Estimation of the size of the Ebola outbreak caused by Bundibugyo
+  virus in DRC: May 20, 2026 update.* Imperial College London,
+  20 May 2026.
+  DOI: [10.25560/13005307](https://doi.org/10.25560/13005307).
+  [Report PDF](https://www.imperial.ac.uk/media/imperial-college/medicine/mrc-gida/Report-ebola-update-20-05-2026.pdf).
 - **Onset-to-death delay reanalysis** that this work uses for
   delay priors — Funk, S. (2026). *bdbv-linelist-analysis:
   Bayesian reanalysis of the 2012 Isiro Bundibugyo line list.*
