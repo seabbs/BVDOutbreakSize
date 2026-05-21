@@ -89,7 +89,7 @@ function model_diagram_svg()
     save(SVG(out), tp)
     svg = read(out * ".svg", String)
     svg = svg[findfirst("<svg", svg)[1]:end]            # drop xml/doctype
-    style = "width:100%;height:auto;"
+    style = "width:60%;height:auto;"
     svg = replace(svg, r"<svg " => "<svg style=\"$style\" "; count = 1)
     ## Break the diagram out of the narrow prose column so the layered
     ## graph renders large enough to read. Centre a wider container and
