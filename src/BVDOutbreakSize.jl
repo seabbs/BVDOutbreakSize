@@ -516,7 +516,7 @@ _panel_exports!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(20, ceil(Int, quantile(pp, 0.99)))
     ax = Axis(fig[r, c];
         xlabel = "Replicated exported cases",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Exports (cases)",
         limits = ((0, upper), nothing),
     )
@@ -531,7 +531,7 @@ _panel_exports_deaths!(fig, pos, pp, obs;
     upper = max(3, ceil(Int, quantile(pp, 0.995)))
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths among exports",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Exports (deaths)",
         limits = ((0, upper), nothing),
     )
@@ -545,7 +545,7 @@ _panel_deaths!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(1.0, quantile(pp, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Deaths (DRC)",
         limits = ((0, upper), nothing),
     )
@@ -560,7 +560,7 @@ _panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(1.0, quantile(pp, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated reported cases",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Reported cases (DRC)",
         limits = ((0, upper), nothing),
     )
@@ -1006,7 +1006,7 @@ function plot_forecast(fc::DataFrame)
         v = fc[!, col]
         upper = max(1.0, quantile(v, 0.995))
         ax = Axis(fig[1, i];
-            xlabel = title, ylabel = "Forecast count",
+            xlabel = title, ylabel = "Predictive frequency",
             title = "One week ahead", limits = ((0, upper), nothing))
         hist!(ax, v; bins = range(0, upper; length = 30),
               color = (colour, 0.7))
