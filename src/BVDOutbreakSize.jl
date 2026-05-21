@@ -1024,7 +1024,7 @@ function plot_forecast(fc::DataFrame)
         v = fc[!, col]
         upper = max(1.0, quantile(v, 0.995))
         ax = Axis(fig[1, i];
-            xlabel = title, ylabel = "Forecast count",
+            xlabel = title, ylabel = "Predictive frequency",
             title = "One week ahead", limits = ((0, upper), nothing))
         hist!(ax, v; bins = range(0, upper; length = 30),
               color = (colour, 0.7))
