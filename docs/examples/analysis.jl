@@ -161,7 +161,7 @@
 #   count weights the exported at-risk person-time by the onset-to-death
 #   CDF $F_d(T-s)$ rather than convolving the death delay against the
 #   exported-case incidence; this treats the cohort present at time $s$
-#   as if infected at $s$. A cleaner construction would convolve the
+#   as if infected at $s$. A more direct construction would convolve the
 #   onset-to-death delay against the exported-case incidence trajectory.
 # - *Ascertainment partially pooled, not separately identified.*
 #   Uganda's exported-case ascertainment $p_{\text{uganda}}$ and DRC's
@@ -303,7 +303,7 @@ observations_table #hide
 # *building-block submodel* owns the maths and priors for one epidemic
 # parameter family. The *observation submodels* assemble those blocks,
 # introduce the forward integrals and the likelihoods, and tie one data
-# stream to the latent state. The *composers* glue the observation
+# stream to the latent state. The *composers* combine the observation
 # submodels into the per-stream fits and the joint fit. The diagram
 # below traces that flow:
 #
@@ -323,8 +323,8 @@ observations_table #hide
 #    stream to the latent $C(T)$.
 # 3. **Composers** — one per analysis: the four single-stream fits, a
 #    two-stream reimplementation of the report's methods (exports and
-#    deaths), and the full joint fit. Each is a thin wrapper that
-#    samples the building blocks and the relevant observation
+#    deaths), and the full joint fit. Each samples the building blocks
+#    and the relevant observation
 #    submodels. A composer conditionally includes only the likelihoods
 #    for the streams it uses, so a single-stream fit never instantiates
 #    the other observation submodels.
@@ -712,8 +712,8 @@ end
 #          + \int_{T-w}^{T} i(s) \, (T - s) \, ds \Bigr], \tag{13}
 # ```
 #
-# which integration by parts collapses to the cleaner at-risk person-
-# time form using the cumulative-incidence trajectory $C(s)$ of
+# which integration by parts collapses to the at-risk person-time form
+# using the cumulative-incidence trajectory $C(s)$ of
 # equation (1):
 #
 # ```math
@@ -955,10 +955,10 @@ end
 
 # #### Composers
 #
-# These composers stitch the building blocks into the **full
-# generative models** for each analysis. McCabe et al. invert a
+# These composers combine the building blocks into the full model for
+# each analysis. McCabe et al. invert a
 # deterministic summary formula at fixed nuisance parameters; here we
-# sample the entire generative process — growth, delay, CFR, detection
+# sample all of them — growth, delay, CFR, detection
 # window, traveller volume, dispersion, ascertainment — and condition
 # on the observed counts. Each composer conditionally includes only the
 # likelihoods
