@@ -50,6 +50,16 @@ to the data as of each report version in sequence (18 May, then the
 report's approach and its original published estimates at each version.
 <!-- ABSTRACT:END -->
 
+**Scope.** This work is motivated by adding an external view of the
+current situation, based on our understanding of real-time infectious
+disease dynamics and the infection process that gives rise to observed
+epidemic surveillance counts.
+We are actively developing it and encourage feedback, so please get in
+touch.
+We fully support reuse and adaptation.
+Find out more in the
+[contributing guide](https://epiforecasts.io/BVDOutbreakSize/dev/contributing).
+
 **Use of AI:** The model code and analysis were drafted by a language
 model and reviewed and revised under human oversight; the named authors
 are responsible for that oversight.
