@@ -412,6 +412,45 @@ end
 #md # </details>
 #md # ```
 
+# ##### Genetic seeding bound
+#
+# The first eight sequenced cases give a maximum-likelihood phylogeny
+# [virological2026](@cite) whose root-to-tip genetic distance, divided
+# by the $1.2\times10^{-3}$ substitutions/site/year molecular clock rate
+# estimated for the 2013–2016 West African Ebola epidemic
+# [holmes2016](@cite), places the time of the most recent common
+# ancestor (TMRCA) roughly 80 days before the cut-off (combination per
+# N. Ferguson [ferguson2026](@cite)). This is a *lower* bound on the
+# seeding time $T$: the sampled TMRCA can only move older as further
+# sequences are added, both from deeper sampling within sampled health
+# zones and from chains in earlier-affected zones that are not yet
+# sequenced. We therefore add a one-sided soft constraint that leaves
+# $T$ unpenalised above the bound $g$ and decays below it with width
+# $\sigma$,
+#
+# ```math
+# \log p_\text{gen}(T) = \log \Phi\!\left(\frac{T - g}{\sigma}\right),
+# \qquad g \approx 80\ \text{d}, \ \sigma = 20\ \text{d}, \tag{3a}
+# ```
+#
+# with $\Phi$ the standard Normal CDF. The bound and width are read from
+# `data/observations.toml` relative to the cut-off, keeping the genetics
+# out of the model code.
+
+#md # ```@raw html
+#md # <details><summary>Submodel: genetic_seeding_model</summary>
+#md # ```
+
+@model function genetic_seeding_model(T;
+        lower_days::Real, width::Real)
+    @addlogprob! logcdf(Normal(0.0, width), T - lower_days)
+    return (; lower_days, width)
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ##### Onset-to-death delay
 #
 # Following McCabe et al., we assume the symptom-onset-to-death delay is
@@ -1199,12 +1238,16 @@ end
         exports_detection_timing = exports_detection_timing_model,
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
+        genetic       = nothing,
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
         pre_detection_exports::Union{Missing, Integer} = 0,
         first_export_detection_delta::Union{Missing, Real} = missing)
 
     growth_state     ~ to_submodel(growth, false)
+    if genetic !== nothing
+        genetic_state ~ to_submodel(genetic(growth_state.T), false)
+    end
     dispersion_state ~ to_submodel(dispersion, false)
     asc_state        ~ to_submodel(ascertainment, false)
     k        = dispersion_state.k
@@ -1340,10 +1383,15 @@ prior_pair_fig #hide
 #md # <details><summary>Run the joint and per-stream NUTS fits</summary>
 #md # ```
 
+genetic_seeding = T -> genetic_seeding_model(T;
+    lower_days = obs.genetic_tmrca_days,
+    width      = obs.genetic_tmrca_width)
+
 chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
               obs.reported_cases, obs.export_deaths_daily;
-              first_export_detection_delta = obs.first_export_detection_delta));
+              first_export_detection_delta = obs.first_export_detection_delta,
+              genetic = genetic_seeding));
 
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
 chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths));
@@ -1660,7 +1708,8 @@ pp_joint   = predict(
               fill(missing, length(obs.export_deaths_daily));
               pre_start_deaths = missing,
               pre_detection_exports = missing,
-              first_export_detection_delta = obs.first_export_detection_delta),
+              first_export_detection_delta = obs.first_export_detection_delta,
+              genetic = genetic_seeding),
     chn_joint);
 pp_exports        = vec(Array(pp_joint[:exported_cases]));
 pp_deaths         = vec(Array(pp_joint[:total_deaths]));
@@ -1779,6 +1828,7 @@ chn_joint_community = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
               obs.reported_cases, obs.export_deaths_daily;
               first_export_detection_delta = obs.first_export_detection_delta,
+              genetic = genetic_seeding,
               deaths = (total_deaths, growth_state, k) ->
                   deaths_model(total_deaths, growth_state, k;
                                delay = community_delay)));

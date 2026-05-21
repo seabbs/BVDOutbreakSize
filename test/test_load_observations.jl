@@ -11,6 +11,8 @@
     @test obs.source_population isa Integer
     @test obs.daily_outbound_travellers isa Real
     @test obs.daily_outbound_travellers_sd isa Real
+    @test obs.genetic_tmrca_days isa Real
+    @test obs.genetic_tmrca_width isa Real
 
     @test obs.exported_cases >= 0
     @test obs.exports_deaths >= 0
@@ -19,6 +21,8 @@
     @test obs.daily_outbound_travellers > 0
     @test obs.daily_outbound_travellers_sd > 0
     @test obs.source_population > 0
+    @test obs.genetic_tmrca_days > 0
+    @test obs.genetic_tmrca_width > 0
 
     @test obs.sources isa NamedTuple
     @test obs.sources.exported_cases isa String
@@ -28,8 +32,10 @@
     @test obs.sources.daily_outbound_travellers isa String
     @test obs.sources.daily_outbound_travellers_sd isa String
     @test obs.sources.source_population isa String
+    @test obs.sources.genetic_tmrca isa String
 
     @test !isempty(obs.sources.exported_cases)
+    @test !isempty(obs.sources.genetic_tmrca)
 end
 
 ## Export deaths are loaded as a daily series from the earliest dated

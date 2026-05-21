@@ -123,10 +123,14 @@ Fields returned:
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
+- `genetic_tmrca_days::Real` — estimated TMRCA in days before
+  `as_of_date`, used as a soft lower bound on the seeding time `T`.
+- `genetic_tmrca_width::Real` — SD (days) of the one-sided decay below
+  that bound.
 - `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
   :reported_cases, :daily_outbound_travellers,
-  :daily_outbound_travellers_sd, :source_population),
-  NTuple{7, String}}` — citation per field.
+  :daily_outbound_travellers_sd, :source_population, :genetic_tmrca),
+  NTuple{8, String}}` — citation per field.
 """
 function load_observations(
         path::AbstractString = joinpath(@__DIR__, "..", "data",
@@ -162,6 +166,9 @@ function load_observations(
         source_population            = Int(_val("source_population")),
         export_deaths_daily          = export_deaths_daily,
         first_export_detection_delta = _delta("first_export_detection_date"),
+        genetic_tmrca_days           = _gap(raw["genetic_tmrca"]["date"]),
+        genetic_tmrca_width          = float(
+            raw["genetic_tmrca"]["width_days"]),
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
@@ -170,6 +177,8 @@ function load_observations(
             daily_outbound_travellers    = _src("daily_outbound_travellers"),
             daily_outbound_travellers_sd = _src("daily_outbound_travellers_sd"),
             source_population            = _src("source_population"),
+            genetic_tmrca                = String(
+                raw["genetic_tmrca"]["source"]),
         ),
     )
 end

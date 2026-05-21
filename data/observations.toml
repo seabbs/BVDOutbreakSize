@@ -40,3 +40,13 @@ source = "PoE-to-PoE variation and sitrep sampling uncertainty; ~10% CV"
 [source_population]
 value  = 4392200
 source = "McCabe et al. Table 1 — Ituri Province population"
+
+# Genetic TMRCA. A soft lower bound on the seeding time T: the time of
+# the most recent common ancestor of the first sequenced cases, treated
+# as a lower bound because adding sequences only pushes the TMRCA older
+# (Pybus; Judge, pers. comm.). `date` is the estimated TMRCA and
+# `width_days` the SD of the one-sided decay below it (days).
+[genetic_tmrca]
+date       = "2026-02-27"
+width_days = 20
+source = "Maximum-likelihood phylogeny of the first eight BDBV genomes (virological2026), genetic distance divided by the 1.2e-3 substitutions/site/year clock rate of holmes2016; combination per N. Ferguson (ferguson2026). ~80 days before the 18 May 2026 cut-off and a lower bound, since further sequences only push the TMRCA older."
