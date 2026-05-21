@@ -293,7 +293,7 @@ const DELAY_SUPPORT_K = 10
 # the window near the cut-off where the convolution integrand has mass.
 # Scales with the sampled `std`, so gradients flow through it on the
 # AD-supported parameter path used by the clustered `integrate`.
-_delay_support_upper(dist) = mean(dist) + DELAY_SUPPORT_K * std(dist)
+_delay_scale(dist) = mean(dist) + DELAY_SUPPORT_K * std(dist)
 
 """
 $(TYPEDSIGNATURES)
@@ -313,7 +313,7 @@ where `f(T − s)` has mass, over a window set by the delay scale (see
 [`DELAY_SUPPORT_K`](@ref)). Uses [`DEATH_INTEGRAL_ALG`](@ref).
 """
 function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
-    scale = _delay_support_upper(delay_dist)
+    scale = _delay_scale(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> begin
             d = T - s
@@ -846,7 +846,7 @@ end
 function _committed_deaths_one(r, T, α, θ, CFR;
         alg = DEATH_INTEGRAL_ALG)
     delay_dist = Gamma(α, θ)
-    scale = _delay_support_upper(delay_dist)
+    scale = _delay_scale(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> r * exp(r * s) * ccdf(delay_dist, T - s)
     end
