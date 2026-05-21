@@ -1,6 +1,6 @@
 module BVDOutbreakSize
 
-using Statistics: quantile
+using Statistics: quantile, mean, std
 using Printf: @sprintf
 using TOML
 using DataFrames: DataFrame
@@ -256,6 +256,28 @@ function integrate(f, lo, hi; alg = CUMULATIVE_INTEGRAL_ALG)
 end
 
 """
+    DELAY_SUPPORT_K
+
+Number of standard deviations beyond the mean used to bound a delay
+distribution's effective support in the onset-to-death convolution
+integrals. `mean + DELAY_SUPPORT_K · std` sits far enough into the tail
+that the omitted mass is negligible for a gamma delay, while keeping the
+integration window proportional to the delay's scale.
+"""
+const DELAY_SUPPORT_K = 10
+
+# Upper edge of a delay distribution's effective support, `mean + K·std`.
+# The convolution integrals run over the full outbreak window `[0, T]`
+# (with `T` up to several hundred days), but the delay density only has
+# mass within roughly this distance of the cut-off. Bounding the domain
+# here keeps the fixed Gauss-Legendre nodes clustered on that support,
+# so the quadrature stays accurate as the sampled delay narrows instead
+# of spreading nodes across an empty tail. The bound scales with the
+# sampled `std`, so gradients flow through it on the AD-supported
+# parameter path used by `integrate`.
+_delay_support_upper(dist) = mean(dist) + DELAY_SUPPORT_K * std(dist)
+
+"""
 $(TYPEDSIGNATURES)
 
 Expected cumulative deaths by time `T` from a single seeding case under
@@ -267,17 +289,20 @@ exponential growth at rate `r`:
 ```
 
 with `f` the `delay_dist` onset-to-death density. The integrand returns
-zero past `T` so the convolution support is respected. Uses
-[`DEATH_INTEGRAL_ALG`](@ref).
+zero past `T` so the convolution support is respected. The lower limit
+is lifted to `max(0, T − (mean + K·std))` of `delay_dist` so the
+quadrature nodes cluster on the part of the window where `f(T − s)` has
+mass (see [`DELAY_SUPPORT_K`](@ref)). Uses [`DEATH_INTEGRAL_ALG`](@ref).
 """
 function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
+    lo = max(zero(T), T - _delay_support_upper(delay_dist))
     g = let r = r, T = T, delay_dist = delay_dist
         s -> begin
             d = T - s
             d <= 0 ? zero(r) : exp(r * s) * pdf(delay_dist, d)
         end
     end
-    return CFR * integrate(g, zero(T), T; alg)
+    return CFR * integrate(g, lo, T; alg)
 end
 
 """
@@ -803,10 +828,11 @@ end
 function _committed_deaths_one(r, T, α, θ, CFR;
         alg = DEATH_INTEGRAL_ALG)
     delay_dist = Gamma(α, θ)
+    lo = max(zero(T), T - _delay_support_upper(delay_dist))
     g = let r = r, T = T, delay_dist = delay_dist
         s -> r * exp(r * s) * ccdf(delay_dist, T - s)
     end
-    return CFR * integrate(g, zero(T), T; alg)
+    return CFR * integrate(g, lo, T; alg)
 end
 
 """
