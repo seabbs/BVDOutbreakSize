@@ -7,6 +7,14 @@ data arrive, so the estimates change between updates.
 
 [![DOI](https://zenodo.org/badge/1243778099.svg)](https://doi.org/10.5281/zenodo.20312758)
 
+**→ Jump to the results.** The headline estimate and every figure are on
+the [analysis page](https://epiforecasts.io/BVDOutbreakSize/dev/analysis).
+Go straight to the
+[current outbreak size](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Results),
+the [comparison with the Imperial report](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Comparison-with-McCabe-et-al.),
+[how each data stream compares](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#How-the-data-streams-compare),
+or the [limitations](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Limitations).
+
 <!-- ABSTRACT:START -->
 **Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus
 (BVD) is ongoing in the Democratic Republic of the Congo (DRC),
@@ -52,8 +60,10 @@ own data. The joint posterior assumes a single common cut-off for
 every data stream, so the counts must be kept in sync to the same
 date.
 
-The [analysis](https://epiforecasts.io/BVDOutbreakSize/dev/analysis)
-lays out each deviation alongside the matching Imperial method.
+The analysis page sets out
+[each way our method departs from the report](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#What-we-do-differently-from-McCabe-et-al.)
+alongside the matching Imperial method, and reports the
+[full joint results](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Results).
 
 ## Running
 
@@ -76,7 +86,7 @@ Updating the observation counts for a new sitrep is a single-file
 edit of `data/observations.toml`; the literate picks the new numbers
 up automatically.
 
-## Results
+## Outputs and releases
 
 Each push to `main` regenerates the model outputs as part of the
 documentation build and publishes them as a GitHub Release. The

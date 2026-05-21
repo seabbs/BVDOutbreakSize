@@ -44,7 +44,11 @@
 # report, built from the same run, is attached to each results release:
 # [download the latest](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest/download/analysis.html).
 #
-# **→ Jump to the [results](#Results).**
+# **→ Jump straight to the results:**
+# [current outbreak size](#Results) ·
+# [comparison with McCabe et al.](#Comparison-with-McCabe-et-al.) ·
+# [how the data streams compare](#How-the-data-streams-compare) ·
+# [limitations](#Limitations).
 #
 # ## What we do differently from McCabe et al.
 #
@@ -264,8 +268,6 @@ const ITURI_POPULATION    = obs.source_population
 const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
 const EXPORTED_CASES      = obs.exported_cases
 const EXPORTS_DEATHS      = obs.exports_deaths
-const TOTAL_DEATHS        = obs.total_deaths
-const REPORTED_CASES      = obs.reported_cases
 
 #md # ```@raw html
 #md # </details>
@@ -1588,7 +1590,7 @@ joint_ppc_fig #hide
 #md # <details><summary>Project no-onward deaths and summarise</summary>
 #md # ```
 
-no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = TOTAL_DEATHS);
+no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = obs.total_deaths);
 
 no_onward_table = streams_table(
     "no-onward total" => no_onward.total_projected;
@@ -1611,7 +1613,7 @@ no_onward_table #hide
 #md # <details><summary>No-onward projected-deaths plot</summary>
 #md # ```
 
-no_onward_fig = plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS);
+no_onward_fig = plot_no_onward_deaths(no_onward; obs_deaths = obs.total_deaths);
 
 #md # ```@raw html
 #md # </details>
@@ -1632,8 +1634,8 @@ forecast = forecast_reported(chn_joint;
     horizon           = 7,
     daily_travellers  = ITURI_DAILY_TRAVEL,
     source_population = ITURI_POPULATION,
-    obs_cases         = REPORTED_CASES,
-    obs_deaths        = TOTAL_DEATHS,
+    obs_cases         = obs.reported_cases,
+    obs_deaths        = obs.total_deaths,
     obs_exports       = EXPORTED_CASES);
 forecast_summary = forecast_table(forecast);
 
