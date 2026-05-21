@@ -420,28 +420,23 @@ end
 # estimated for the 2013–2016 West African Ebola epidemic
 # [holmes2016](@cite), places the time of the most recent common
 # ancestor (TMRCA) roughly 80 days before the cut-off (combination per
-# N. Ferguson [ferguson2026](@cite)). This is a *lower* bound on the
-# seeding time $T$: the sampled TMRCA can only move older as further
-# sequences are added, both from deeper sampling within sampled health
-# zones and from chains in earlier-affected zones that are not yet
-# sequenced. We encode this as an upper-censored, noisy reading of $T$:
-# the clock yields a measurement $\mathrm{Normal}(T, \sigma)$ that is
-# right-censored at the reported TMRCA $g$, so the data tell us only that
-# the reading is at least $g$. The resulting likelihood is one-sided —
-# flat above the bound and decaying below it,
+# N. Ferguson [ferguson2026](@cite)).
+# This is a lower bound on the seeding time $T$, since the TMRCA only
+# moves older as more sequences are added.
+# We do not know exactly where the floor sits, so we treat it as an
+# uncertain threshold $B \sim \mathrm{Normal}(g, \sigma)$ and require
+# $T \ge B$, leaving $T$ free above it.
+# Marginalising over $B$ gives a soft one-sided likelihood,
 #
 # ```math
-# p_\text{gen}(g \mid T) = \Pr[\mathrm{Normal}(T, \sigma) \ge g]
-#   = \Phi\!\left(\frac{T - g}{\sigma}\right),
-# \qquad g \approx 80\ \text{d}, \ \sigma = 20\ \text{d}, \tag{3a}
+# p_\text{gen}(T) = \Pr[B \le T] = \Phi\!\left(\frac{T - g}{\sigma}\right),
+# \qquad g \approx 80\ \text{d}, \ \sigma = 20\ \text{d}. \tag{3a}
 # ```
 #
-# with $\Phi$ the standard Normal CDF. This is a soft bound, not a hard
-# truncation: it shifts mass rather than forbidding $T < g$. The model
-# expresses it with the `censored` helper rather than a hand-rolled
-# log-density. The bound $g$ and width $\sigma$ are read from
-# `data/observations.toml` relative to the cut-off, keeping the genetics
-# out of the model code.
+# So $\sigma$ is the uncertainty in the floor location, not a bound on
+# how old $T$ can be; a more recent $T$ is improbable, not forbidden.
+# The model uses the `censored` helper and reads $g$ and $\sigma$ from
+# `data/observations.toml`.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: genetic_seeding_model</summary>

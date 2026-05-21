@@ -13,15 +13,10 @@ using Turing: Turing, @model, sample, Prior, to_submodel, logjoint
 end
 
 @testset "genetic_seeding adds the soft lower-bound log density" begin
-    ## g = 80 days is the molecular-clock TMRCA: the root-to-tip genetic
-    ## distance of the first sequenced genomes divided by a 1.2e-3
-    ## substitutions/site/year clock rate. It is taken here as ~80 days
-    ## before the 18 May 2026 data cut-off (TMRCA date 2026-02-27), not
-    ## relative to the run date. This approximates the TMRCA as measured
-    ## from the cut-off rather than from the individual sequence sampling
-    ## dates (6-16 May 2026); since those fall within ~2 weeks of the
-    ## cut-off the approximation is small. width = 20 days is the SD of
-    ## the one-sided soft bound.
+    ## g = 80 days is the molecular-clock TMRCA, taken ~80 days before the
+    ## 18 May 2026 cut-off (date 2026-02-27), not relative to the run date.
+    ## width is the SD on the floor's location, not a bound on how old T
+    ## can be.
     g, width = 80.0, 20.0
     at(T) = logjoint(_genetic_seeding(T, g; width), (;))
 

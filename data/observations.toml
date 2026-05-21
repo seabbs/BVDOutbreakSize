@@ -41,11 +41,12 @@ source = "PoE-to-PoE variation and sitrep sampling uncertainty; ~10% CV"
 value  = 4392200
 source = "McCabe et al. Table 1 — Ituri Province population"
 
-# Genetic TMRCA. A soft lower bound on the seeding time T: the time of
-# the most recent common ancestor of the first sequenced cases, treated
-# as a lower bound because adding sequences only pushes the TMRCA older
+# Genetic TMRCA. A soft lower bound on the seeding time T, the time of
+# the most recent common ancestor of the first sequenced cases. It is a
+# lower bound because adding sequences only pushes the TMRCA older
 # (Pybus; Judge, pers. comm.). `date` is the estimated TMRCA and
-# `width_days` the SD of the one-sided decay below it (days).
+# `width_days` the SD on the location of the floor (uncertainty in the
+# estimate, in either direction), not a constraint on how old T can be.
 [genetic_tmrca]
 date       = "2026-02-27"
 width_days = 20
