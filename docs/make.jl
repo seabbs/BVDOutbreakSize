@@ -56,8 +56,7 @@ const DIAGRAM_BODY = raw"""
   OE [as={Exports}];
   OD [as={Deaths}];
   OC [as={Cases}];
-  OX [as={Export deaths}];
-  TX [as={First export-death\\timing}];
+  OX [as={Export deaths\\(time-resolved)}];
   TE [as={First export-detection\\timing}];
   CE [as={Exports only}];
   CD [as={Deaths only}];
@@ -65,18 +64,17 @@ const DIAGRAM_BODY = raw"""
   CX [as={Export deaths\\only}];
   CI [as={Imperial\\(exports+deaths)}];
   CJ [as={Joint\\(all streams)}];
-  G -> { OE, OD, OC, OX, TX, TE };
-  D -> { OD, OX, TX };
-  CFR -> { OD, OX, TX };
-  W -> { OE, OX, TX, TE };
+  G -> { OE, OD, OC, OX, TE };
+  D -> { OD, OX };
+  CFR -> { OD, OX };
+  W -> { OE, OX, TE };
   K -> { OD, OC };
-  A -> { OE, OC, OX, TX, TE };
-  V -> { OE, OX, TX, TE };
+  A -> { OE, OC, OX, TE };
+  V -> { OE, OX, TE };
   OE -> { CE, CI, CJ };
   OD -> { CD, CI, CJ };
   OC -> { CC, CJ };
   OX -> { CX, CJ };
-  TX -> { CJ };
   TE -> { CJ };
 };
 """

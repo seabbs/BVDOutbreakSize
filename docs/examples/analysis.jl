@@ -1006,6 +1006,7 @@ end
 @model function exports_detection_timing_model(
         growth_state, p_uganda::Real;
         delta::Union{Missing, Real},
+        pre_detection_exports::Union{Missing, Integer} = 0,
         window::Real,
         daily_travellers::Real,
         source_population::Real = ITURI_POPULATION)
@@ -1017,9 +1018,9 @@ end
         q          = daily_travellers / source_population
         survived_exports := t1 <= zero(T) ? zero(T) :
             expected_exports(cumulative, p_uganda, q, t1, window)
-        ## Survival of the export-detection Poisson process to t1:
-        ## log P(no export detected before t1) = -E[exports(t1)].
-        Turing.@addlogprob! -survived_exports
+        ## No detection before t1 as a Poisson observed at 0; `missing`
+        ## generates it for predictive checks (see equation (22)).
+        pre_detection_exports ~ Poisson(max(survived_exports, zero(T)))
     end
 
     return (;)
@@ -1200,6 +1201,7 @@ end
         ascertainment = pooled_ascertainment_model(),
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
+        pre_detection_exports::Union{Missing, Integer} = 0,
         first_export_detection_delta::Union{Missing, Real} = missing)
 
     growth_state     ~ to_submodel(growth, false)
@@ -1226,6 +1228,7 @@ end
     detection_timing_state ~ to_submodel(
         exports_detection_timing(growth_state, p_uganda;
             delta            = first_export_detection_delta,
+            pre_detection_exports = pre_detection_exports,
             window           = exports_state.w,
             daily_travellers = exports_state.daily_travellers,
             source_population = source_population),
@@ -1656,6 +1659,7 @@ pp_joint   = predict(
     bvd_joint(missing, missing, missing,
               fill(missing, length(obs.export_deaths_daily));
               pre_start_deaths = missing,
+              pre_detection_exports = missing,
               first_export_detection_delta = obs.first_export_detection_delta),
     chn_joint);
 pp_exports        = vec(Array(pp_joint[:exported_cases]));
