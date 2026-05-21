@@ -1,0 +1,30 @@
+name: Doc Preview Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  doc-preview-cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Delete preview and history + push changes
+        run: |
+            if [ -d "previews/PR$PRNUM" ]; then
+              git config user.name "BVDOutbreakSize"
+              git config user.email "action@github.com"
+              git rm -rf "previews/PR$PRNUM"
+              git commit -m "delete preview for PR$PRNUM"
+              git branch gh-pages-new $(echo "delete history" | git commit-tree HEAD^{tree})
+              git push --force origin gh-pages-new:gh-pages
+            fi
+        env:
+            PRNUM: ${{ github.event.number }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
