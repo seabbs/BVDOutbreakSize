@@ -1450,6 +1450,31 @@ end;
 
 summary_ranges #hide
 
+# **Why our estimate is higher than McCabe et al.**
+# Our central estimate sits above the McCabe et al.
+# [mccabe2026](@cite) report, and we think this is for a few reasons.
+# The main one is that we use more of the available data and carry the
+# uncertainty through rather than reading the answer off a single
+# scenario.
+# We fit two data streams the report does not (deaths among exported
+# cases, and reported DRC cases with an ascertainment component), and we
+# put priors on the quantities the report fixes and varies one at a time
+# (doubling time, delays, case fatality ratio, reporting fractions), so
+# the headline number averages over a plausible range for each instead
+# of one chosen value.
+# Some of our changes push the other way: the exact export integral and
+# the numerical deaths convolution correct approximations that, on their
+# own, lower the estimate, and using newer data moves it again.
+# The net of all of this is an estimate above the report's.
+# The largest caveat is that the reported-case stream leans on an
+# ascertainment prior that is not yet informed by data or expert input,
+# so it is one of the first things we would refine.
+# See [what we do differently](#What-we-do-differently-from-McCabe-et-al.)
+# for the method changes,
+# the [comparison with McCabe et al.](#Comparison-with-McCabe-et-al.)
+# for the side-by-side numbers, and the [limitations](#Limitations) for
+# the assumptions these estimates rest on.
+
 # ### Joint model estimates
 #
 # Our main result is an estimate of the current cumulative case load —
