@@ -5,6 +5,9 @@
 # **Last updated.** 2026-05-20. This is a live report, re-run as new
 # data arrive, so the estimates change between updates.
 #
+# [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable/analysis)
+# [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev/analysis)
+#
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)

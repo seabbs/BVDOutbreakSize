@@ -5,6 +5,8 @@
 **Last updated:** 20 May 2026. This is a live report, re-run as new
 data arrive, so the estimates change between updates.
 
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev)
 [![DOI](https://zenodo.org/badge/1243778099.svg)](https://doi.org/10.5281/zenodo.20312758)
 
 <!-- ABSTRACT:START -->
