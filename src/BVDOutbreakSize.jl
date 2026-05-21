@@ -14,7 +14,8 @@ using Turing
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions
-using Distributions: Gamma, ccdf, pdf, Poisson, NegativeBinomial
+using Distributions: Distribution, Gamma, ccdf, pdf, Poisson,
+                     NegativeBinomial
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
@@ -39,6 +40,7 @@ export REPORT_SCENARIOS,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
+       plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast
 
@@ -46,7 +48,7 @@ export REPORT_SCENARIOS,
     REPORT_SCENARIOS
 
 Published point estimates of cumulative cases `C_T` from McCabe et
-al. (Imperial College London, 18 May 2026), as `(label, value)`
+al. (Imperial College London, 20 May 2026 update), as `(label, value)`
 tuples in the order they appear in Tables 1 and 2.
 """
 const REPORT_SCENARIOS = [
@@ -56,15 +58,15 @@ const REPORT_SCENARIOS = [
     ("Method 1 +N. Kivu, w=10",  617),
     ("Method 1 +N. Kivu, w=15",  412),
     ("Method 1 +N. Kivu, w=20",  309),
-    ("Method 2 τ=14 d, CFR 24%", 626),
-    ("Method 2 τ=14 d, CFR 30%", 501),
-    ("Method 2 τ=14 d, CFR 40%", 376),
-    ("Method 2 τ= 7 d, CFR 24%", 1008),
-    ("Method 2 τ= 7 d, CFR 30%", 807),
-    ("Method 2 τ= 7 d, CFR 40%", 605),
-    ("Method 2 τ=21 d, CFR 24%", 531),
-    ("Method 2 τ=21 d, CFR 30%", 425),
-    ("Method 2 τ=21 d, CFR 40%", 319),
+    ("Method 2 τ=14 d, CFR 26%", 860),
+    ("Method 2 τ=14 d, CFR 33%", 678),
+    ("Method 2 τ=14 d, CFR 40%", 559),
+    ("Method 2 τ= 7 d, CFR 26%", 1386),
+    ("Method 2 τ= 7 d, CFR 33%", 1092),
+    ("Method 2 τ= 7 d, CFR 40%", 901),
+    ("Method 2 τ=21 d, CFR 26%", 730),
+    ("Method 2 τ=21 d, CFR 33%", 575),
+    ("Method 2 τ=21 d, CFR 40%", 474),
 ]
 
 """
@@ -876,6 +878,34 @@ function plot_estimate_comparison(
         scatter!(ax, [central[i]], [y];
                  color = :firebrick, markersize = 12)
     end
+    return fig
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Density of a prior over the case-fatality ratio (CFR) on `[0, 1]`,
+plotted on the sub-range `[0, 0.7]`. The CDC central estimate of
+55/169 ≈ 0.33 is drawn as a solid vertical rule, and the report's 26%
+and 40% scenario bounds as dashed rules, so the prior can be read
+against the published CFR scenarios.
+"""
+function plot_cfr_prior(prior::Distribution)
+    colours = CairoMakie.Makie.wong_colors()
+    xs = range(0.0, 0.7; length = 400)
+    ys = pdf.(Ref(prior), xs)
+
+    fig = Figure(; size = (760, 420))
+    ax = Axis(fig[1, 1];
+        xlabel = "Case-fatality ratio (CFR)",
+        ylabel = "Prior density",
+        title  = "Prior over the case-fatality ratio",
+        limits = ((0, 0.7), nothing),
+    )
+    lines!(ax, xs, ys; color = colours[1], linewidth = 2)
+    vlines!(ax, [55 / 169]; color = :firebrick, linewidth = 2)
+    vlines!(ax, [0.26, 0.40];
+            color = (:grey, 0.6), linestyle = :dash, linewidth = 2)
     return fig
 end
 

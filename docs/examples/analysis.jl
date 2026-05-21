@@ -3,8 +3,21 @@
 # **Authors.** Sam Abbott, Kath Sherratt, Samuel Brand and Sebastian
 # Funk.
 #
-# **Last updated.** 2026-05-20. This is a live report, re-run as new
-# data arrive, so the estimates change between updates.
+#md # ```@eval
+#md # using Dates, Markdown
+#md # Markdown.parse("**Last updated.** $(Dates.today()). This is a " *
+#md #     "live report, re-run as new data arrive, so the estimates " *
+#md #     "change between updates.")
+#md # ```
+#
+#md # ```@eval
+#md # using BVDOutbreakSize, Markdown
+#md # d = load_observations().as_of_date
+#md # Markdown.parse("**Data as of.** $(d), the release date of the " *
+#md #     "WHO AFRO External Situation Report 01 the counts are taken " *
+#md #     "from. Estimates are reported as of this date; it can lag " *
+#md #     "the update date above.")
+#md # ```
 #
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
@@ -32,10 +45,11 @@
 # separate scenario analyses (see
 # [What we do differently](#What-we-do-differently-from-McCabe-et-al.)
 # below). Second, the data: results are reported as of the cut-off
-# date in `data/observations.toml` (currently **2026-05-20**), using
-# the reported counts in the data table below. These are more recent
-# figures than the report, which uses the 16 May 2026 snapshot (e.g.
-# $88$ suspected deaths against the later figure used here). The joint
+# date in `data/observations.toml` (currently **2026-05-18**), using
+# the reported counts in the data table below. These match the 20 May
+# report's deaths and cases ($131$ and $516$) and are more recent than
+# the 16 May 2026 figures the 18 May report used (e.g. $88$ suspected
+# deaths). The joint
 # posterior assumes a single common
 # cut-off for every data stream, so the deaths, exports and reported-
 # case counts must all be kept in sync to the same date.
@@ -506,23 +520,27 @@ end
 #
 # The US Centers for Disease Control and Prevention (CDC) summary for
 # the two previous BVD outbreaks is $55$ deaths in $169$ cases
-# ($\approx 33\%$), with confidence bands spanning roughly
-# $24$-$40\%$. The companion Bundibugyo virus (BDBV) reanalysis reports
-# a baseline of $0.47$ ($95\%$ CrI $0.31$-$0.65$) for
+# ($\approx 33\%$;
+# [CDC outbreak history](https://www.cdc.gov/ebola/outbreaks/index.html)),
+# with confidence bands spanning
+# roughly $26$-$40\%$. The companion Bundibugyo virus (BDBV) reanalysis
+# reports a baseline of $0.47$ ($95\%$ CrI $0.31$-$0.65$) for
 # non-healthcare-worker (non-HCW) confirmed cases. The prior on the
 # case-fatality ratio is
 #
 # ```math
-# \mathrm{CFR} \sim \mathrm{Beta}(6,\ 14), \tag{6}
+# \mathrm{CFR} \sim \mathrm{Beta}(6.6,\ 13.4), \tag{6}
 # ```
 #
-# with mean $0.30$ and $95\%$ interval roughly $0.13$-$0.51$.
+# with mean $0.33$ and $95\%$ interval roughly $0.15$-$0.54$. The mean
+# matches the CDC $55/169 \approx 33\%$ figure and the corrected central
+# CFR in the 20 May report [mccabe2026update](@cite).
 
 #md # ```@raw html
 #md # <details><summary>Submodel: cfr_model</summary>
 #md # ```
 
-@model function cfr_model(; cfr_prior = Beta(6.0, 14.0))
+@model function cfr_model(; cfr_prior = Beta(6.6, 13.4))
     CFR ~ cfr_prior
     return (; CFR)
 end
@@ -530,6 +548,12 @@ end
 #md # ```@raw html
 #md # </details>
 #md # ```
+
+# The prior density, with the CDC $0.33$ figure marked, as a sense
+# check.
+
+cfr_prior_fig = plot_cfr_prior(Beta(6.6, 13.4)); #hide
+cfr_prior_fig #hide
 
 # ##### Detection window
 #
@@ -1519,12 +1543,18 @@ diagnostics_table( #hide
 #
 # #### Report reproduction and validation
 #
-# How does our joint posterior sit against what McCabe et al.
-# [mccabe2026](@cite) reported, and how much of any difference is the
-# method rather than the newer data? To separate the two we also fit
-# our full joint model to the report's own data snapshot (16 May 2026,
-# from `data/report-snapshot.toml`), so the only thing that changes
-# between that fit and our headline fit is the data.
+# How does our joint posterior sit against what McCabe et al. reported,
+# and how much of any difference is the method rather than the newer
+# data? The report itself was revised: the 18 May version
+# [mccabe2026](@cite) used $88$ deaths and a central CFR of $30\%$,
+# while the 20 May version [mccabe2026update](@cite) used $131$ deaths
+# and corrected the central CFR to $33\%$. We work through both in
+# sequence so the effect of the report's own deaths-plus-CFR correction
+# is visible separately from our newer data and joint method. For each
+# version we fit our full joint model to that version's data snapshot
+# (`data/report-snapshot.toml` for 18 May, `report-snapshot-20may.toml`
+# for 20 May), so the only thing that changes between a version's fit
+# and our headline fit is the data.
 #
 # McCabe et al. Method 2 reports Poisson intervals (no overdispersion,
 # $k \to \infty$). We reproduce it by fixing the exports-and-deaths
@@ -1535,18 +1565,18 @@ diagnostics_table( #hide
 # gradients.
 #
 # As a sense check we ask whether our machinery recovers McCabe et
-# al.'s Method 2 headline when given their inputs. Their reported
-# Method 2 central estimate is $501$ cases. Our reproduction drops
-# exports so only the deaths likelihood is instantiated, conditions on
-# their 16 May 2026 deaths snapshot ($88$), and `Turing.fix`-pins the
-# Method 2 main-scenario values ($\tau = 14$ d, $\mathrm{CFR} = 30\%$,
-# $\alpha = 4.42$, $\beta = 0.388$/d), with the deaths NegBinomial made
-# Poisson-like. The only sampled latent is $m$, the number of doublings
-# since seeding ($C(T) = 2^m$). A close match confirms the deaths
-# back-calculation is implemented as in the report; the gap between
-# this and our headline estimate is then down to method (joint fit,
-# exact convolution, sampled nuisance parameters) and newer data, not a
-# coding discrepancy.
+# al.'s Method 2 headline when given their inputs. The 18 May reported
+# Method 2 central estimate is $501$ cases and the 20 May one is $678$
+# cases. Each reproduction drops exports so only the deaths likelihood
+# is instantiated, conditions on that version's deaths ($88$ for 18 May,
+# $131$ for 20 May), and `Turing.fix`-pins the Method 2 main-scenario
+# values ($\tau = 14$ d, $\mathrm{CFR} = 30\%$ for 18 May and $33\%$ for
+# 20 May, $\alpha = 4.42$, $\beta = 0.388$/d), with the deaths
+# NegBinomial made Poisson-like. The only sampled latent is $m$, the
+# number of doublings since seeding ($C(T) = 2^m$). A close match
+# confirms our back-calculation matches the report; any remaining gap
+# to our headline estimate is method (joint fit, exact convolution,
+# sampled nuisance parameters) and newer data.
 #
 # This sense check covers the deaths (Method 2) side. The exports
 # (Method 1) side differs by construction: we use the exact cumulative
@@ -1986,14 +2016,20 @@ cumulative_density_fig #hide
 # ### Comparison with McCabe et al.
 #
 # Our joint fit against the McCabe et al. estimates and our Method 2
-# reproduction: point estimates with 90% intervals.
+# reproduction: point estimates with 90% intervals. We step through
+# both report versions in turn — the 18 May version [mccabe2026](@cite)
+# and the 20 May version [mccabe2026update](@cite) — and end with our
+# joint fit to the current data.
 
 #md # ```@raw html
-#md # <details><summary>Fit our model to the report-date data, and run the Method 2 reproduction</summary>
+#md # <details><summary>Fit our model to each report version's data, and run the Method 2 reproductions</summary>
 #md # ```
 
 obs_report = load_observations(
     joinpath(pkgdir(BVDOutbreakSize), "data", "report-snapshot.toml"));
+obs_report_20may = load_observations(
+    joinpath(pkgdir(BVDOutbreakSize), "data",
+             "report-snapshot-20may.toml"));
 
 chn_joint_report = nuts_sample(
     bvd_joint(obs_report.exported_cases, obs_report.total_deaths,
@@ -2003,6 +2039,16 @@ chn_joint_report = nuts_sample(
 posterior_C_joint_report =
     vec(Array(chn_joint_report[:cumulative_cases]));
 
+chn_joint_report_20may = nuts_sample(
+    bvd_joint(obs_report_20may.exported_cases,
+              obs_report_20may.total_deaths,
+              obs_report_20may.reported_cases,
+              obs_report_20may.export_deaths_daily;
+              first_export_detection_delta =
+                  obs_report_20may.first_export_detection_delta));
+posterior_C_joint_report_20may =
+    vec(Array(chn_joint_report_20may[:cumulative_cases]));
+
 imperial_fixed = Turing.fix(
     imperial_only_model(missing, 88),       # exports missing → pure Method 2
     (τ = 14.0, CFR = 0.30, α = 4.42, θ = 1/0.388,
@@ -2011,15 +2057,26 @@ imperial_fixed = Turing.fix(
 chn_imperial = nuts_sample(imperial_fixed);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 
+imperial_fixed_20may = Turing.fix(
+    imperial_only_model(missing, 131),      # exports missing → pure Method 2
+    (τ = 14.0, CFR = 0.33, α = 4.42, θ = 1/0.388,
+     inv_sqrt_k = 1e-3),
+)
+chn_imperial_20may = nuts_sample(imperial_fixed_20may);
+posterior_C_imperial_20may =
+    vec(Array(chn_imperial_20may[:cumulative_cases]));
+
 #md # ```@raw html
 #md # </details>
 #md # ```
 
 # The plot places each estimate of $C(T)$ on one axis: the central
-# estimate as a point, the 90% interval as a bar. The top two rows are
-# McCabe et al.'s published headline scenarios with their reported
-# intervals; the lower rows are our Method 2 reproduction, our joint
-# fit to the report's data, and our joint fit to the current data.
+# estimate as a point, the 90% interval as a bar. Rows are grouped by
+# report version. For each version the first two rows are McCabe et
+# al.'s published Method 1 and Method 2 headline scenarios with their
+# reported intervals, followed by our Method 2 reproduction and our
+# joint fit to that version's data. The final row is our joint fit to
+# the current data.
 
 #md # ```@raw html
 #md # <details><summary>Build the comparison</summary>
@@ -2027,19 +2084,33 @@ posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 
 joint_C_credibles        = posterior_summary(posterior_C_joint)
 joint_report_C_credibles = posterior_summary(posterior_C_joint_report)
+joint_report_20may_C_credibles =
+    posterior_summary(posterior_C_joint_report_20may)
 imperial_C_credibles     = posterior_summary(posterior_C_imperial)
+imperial_20may_C_credibles =
+    posterior_summary(posterior_C_imperial_20may)
 
 comparison_rows = [
-    ("McCabe Method 1 (Ituri, w=15 d)",   313, 39, 870),
-    ("McCabe Method 2 (τ=14 d, CFR 30%)", 501, 402, 612),
-    ("Our Method 2 reproduction",
+    ("18 May: McCabe Method 1 (Ituri, w=15 d)",   313, 39, 870),
+    ("18 May: McCabe Method 2 (τ=14 d, CFR 30%)", 501, 402, 612),
+    ("18 May: Our Method 2 reproduction",
         round(Int, quantile(posterior_C_imperial, 0.5)),
         round(Int, imperial_C_credibles.lo90),
         round(Int, imperial_C_credibles.hi90)),
-    ("Our joint (report data, 16 May)",
+    ("18 May: Our joint (report data)",
         round(Int, quantile(posterior_C_joint_report, 0.5)),
         round(Int, joint_report_C_credibles.lo90),
         round(Int, joint_report_C_credibles.hi90)),
+    ("20 May: McCabe Method 1 (Ituri, w=15 d)",   313, 39, 870),
+    ("20 May: McCabe Method 2 (τ=14 d, CFR 33%)", 678, 568, 800),
+    ("20 May: Our Method 2 reproduction",
+        round(Int, quantile(posterior_C_imperial_20may, 0.5)),
+        round(Int, imperial_20may_C_credibles.lo90),
+        round(Int, imperial_20may_C_credibles.hi90)),
+    ("20 May: Our joint (report data)",
+        round(Int, quantile(posterior_C_joint_report_20may, 0.5)),
+        round(Int, joint_report_20may_C_credibles.lo90),
+        round(Int, joint_report_20may_C_credibles.hi90)),
     ("Our joint (current data)",
         round(Int, quantile(posterior_C_joint, 0.5)),
         round(Int, joint_C_credibles.lo90),
@@ -2054,28 +2125,37 @@ comparison_fig = plot_estimate_comparison(comparison_rows);
 
 comparison_fig #hide
 
-# Fit diagnostics for the report-data joint fit and the Method 2
-# reproduction.
+# Fit diagnostics for the two report-data joint fits and the two Method
+# 2 reproductions.
 
 #md # ```@raw html
 #md # <details><summary>Fit diagnostics</summary>
 #md # ```
 
 diagnostics_table( #hide
-    "joint (report data)" => chn_joint_report, #hide
-    "Method 2 reproduction" => chn_imperial) #hide
+    "joint (18 May report)" => chn_joint_report, #hide
+    "joint (20 May report)" => chn_joint_report_20may, #hide
+    "Method 2 reproduction (18 May)" => chn_imperial, #hide
+    "Method 2 reproduction (20 May)" => chn_imperial_20may) #hide
 
 #md # ```@raw html
 #md # </details>
 #md # ```
 
-# The same comparison as a table:
+# The same comparison as a table, with a column for the report version:
 
 #md # ```@raw html
 #md # <details><summary>Comparison table</summary>
 #md # ```
 
+comparison_version = [
+    "18 May", "18 May", "18 May", "18 May",
+    "20 May", "20 May", "20 May", "20 May",
+    "current",
+]
+
 main_comparison = DataFrame(
+    "Report version"   => comparison_version,
     "Source"           => [r[1] for r in comparison_rows],
     "Central estimate" => [r[2] for r in comparison_rows],
     "Lower 90%"        => [r[3] for r in comparison_rows],
@@ -2105,16 +2185,17 @@ coverage_table = comparison_table(posterior_C_joint);
 coverage_table #hide
 
 # The joint $C(T)$ density with the 15 published scenario point
-# estimates overlaid as faint dashed rules, for both our current-data
-# fit and our fit to the report's data:
+# estimates overlaid as faint dashed rules, for our current-data fit
+# and our fits to each report version's data:
 
 #md # ```@raw html
 #md # <details><summary>Joint C_T density with published scenarios</summary>
 #md # ```
 
 imperial_density_fig = plot_cumulative_cases(
-    "joint (current data)" => posterior_C_joint,
-    "joint (report data)"  => posterior_C_joint_report);
+    "joint (current data)"   => posterior_C_joint,
+    "joint (18 May report)"  => posterior_C_joint_report,
+    "joint (20 May report)"  => posterior_C_joint_report_20may);
 
 #md # ```@raw html
 #md # </details>
@@ -2124,11 +2205,13 @@ imperial_density_fig #hide
 
 # ### McCabe et al. report sense check
 #
-# Whether our reproduction lands on McCabe et al.'s reported 501:
-# the recovered estimate and its summary table.
+# Whether each reproduction lands on McCabe et al.'s reported Method 2
+# central estimate: the 18 May reproduction against their reported
+# $501$ ($88$ deaths, CFR $30\%$) and the 20 May reproduction against
+# their reported $678$ ($131$ deaths, CFR $33\%$).
 
 #md # ```@raw html
-#md # <details><summary>Reproduction vs McCabe et al. 501</summary>
+#md # <details><summary>Reproductions vs McCabe et al. Method 2</summary>
 #md # ```
 
 imperial_sense_check = let
@@ -2136,14 +2219,17 @@ imperial_sense_check = let
     lo  = round(Int, imperial_C_credibles.lo90)
     hi  = round(Int, imperial_C_credibles.hi90)
     delta = round(100 * (rep - 501) / 501; digits = 1)
+    rep2 = round(Int, quantile(posterior_C_imperial_20may, 0.5))
+    lo2  = round(Int, imperial_20may_C_credibles.lo90)
+    hi2  = round(Int, imperial_20may_C_credibles.hi90)
+    delta2 = round(100 * (rep2 - 678) / 678; digits = 1)
     Markdown.parse("""
-    Our reproduction: **$(rep) cases** (90% CrI $(lo)–$(hi)) against
-    McCabe et al.'s reported **501** — a difference of $(delta)%. A close
-    match
-    confirms the deaths back-calculation is implemented as in the
-    report; the gap between this and our headline estimate is then
-    down to method (joint fit, exact convolution, sampled nuisance
-    parameters) and newer data, not a coding discrepancy.
+    18 May reproduction: **$(rep) cases** (90% CrI $(lo)–$(hi)) against
+    McCabe et al.'s reported **501** — a difference of $(delta)%.
+
+    20 May reproduction: **$(rep2) cases** (90% CrI $(lo2)–$(hi2))
+    against McCabe et al.'s reported **678** — a difference of
+    $(delta2)%.
     """)
 end;
 
@@ -2154,10 +2240,12 @@ end;
 imperial_sense_check #hide
 
 #md # ```@raw html
-#md # <details><summary>Sense-check summary table</summary>
+#md # <details><summary>Sense-check summary tables</summary>
 #md # ```
 
 imperial_summary = summary_table(chn_imperial,
+    [:m, :T, :cumulative_cases]; digits = 1);
+imperial_summary_20may = summary_table(chn_imperial_20may,
     [:m, :T, :cumulative_cases]; digits = 1);
 
 #md # ```@raw html
@@ -2165,6 +2253,8 @@ imperial_summary = summary_table(chn_imperial,
 #md # ```
 
 imperial_summary #hide
+
+imperial_summary_20may #hide
 
 # ## Saving results
 #
