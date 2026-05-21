@@ -123,10 +123,11 @@ Fields returned:
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
-- `genetic_tmrca_days::Union{Real, Missing}` — estimated TMRCA in days
-  before `as_of_date`, a soft lower bound on the seeding time `T`;
-  `missing` when no `genetic_tmrca` block is present.
-- `genetic_tmrca_width::Union{Real, Missing}` — SD (days) on the
+- `genetic_tmrca_days::Union{Real, Missing}` — estimated time to the
+  most recent common ancestor (TMRCA) in days before `as_of_date`, a
+  soft lower bound on the seeding time `T`; `missing` when no
+  `genetic_tmrca` block is present.
+- `genetic_tmrca_days_sd::Union{Real, Missing}` — SD (days) on the
   location of that floor; `missing` when absent.
 - `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
   :reported_cases, :daily_outbound_travellers,
@@ -170,8 +171,8 @@ function load_observations(
         first_export_detection_delta = _delta("first_export_detection_date"),
         genetic_tmrca_days           = has_gen ?
             _gap(raw["genetic_tmrca"]["date"]) : missing,
-        genetic_tmrca_width          = has_gen ?
-            float(raw["genetic_tmrca"]["width_days"]) : missing,
+        genetic_tmrca_days_sd        = has_gen ?
+            float(raw["genetic_tmrca"]["days_sd"]) : missing,
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
