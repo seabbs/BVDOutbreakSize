@@ -58,15 +58,7 @@ lays out each deviation alongside the matching Imperial method.
 ## Installing the package
 
 To use the model and the bundled outbreak data from your own Julia
-environment, add the package:
-
-```julia
-using Pkg
-Pkg.add("BVDOutbreakSize")
-```
-
-Until it appears in the General registry, install from the
-repository instead:
+environment, add the package from the repository:
 
 ```julia
 using Pkg
