@@ -126,21 +126,13 @@ curl -fsSL https://raw.githubusercontent.com/epiforecasts/BVDOutbreakSize/main/s
 ```
 
 Outputs land in `./bvd-output`; set `BVD_OUTPUT_DIR` to write them
-elsewhere. Under the hood this uses `Pkg.develop` for a writable
-checkout, because `Pkg.add` installs the package read-only and the
-analysis writes its outputs into the package directory. If you would
-rather drive that yourself:
-
-```julia
-using Pkg
-Pkg.develop(url = "https://github.com/epiforecasts/BVDOutbreakSize")
-```
-
-```bash
-cd ~/.julia/dev/BVDOutbreakSize
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --project=. scripts/run.jl
-```
+elsewhere, or `BVD_REF` to a release tag to reproduce a specific
+version. The script clones into a temporary directory and runs from
+there, so it leaves your own Julia environments untouched. This
+indirection is needed because `Pkg.add` installs the package
+read-only, while the analysis writes its outputs into the package
+directory and imports several of its dependencies directly. Reading a
+script before piping it to an interpreter is good practice.
 
 ### Render the docs page
 
