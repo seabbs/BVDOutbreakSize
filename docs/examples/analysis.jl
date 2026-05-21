@@ -297,8 +297,7 @@ observations_table #hide
 # ascertainment parameters across the streams that depend on them.
 #
 # In implementation terms, the model is assembled from small reusable
-# Turing [ge2018turing](@cite) submodels rather than written as one
-# monolithic block. Each
+# Turing [ge2018turing](@cite) submodels. Each
 # *building-block submodel* owns the maths and priors for one epidemic
 # parameter family. The *observation submodels* assemble those blocks,
 # introduce the forward integrals and the likelihoods, and tie one data
@@ -1276,7 +1275,7 @@ posterior_C_exports_deaths =
 #
 # Fit-quality diagnostics for the joint and per-stream fits: the worst
 # R-hat, the smallest bulk effective sample size, and the number of
-# divergent transitions. Open the panel to inspect them.
+# divergent transitions.
 
 #md # ```@raw html
 #md # <details><summary>Fit diagnostics</summary>
@@ -1587,8 +1586,7 @@ joint_ppc_fig #hide
 # ### Counterfactual: lower bound under no further transmission
 #
 # The lower bound on cumulative deaths if transmission stopped at the
-# report date (method above): still-expected and projected-total deaths
-# per draw.
+# report date: still-expected and projected-total deaths per draw.
 
 #md # ```@raw html
 #md # <details><summary>Project no-onward deaths and summarise</summary>
@@ -1627,8 +1625,8 @@ no_onward_fig #hide
 
 # ### One-week-ahead forecast
 #
-# The seven-day no-change projection (method above): cumulative and new
-# expected counts per stream by $T + 7$.
+# The seven-day no-change projection: cumulative and new expected counts
+# per stream by $T + 7$.
 
 #md # ```@raw html
 #md # <details><summary>Generate the one-week-ahead forecast</summary>
@@ -1665,8 +1663,8 @@ forecast_fig #hide
 
 # ### Delay sensitivity
 #
-# Refit under the community-only onset-to-death delay (method above):
-# the baseline and re-anchored $C(T)$ posteriors side by side.
+# Refit under the community-only onset-to-death delay: the baseline and
+# re-anchored $C(T)$ posteriors side by side.
 
 #md # ```@raw html
 #md # <details><summary>Refit the joint model with the community-only delay</summary>
@@ -1689,8 +1687,7 @@ posterior_C_community = vec(Array(chn_joint_community[:cumulative_cases]));
 #md # </details>
 #md # ```
 
-# Fit diagnostics for the community-only delay refit. Open the panel to
-# inspect them.
+# Fit diagnostics for the community-only delay refit.
 
 #md # ```@raw html
 #md # <details><summary>Fit diagnostics</summary>
@@ -1824,7 +1821,7 @@ cumulative_density_fig #hide
 # ### Comparison with McCabe et al.
 #
 # Our joint fit against the McCabe et al. estimates and our Method 2
-# reproduction (method above): point estimates with 90% intervals.
+# reproduction: point estimates with 90% intervals.
 
 #md # ```@raw html
 #md # <details><summary>Fit our model to the report-date data, and run the Method 2 reproduction</summary>
@@ -1891,7 +1888,7 @@ comparison_fig = plot_estimate_comparison(comparison_rows);
 comparison_fig #hide
 
 # Fit diagnostics for the report-data joint fit and the Method 2
-# reproduction. Open the panel to inspect them.
+# reproduction.
 
 #md # ```@raw html
 #md # <details><summary>Fit diagnostics</summary>
@@ -1960,8 +1957,8 @@ imperial_density_fig #hide
 
 # ### McCabe et al. report sense check
 #
-# Whether our reproduction lands on McCabe et al.'s reported 501
-# (method above): the recovered estimate and its summary table.
+# Whether our reproduction lands on McCabe et al.'s reported 501:
+# the recovered estimate and its summary table.
 
 #md # ```@raw html
 #md # <details><summary>Reproduction vs McCabe et al. 501</summary>
