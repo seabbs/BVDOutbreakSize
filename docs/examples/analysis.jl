@@ -972,12 +972,15 @@ end
 
     ## Per-day Poisson from the earliest death day to the cut-off. Day i
     ## (i = 1 earliest) is the elapsed bin [T-n+i-1, T-n+i]; its mean is
-    ## the increment in the cumulative export-death intensity.
+    ## the increment in the cumulative export-death intensity. Carry the
+    ## upper edge forward as the next bin's lower edge so each Λ is
+    ## evaluated once (n+1 integrals, not 2n).
+    λlo = pre
     for i in 1:n
-        λlo = Λ(T - n + (i - 1))
         λhi = Λ(T - n + i)
         μ_day = max(λhi - λlo, eps(typeof(λhi)))
         export_deaths_daily[i] ~ Poisson(μ_day)
+        λlo = λhi
     end
 
     return (;)
