@@ -140,11 +140,8 @@ function load_observations(
     ## elapsed-time offset for the timing terms. A scalar date gives a
     ## `missing` offset when absent (so its term is a no-op).
     _delta(k) = haskey(raw, k) ? _gap(_val(k)) : missing
-    ## Export deaths as a daily series from the earliest dated death to
-    ## the cut-off day: entry `i` (i = 1 earliest) counts deaths at offset
-    ## `maximum(offs) - i + 1`, ending at offset 0 (the cut-off day) so a
-    ## death recorded on the cut-off date is kept. Empty when no dates are
-    ## present. Drives the binned-Poisson likelihood.
+    ## Daily export-death series, earliest dated death (index 1) to the
+    ## cut-off day (offset 0, kept); empty when no dates are present.
     export_deaths_daily = if haskey(raw, "export_death_dates")
         offs = Int[_gap(d) for d in _val("export_death_dates")]
         isempty(offs) ? Int[] :
@@ -380,21 +377,21 @@ Expected cumulative detected exports by elapsed time `t`, clamped to be
 strictly positive and finite:
 
 ```math
-\\mathbb{E}[\\text{exports}(t)] = p_{\\text{uganda}} \\cdot q \\cdot
+\\mathbb{E}[\\text{exports}(t)] = p \\cdot q \\cdot
     \\int_{t-w}^{t} C(s)\\, ds,
 ```
 
-with `cumulative` the trajectory ``C(s)``, `q` the per-capita travel
-rate, and `window` the detection window ``w``. Backs both the exports
-count likelihood (evaluated at `t = T`) and the first-export-detection
-survival term (evaluated at an earlier `t`). Uses
-[`CUMULATIVE_INTEGRAL_ALG`](@ref).
+with `cumulative` the trajectory ``C(s)``, `p` the detection
+probability, `q` the per-capita travel rate, and `window` the detection
+window ``w``. Backs both the exports count likelihood (evaluated at
+`t = T`) and the first-export-detection survival term (evaluated at an
+earlier `t`). Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
 """
-function expected_exports(cumulative, p_uganda, q, t, window;
+function expected_exports(cumulative, p, q, t, window;
         alg = CUMULATIVE_INTEGRAL_ALG)
     window_start = max(t - window, zero(t))
     integral = integrate_cumulative(cumulative, window_start, t; alg)
-    raw = p_uganda * q * integral
+    raw = p * q * integral
     return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
 end
 
@@ -406,22 +403,22 @@ clamped to be strictly positive and finite:
 
 ```math
 \\mathbb{E}[D_{\\text{uganda}}(t)] = \\mathrm{CFR} \\cdot
-    p_{\\text{uganda}} \\cdot q \\cdot
+    p \\cdot q \\cdot
     \\int_{t-w}^{t} C(s)\\, F_d(t - s)\\, ds,
 ```
 
 with `cumulative` the trajectory ``C(s)``, `delay_dist` the onset-to-death
-distribution (CDF ``F_d``), `q` the per-capita travel rate, and `window`
-the detection window ``w``. Backs both the deaths-among-exports count
-likelihood (evaluated at `t = T`) and the first-export-death survival
-term (evaluated at an earlier `t`). Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+distribution (CDF ``F_d``), `p` the detection probability, `q` the
+per-capita travel rate, and `window` the detection window ``w``. Backs
+the binned-Poisson export-death likelihood, evaluated at the daily bin
+edges. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
 """
-function expected_exports_deaths(cumulative, delay_dist, CFR, p_uganda, q,
+function expected_exports_deaths(cumulative, delay_dist, CFR, p, q,
         t, window; alg = CUMULATIVE_INTEGRAL_ALG)
     window_start = max(t - window, zero(t))
     integral = integrate_exports_deaths(
         cumulative, delay_dist, window_start, t, t; alg)
-    raw = CFR * p_uganda * q * integral
+    raw = CFR * p * q * integral
     return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
 end
 
