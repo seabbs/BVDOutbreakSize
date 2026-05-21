@@ -6,14 +6,40 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
-## Unreleased
+## v1.1.0
 
+Modelling.
+
+- Genetic TMRCA soft lower bound on the seeding time `T`.
 - Export deaths modelled as a time-resolved binned Poisson process: a
   continuous survival weight for the no-death stretch before the first
   dated death, then a per-day Poisson from that day to the cut-off,
   bounding the elapsed time `T`. A first-export-detection survival term
   uses the Uganda admission date likewise. Dates supplied in
   `data/observations.toml`.
+- Death-convolution quadrature adapted to the sampled delay scale.
+- Removed hardcoded death and case constants that diverged from the
+  observations in `data/observations.toml`.
+
+Data.
+
+- Updated to the McCabe et al. 20 May 2026 report, comparing both
+  report versions.
+
+Infrastructure.
+
+- Dropped MCMCChains for FlexiChains and prepared for registry
+  release.
+- CI docs preview PR comments and version-bump automation.
+
+Docs.
+
+- Surfaced results from the README and analysis landing page, added
+  stable and dev docs badges.
+- Plotting and labelling fixes: surveillance dispersion on the 1/√k
+  scale, predictive histograms labelled as frequency, model diagram
+  width.
+- Culled promotional register in the analysis report.
 
 ## v1.0.0
 
