@@ -424,16 +424,22 @@ end
 # seeding time $T$: the sampled TMRCA can only move older as further
 # sequences are added, both from deeper sampling within sampled health
 # zones and from chains in earlier-affected zones that are not yet
-# sequenced. We therefore add a one-sided soft constraint that leaves
-# $T$ unpenalised above the bound $g$ and decays below it with width
-# $\sigma$,
+# sequenced. We encode this as an upper-censored, noisy reading of $T$:
+# the clock yields a measurement $\mathrm{Normal}(T, \sigma)$ that is
+# right-censored at the reported TMRCA $g$, so the data tell us only that
+# the reading is at least $g$. The resulting likelihood is one-sided —
+# flat above the bound and decaying below it,
 #
 # ```math
-# \log p_\text{gen}(T) = \log \Phi\!\left(\frac{T - g}{\sigma}\right),
+# p_\text{gen}(g \mid T) = \Pr[\mathrm{Normal}(T, \sigma) \ge g]
+#   = \Phi\!\left(\frac{T - g}{\sigma}\right),
 # \qquad g \approx 80\ \text{d}, \ \sigma = 20\ \text{d}, \tag{3a}
 # ```
 #
-# with $\Phi$ the standard Normal CDF. The bound and width are read from
+# with $\Phi$ the standard Normal CDF. This is a soft bound, not a hard
+# truncation: it shifts mass rather than forbidding $T < g$. The model
+# expresses it with the `censored` helper rather than a hand-rolled
+# log-density. The bound $g$ and width $\sigma$ are read from
 # `data/observations.toml` relative to the cut-off, keeping the genetics
 # out of the model code.
 
@@ -441,10 +447,12 @@ end
 #md # <details><summary>Submodel: genetic_seeding_model</summary>
 #md # ```
 
-@model function genetic_seeding_model(T;
-        lower_days::Real, width::Real)
-    @addlogprob! logcdf(Normal(0.0, width), T - lower_days)
-    return (; lower_days, width)
+@model function genetic_seeding_model(T, tmrca_days::Real; width::Real)
+    ## The molecular-clock TMRCA is a right-censored, noisy reading of the
+    ## true seeding time T: deeper or wider sampling only pushes it older,
+    ## so we learn the reading is at least `tmrca_days`, i.e. P(read ≥ g).
+    tmrca_days ~ censored(Normal(T, width); upper = tmrca_days)
+    return (; tmrca_days, width)
 end
 
 #md # ```@raw html
@@ -1383,9 +1391,8 @@ prior_pair_fig #hide
 #md # <details><summary>Run the joint and per-stream NUTS fits</summary>
 #md # ```
 
-genetic_seeding = T -> genetic_seeding_model(T;
-    lower_days = obs.genetic_tmrca_days,
-    width      = obs.genetic_tmrca_width)
+genetic_seeding = T -> genetic_seeding_model(T, obs.genetic_tmrca_days;
+    width = obs.genetic_tmrca_width)
 
 chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,

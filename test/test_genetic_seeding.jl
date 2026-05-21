@@ -1,25 +1,24 @@
 ## Tests for the genetic seeding submodel. The `@model` block lives in
 ## the literate walkthrough, so we recreate it here to keep the tests
-## self-contained. The submodel adds a one-sided soft lower bound on the
-## seeding time `T` via `@addlogprob!`, leaving `T` unpenalised above the
-## genetic TMRCA bound and decaying below it.
+## self-contained. The submodel encodes the molecular-clock TMRCA as an
+## upper-censored, noisy reading of the seeding time `T`: a soft one-
+## sided bound, flat above the TMRCA `g` and decaying below it.
 
-using Distributions: Normal, logcdf, truncated
-using Turing: Turing, @model, @addlogprob!, sample, Prior, to_submodel,
-              logjoint
+using Distributions: Normal, logcdf, censored, truncated
+using Turing: Turing, @model, sample, Prior, to_submodel, logjoint
 
-@model function _genetic_seeding(T; lower_days::Real, width::Real)
-    @addlogprob! logcdf(Normal(0.0, width), T - lower_days)
-    return (; lower_days, width)
+@model function _genetic_seeding(T, tmrca_days::Real; width::Real)
+    tmrca_days ~ censored(Normal(T, width); upper = tmrca_days)
+    return (; tmrca_days, width)
 end
 
 @testset "genetic_seeding adds the soft lower-bound log density" begin
-    lower, width = 80.0, 20.0
-    at(T) = logjoint(_genetic_seeding(T; lower_days = lower, width), (;))
+    g, width = 80.0, 20.0
+    at(T) = logjoint(_genetic_seeding(T, g; width), (;))
 
-    ## Matches the analytic one-sided penalty.
-    @test at(112.0) ≈ logcdf(Normal(0.0, width), 112.0 - lower)
-    @test at(56.0) ≈ logcdf(Normal(0.0, width), 56.0 - lower)
+    ## Matches the analytic one-sided (censored) likelihood P(read ≥ g).
+    @test at(112.0) ≈ logcdf(Normal(0.0, width), 112.0 - g)
+    @test at(56.0) ≈ logcdf(Normal(0.0, width), 56.0 - g)
 
     ## Monotone increasing in T: earlier seeding is penalised more.
     @test at(40.0) < at(80.0) < at(160.0)
@@ -39,7 +38,7 @@ end
 end
 
 @testset "genetic_seeding composes into a growth model via to_submodel" begin
-    seed = T -> _genetic_seeding(T; lower_days = 80.0, width = 20.0)
+    seed = T -> _genetic_seeding(T, 80.0; width = 20.0)
     chn = sample(_seed_growth(seed), Prior(), 50; progress = false)
     T_draws = vec(Array(chn[:T]))
     @test length(T_draws) == 50
