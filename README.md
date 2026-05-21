@@ -82,21 +82,69 @@ obs = load_observations()
 ```
 
 This gives you the exported model components, constants and data
-loaders. Reproducing the full report (fitting the models and writing
-the result tables and plots) is a separate flow that runs from a
-clone of the repository, described next.
+loaders, enough to build your own analysis on top of the package.
+Reproducing the full report (fitting the models and writing the
+result tables and plots) can be done in a few ways, described next.
 
 ## Running
+
+There are a few ways to run or read the analysis, depending on
+whether you want the numbers, the code, or a full re-fit.
+
+### Read or download, no Julia needed
+
+Browse the rendered
+[analysis page](https://epiforecasts.io/BVDOutbreakSize/dev/analysis),
+which shows every code block alongside its output, or download the
+result tables, plots and a self-contained `analysis.html` from the
+[latest release](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest).
+You can copy snippets from the analysis page straight into a Julia
+session that has the package installed.
+
+### Re-fit from a clone (full reproduction)
 
 ```bash
 git clone --recurse-submodules https://github.com/epiforecasts/BVDOutbreakSize
 cd BVDOutbreakSize
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --project=. docs/examples/analysis.jl
+julia --project=. scripts/run.jl
 ```
 
-Render the docs page (executes the literate and produces HTML at
-`docs/build/`):
+`scripts/run.jl` fits the models and writes the output CSVs (the
+analysis literate is also run as part of the docs build). Running
+`docs/examples/analysis.jl` directly instead steps through the full
+narrative.
+
+### Re-fit without cloning, in one command
+
+`scripts/reproduce.jl` fetches the package, instantiates its
+environment, and runs the fit, all without a manual `git clone`. Run
+it straight from the web:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/epiforecasts/BVDOutbreakSize/main/scripts/reproduce.jl | julia
+```
+
+Outputs land in `./bvd-output`; set `BVD_OUTPUT_DIR` to write them
+elsewhere. Under the hood this uses `Pkg.develop` for a writable
+checkout, because `Pkg.add` installs the package read-only and the
+analysis writes its outputs into the package directory. If you would
+rather drive that yourself:
+
+```julia
+using Pkg
+Pkg.develop(url = "https://github.com/epiforecasts/BVDOutbreakSize")
+```
+
+```bash
+cd ~/.julia/dev/BVDOutbreakSize
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
+julia --project=. scripts/run.jl
+```
+
+### Render the docs page
+
+Executes the literate and produces HTML at `docs/build/`:
 
 ```bash
 julia --project=docs -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
@@ -127,15 +175,9 @@ The rendered report is published from the
 [`gh-pages` branch](https://github.com/epiforecasts/BVDOutbreakSize/tree/gh-pages),
 where past and development versions of the analysis page can be found.
 
-To regenerate the same outputs locally:
-
-```bash
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --project=. scripts/run.jl
-```
-
-This fits the model and writes the CSVs to an `output/` directory at
-the repository root (`output/posterior_summary.csv`,
+Regenerating these outputs locally is the "Re-fit" flow above;
+`scripts/run.jl` writes them to an `output/` directory at the
+repository root (`output/posterior_summary.csv`,
 `cumulative_cases_by_stream.csv`, `imperial_comparison.csv`,
 `scenario_coverage.csv`, `posterior_draws.csv`, and a copy of
 `observations.toml`).

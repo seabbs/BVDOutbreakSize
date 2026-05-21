@@ -2017,7 +2017,12 @@ imperial_summary #hide
 #md # <details><summary>Write outputs to output/</summary>
 #md # ```
 
-output_dir = joinpath(pkgdir(BVDOutbreakSize), "output")
+## Outputs default to `output/` in the package directory (where the
+## docs build and Release workflow expect them). Set `BVD_OUTPUT_DIR`
+## to redirect them, e.g. when running from a read-only package
+## install.
+output_dir = get(ENV, "BVD_OUTPUT_DIR",
+                 joinpath(pkgdir(BVDOutbreakSize), "output"))
 mkpath(output_dir)
 
 CSV.write(joinpath(output_dir, "posterior_summary.csv"), joint_summary)
