@@ -143,13 +143,6 @@ The rendered report is published from the
 [`gh-pages` branch](https://github.com/epiforecasts/BVDOutbreakSize/tree/gh-pages),
 where past and development versions of the analysis page can be found.
 
-Regenerating these outputs locally is the "Re-fit" flow above;
-`scripts/run.jl` writes them to an `output/` directory at the
-repository root (`output/posterior_summary.csv`,
-`cumulative_cases_by_stream.csv`, `imperial_comparison.csv`,
-`scenario_coverage.csv`, `posterior_draws.csv`, and a copy of
-`observations.toml`).
-
 ## Submodules
 
 - `external/bdbv-linelist-analysis` — Bayesian reanalysis of the 2012
