@@ -8,7 +8,7 @@ each push to `main` also republishes the rendered analysis and the
 
 ## v1.1.0
 
-Modelling.
+### Modelling
 
 - Bound the seeding time `T` from below with a soft genetic TMRCA
   prior.
@@ -24,18 +24,18 @@ Modelling.
 - Removed hardcoded death and case constants that diverged from the
   observations in `data/observations.toml`.
 
-Data.
+### Data
 
 - Updated to the McCabe et al. 20 May 2026 report, comparing both
   report versions.
 
-Infrastructure.
+### Infrastructure
 
 - Dropped MCMCChains for FlexiChains and prepared for registry
   release.
 - CI docs preview PR comments and version-bump automation.
 
-Docs.
+### Docs
 
 - Surfaced results from the README and analysis landing page, added
   stable and dev docs badges.
