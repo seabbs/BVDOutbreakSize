@@ -46,7 +46,7 @@
 # report, built from the same run, is attached to each results release:
 # [download the latest](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest/download/analysis.html).
 #
-# **→ [What is the current outbreak size?](@ref Summary)**
+# **See: [current outbreak size](@ref Summary)**
 #
 # ## What we do differently from McCabe et al.
 #
