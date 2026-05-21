@@ -123,10 +123,16 @@ Fields returned:
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
+- `genetic_tmrca_days::Union{Real, Missing}` — estimated time to the
+  most recent common ancestor (TMRCA) in days before `as_of_date`, a
+  soft lower bound on the seeding time `T`; `missing` when no
+  `genetic_tmrca` block is present.
+- `genetic_tmrca_days_sd::Union{Real, Missing}` — SD (days) on the
+  location of that floor; `missing` when absent.
 - `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
   :reported_cases, :daily_outbound_travellers,
-  :daily_outbound_travellers_sd, :source_population),
-  NTuple{7, String}}` — citation per field.
+  :daily_outbound_travellers_sd, :source_population, :genetic_tmrca),
+  NTuple{8, String}}` — citation per field.
 """
 function load_observations(
         path::AbstractString = joinpath(@__DIR__, "..", "data",
@@ -149,6 +155,7 @@ function load_observations(
     else
         Int[]
     end
+    has_gen = haskey(raw, "genetic_tmrca")
     return (;
         as_of_date                   = as_of,
         exported_cases               = Int(_val("exported_cases")),
@@ -162,6 +169,10 @@ function load_observations(
         source_population            = Int(_val("source_population")),
         export_deaths_daily          = export_deaths_daily,
         first_export_detection_delta = _delta("first_export_detection_date"),
+        genetic_tmrca_days           = has_gen ?
+            _gap(raw["genetic_tmrca"]["date"]) : missing,
+        genetic_tmrca_days_sd        = has_gen ?
+            float(raw["genetic_tmrca"]["days_sd"]) : missing,
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
@@ -170,6 +181,8 @@ function load_observations(
             daily_outbound_travellers    = _src("daily_outbound_travellers"),
             daily_outbound_travellers_sd = _src("daily_outbound_travellers_sd"),
             source_population            = _src("source_population"),
+            genetic_tmrca                = has_gen ?
+                String(raw["genetic_tmrca"]["source"]) : missing,
         ),
     )
 end

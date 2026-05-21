@@ -164,8 +164,8 @@
 #   as if infected at $s$. A more direct construction would convolve the
 #   onset-to-death delay against the exported-case incidence trajectory.
 # - *Ascertainment partially pooled, not separately identified.*
-#   Uganda's exported-case ascertainment $p_{\text{uganda}}$ and DRC's
-#   reported-case ascertainment $p_{\text{drc}}$ share a logit-scale
+#   Uganda's exported-case ascertainment $p_{\text{Uganda}}$ and DRC's
+#   reported-case ascertainment $p_{\text{DRC}}$ share a logit-scale
 #   hyperprior. With a handful of suspected exports and one export
 #   death the Uganda fraction is weakly identified and leans on the
 #   pooled mean and the DRC side.
@@ -412,6 +412,55 @@ end
 #md # </details>
 #md # ```
 
+# ##### Genetic seeding bound
+#
+# The first eight sequenced cases give a maximum-likelihood phylogeny
+# [virological2026](@cite) whose root-to-tip genetic distance, divided
+# by the $1.2\times10^{-3}$ substitutions/site/year molecular clock rate
+# estimated for the 2013–2016 West African Ebola epidemic
+# [holmes2016](@cite), places the time to the most recent common
+# ancestor (TMRCA), the age of the oldest internal node of the tree,
+# roughly 80 days before the reference date on which the estimate was
+# reported (combination per N. Ferguson [ferguson2026](@cite)).
+# This is a lower bound on the seeding time $T$, since the TMRCA only
+# moves older as more sequences are added.
+# We do not know exactly where the floor sits, so we treat it as an
+# uncertain threshold $B \sim \mathrm{Normal}(g, \sigma)$ and require
+# $T \ge B$, leaving $T$ free above it.
+# Marginalising over $B$ gives a soft one-sided likelihood,
+#
+# ```math
+# p_\text{gen}(T) = \Pr[B \le T] = \Phi\!\left(\frac{T - g}{\sigma}\right),
+# \qquad g \approx 80\ \text{d}, \ \sigma = 20\ \text{d}. \tag{3a}
+# ```
+
+#md # ```@raw html
+#md # <details><summary>Submodel: genetic_seeding_model</summary>
+#md # ```
+
+@model function genetic_seeding_model(T, tmrca_days::Real;
+        tmrca_days_sd::Real)
+    ## The molecular-clock TMRCA is a right-censored, noisy reading of the
+    ## true seeding time T: deeper or wider sampling only pushes it older,
+    ## so we learn the reading is at least `tmrca_days`, i.e. P(read ≥ g).
+    tmrca_days ~ censored(Normal(T, tmrca_days_sd); upper = tmrca_days)
+    return (; tmrca_days, tmrca_days_sd)
+end
+
+# Observing $g$ (`tmrca_days`) at the upper censoring point of
+# $\mathrm{Normal}(T, \sigma)$ contributes the log probability of the
+# censored upper tail, which is the soft bound of Eq. (3a):
+#
+# ```math
+# \Pr[\mathrm{Normal}(T, \sigma) \ge g]
+#   = 1 - \Phi\!\left(\frac{g - T}{\sigma}\right)
+#   = \Phi\!\left(\frac{T - g}{\sigma}\right).
+# ```
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ##### Onset-to-death delay
 #
 # Following McCabe et al., we assume the symptom-onset-to-death delay is
@@ -605,7 +654,7 @@ end
 # while treating them as independent would leave the Uganda fraction
 # almost wholly prior-driven.
 #
-# Both ascertainment fractions $p_{\text{drc}}$ and $p_{\text{uganda}}$
+# Both ascertainment fractions $p_{\text{DRC}}$ and $p_{\text{Uganda}}$
 # share a logit-scale hyperprior with mean $\mu$ and SD $\tau$:
 #
 # ```math
@@ -615,10 +664,10 @@ end
 # ```
 #
 # ```math
-# \mathrm{logit}(p_{\text{drc}}) \sim
+# \mathrm{logit}(p_{\text{DRC}}) \sim
 #     \mathrm{Normal}(\mu,\ \tau),
 # \qquad
-# \mathrm{logit}(p_{\text{uganda}}) \sim
+# \mathrm{logit}(p_{\text{Uganda}}) \sim
 #     \mathrm{Normal}(\mu,\ \tau), \tag{11}
 # ```
 #
@@ -626,11 +675,11 @@ end
 # pooling strength: small $\tau$ pulls the two fractions together (the
 # shared-fraction limit), large $\tau$ lets them move independently
 # (the separate-fraction limit). The cases likelihood uses
-# $p_{\text{drc}}$; the two Uganda-side likelihoods use
-# $p_{\text{uganda}}$.
+# $p_{\text{DRC}}$; the two Uganda-side likelihoods use
+# $p_{\text{Uganda}}$.
 #
 # We sample this prior in its non-centred form: draw offsets
-# $z_{\text{drc}}, z_{\text{uganda}} \sim \mathrm{Normal}(0, 1)$ and set
+# $z_{\text{DRC}}, z_{\text{Uganda}} \sim \mathrm{Normal}(0, 1)$ and set
 # $\mathrm{logit}(p) = \mu + \tau z$. This is the same prior but avoids
 # the funnel geometry of the centred form, which gave hundreds of
 # divergent transitions.
@@ -727,11 +776,11 @@ end
 # For exponential growth this evaluates to
 # $q\cdot(C(T) - C(T-w))/r$. We evaluate equation (14) numerically so
 # the same form works for any growth parameterisation, scale by the
-# Uganda ascertainment fraction $p_{\text{uganda}}$ (equation (11)),
+# Uganda ascertainment fraction $p_{\text{Uganda}}$ (equation (11)),
 # and apply a Poisson likelihood:
 #
 # ```math
-# \mu_e = p_{\text{uganda}} \cdot q \cdot \int_{T-w}^{T} C(s)\, ds,
+# \mu_e = p_{\text{Uganda}} \cdot q \cdot \int_{T-w}^{T} C(s)\, ds,
 # \qquad
 # Y_{\text{exports}} \sim \mathrm{Poisson}(\mu_e). \tag{15}
 # ```
@@ -842,15 +891,14 @@ end
 #md # </details>
 #md # ```
 
-# ##### Cases — ascertainment extension (no McCabe et al. counterpart)
-#
+# ##### Cases — ascertainment extension#
 # Methods 1 and 2 use exports and deaths only. Reported
 # suspected cases from the same passive-surveillance system carry
-# information about $C(T)$ once the DRC ascertainment fraction $p_{\text{drc}}$
+# information about $C(T)$ once the DRC ascertainment fraction $p_{\text{DRC}}$
 # (equation (11)) is introduced:
 #
 # ```math
-# \mu_c = p_{\text{drc}} \cdot C(T),
+# \mu_c = p_{\text{DRC}} \cdot C(T),
 # \qquad
 # Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_c,\ k). \tag{18}
 # ```
@@ -882,21 +930,21 @@ end
 #md # </details>
 #md # ```
 
-# ##### Deaths among exports — fourth observation likelihood
+# ##### Deaths among exports
 #
 # Uganda reports a single death among its detected exports. That count
-# is informative: if the exports happened long ago, more of them would
-# have died by now under the onset-to-death gamma, so the observed
-# deaths-among-exports bound how recently the exports occurred and help
-# constrain $T$ (and $C(T)$). The expected count reuses the at-risk
+# is informative. If the exports happened long ago, we would expect
+# more deaths among them by now under the onset-to-death gamma, so the
+# observed deaths-among-exports bound how recently the exports occurred
+# and help constrain $T$ (and $C(T)$). The expected count reuses the at-risk
 # export integrand of equation (14) but weights each case by its
 # probability of having died by $T$, the onset-to-death CDF
 # $F_d(T - s)$ (equation (4)), then scales by the CFR, the travel rate
-# $q$ and the Uganda ascertainment fraction $p_{\text{uganda}}$:
+# $q$ and the Uganda ascertainment fraction $p_{\text{Uganda}}$:
 #
 # ```math
-# \mathbb{E}[D_{\text{uganda}}]
-#     = \mathrm{CFR} \cdot p_{\text{uganda}} \cdot q
+# \mathbb{E}[D_{\text{Uganda}}]
+#     = \mathrm{CFR} \cdot p_{\text{Uganda}} \cdot q
 #       \cdot \int_{T-w}^{T} C(s)\, F_d(T - s)\, ds. \tag{19}
 # ```
 #
@@ -911,7 +959,7 @@ end
 # their dates are recorded directly and carry information beyond the
 # total count: a death seen early bounds how old the outbreak can be. We
 # model the detected export deaths as an inhomogeneous Poisson process
-# with cumulative intensity $\mathbb{E}[D_{\text{uganda}}(t)]$
+# with cumulative intensity $\mathbb{E}[D_{\text{Uganda}}(t)]$
 # (equation (19), at any elapsed time $t$) and use its time-resolved
 # likelihood. Splitting $[0, T]$ at the earliest
 # dated death (offset $\Delta_1$ before the cut-off, elapsed time
@@ -921,10 +969,10 @@ end
 # day, with bin mean $\mu_d$,
 #
 # ```math
-# \log L = \sum_d y_d \log \mu_d - \mathbb{E}[D_{\text{uganda}}(T)],
+# \log L = \sum_d y_d \log \mu_d - \mathbb{E}[D_{\text{Uganda}}(T)],
 # \quad
-# \mu_d = \mathbb{E}[D_{\text{uganda}}(t_d)]
-#         - \mathbb{E}[D_{\text{uganda}}(t_{d-1})]. \tag{20}
+# \mu_d = \mathbb{E}[D_{\text{Uganda}}(t_d)]
+#         - \mathbb{E}[D_{\text{Uganda}}(t_{d-1})]. \tag{20}
 # ```
 #
 # The continuous term collapses the long pre-death zero stretch into a
@@ -995,8 +1043,9 @@ end
 #     = \exp\!\bigl(-\mathbb{E}[\text{exports}(t_1)]\bigr). \tag{22}
 # ```
 #
-# As with the export-death term, this is one-sided and the lever is
-# small because the Uganda detections sit only days before the cut-off.
+# As with the export-death term, this is one-sided and only marginally
+# constrains the posterior because the Uganda detections sit only days
+# before the cut-off.
 # Passing `delta = missing` makes the submodel a no-op.
 
 #md # ```@raw html
@@ -1041,13 +1090,18 @@ end
 # likelihoods
 # for the streams it carries, so a single-stream composer never
 # instantiates the other observation submodels (and so a discrete
-# stream is never left sampled, which would trip Turing's model check).
+# stream is never left sampled).
+# Of the observation streams, the geographic-spread exports reproduce
+# McCabe et al.'s Method 1 and the back-calculation from deaths their
+# Method 2; the reported-cases ascertainment, the deaths-among-exports,
+# the export-detection-timing, and the genetic seeding terms are
+# extensions with no counterpart in McCabe et al.
 #
-# The joint composer samples a single `surveillance_dispersion_model`
-# and passes that same $k$ to both deaths and cases likelihoods, so
-# they share one passive-surveillance noise scale. It also samples a
-# single `pooled_ascertainment_model`, threading $p_{\text{drc}}$ to the cases
-# likelihood and $p_{\text{uganda}}$ to the two Uganda-side likelihoods. The
+# The joint composer samples a single dispersion scale $k$ and passes it
+# to both the deaths and cases likelihoods, so they share one passive-
+# surveillance noise scale. It also samples a single pooled set of
+# ascertainment fractions, threading $p_{\text{DRC}}$ to the cases
+# likelihood and $p_{\text{Uganda}}$ to the two Uganda-side likelihoods. The
 # window $w$ and daily traveller volume sampled by the exports
 # likelihood are reused by the deaths-among-exports likelihood so the
 # two share person-time.
@@ -1103,8 +1157,7 @@ end
 #md # </details>
 #md # ```
 
-# ##### Cases-only fit — ascertainment extension (no McCabe et al. counterpart)
-
+# ##### Cases-only fit — ascertainment extension
 #md # ```@raw html
 #md # <details><summary>Composer: cases-only fit</summary>
 #md # ```
@@ -1131,8 +1184,7 @@ end
 #md # </details>
 #md # ```
 
-# ##### Deaths-among-exports-only fit (no McCabe et al. counterpart)
-
+# ##### Deaths-among-exports-only fit
 #md # ```@raw html
 #md # <details><summary>Composer: exports-deaths-only fit</summary>
 #md # ```
@@ -1199,12 +1251,16 @@ end
         exports_detection_timing = exports_detection_timing_model,
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
+        genetic       = nothing,
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
         pre_detection_exports::Union{Missing, Integer} = 0,
         first_export_detection_delta::Union{Missing, Real} = missing)
 
     growth_state     ~ to_submodel(growth, false)
+    if genetic !== nothing
+        genetic_state ~ to_submodel(genetic(growth_state.T), false)
+    end
     dispersion_state ~ to_submodel(dispersion, false)
     asc_state        ~ to_submodel(ascertainment, false)
     k        = dispersion_state.k
@@ -1340,10 +1396,14 @@ prior_pair_fig #hide
 #md # <details><summary>Run the joint and per-stream NUTS fits</summary>
 #md # ```
 
+genetic_seeding = T -> genetic_seeding_model(T, obs.genetic_tmrca_days;
+    tmrca_days_sd = obs.genetic_tmrca_days_sd)
+
 chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
               obs.reported_cases, obs.export_deaths_daily;
-              first_export_detection_delta = obs.first_export_detection_delta));
+              first_export_detection_delta = obs.first_export_detection_delta,
+              genetic = genetic_seeding));
 
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
 chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths));
@@ -1606,7 +1666,7 @@ start_date_fig #hide
 # The full posterior summary table reports equal-tailed 30%, 60% and
 # 90% credible intervals on the key joint-fit parameters: growth rate
 # $r$, doubling-time multiplier $m$, days since seeding $T$, CFR, the
-# DRC and Uganda ascertainment fractions $p_{\text{drc}}$ and $p_{\text{uganda}}$, the
+# DRC and Uganda ascertainment fractions $p_{\text{DRC}}$ and $p_{\text{Uganda}}$, the
 # pooling SD $\tau_{\text{logit}}$, the surveillance dispersion on both
 # the sampled $1/\sqrt{k}$ scale and the more familiar $k$ scale, and
 # cumulative cases $C(T)$.
@@ -1660,7 +1720,8 @@ pp_joint   = predict(
               fill(missing, length(obs.export_deaths_daily));
               pre_start_deaths = missing,
               pre_detection_exports = missing,
-              first_export_detection_delta = obs.first_export_detection_delta),
+              first_export_detection_delta = obs.first_export_detection_delta,
+              genetic = genetic_seeding),
     chn_joint);
 pp_exports        = vec(Array(pp_joint[:exported_cases]));
 pp_deaths         = vec(Array(pp_joint[:total_deaths]));
@@ -1779,6 +1840,7 @@ chn_joint_community = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
               obs.reported_cases, obs.export_deaths_daily;
               first_export_detection_delta = obs.first_export_detection_delta,
+              genetic = genetic_seeding,
               deaths = (total_deaths, growth_state, k) ->
                   deaths_model(total_deaths, growth_state, k;
                                delay = community_delay)));
