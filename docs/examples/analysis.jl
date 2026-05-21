@@ -948,6 +948,7 @@ end
 @model function exports_deaths_model(
         export_deaths_daily::AbstractVector,
         growth_state, CFR::Real, delay_dist, p_uganda::Real;
+        pre_start_deaths::Union{Missing, Integer} = 0,
         window::Real,
         daily_travellers::Real,
         source_population::Real = ITURI_POPULATION)
@@ -961,10 +962,13 @@ end
         cumulative, delay_dist, CFR, p_uganda, q, t, window)
 
     ## Continuous zero-weighting: all export-death mass before the
-    ## earliest dated death (elapsed [0, T-n]), observed as no deaths.
-    ## Collapses the long pre-death zero stretch into one term.
+    ## earliest dated death (elapsed [0, T-n]) is observed as no deaths,
+    ## collapsing the long pre-death zero stretch into one Poisson term.
+    ## At the observed 0 this contributes -Λ(T-n), identical to the
+    ## survival weight, but as a proper `~` it exposes a predictable node
+    ## for posterior-predictive checks (pass `missing` to generate).
     pre = T - n > zero(T) ? Λ(T - n) : zero(T)
-    Turing.@addlogprob! -pre
+    pre_start_deaths ~ Poisson(max(pre, zero(pre)))
 
     ## Per-day Poisson from the earliest death day to the cut-off. Day i
     ## (i = 1 earliest) is the elapsed bin [T-n+i-1, T-n+i]; its mean is
@@ -1146,7 +1150,8 @@ end
         traveller     = traveller_volume_model(),
         exports_deaths_model = exports_deaths_model,
         ascertainment = pooled_ascertainment_model(),
-        source_population::Real = ITURI_POPULATION)
+        source_population::Real = ITURI_POPULATION,
+        pre_start_deaths::Union{Missing, Integer} = 0)
 
     growth_state ~ to_submodel(growth, false)
     delay_state  ~ to_submodel(delay, false)
@@ -1160,6 +1165,7 @@ end
     exports_deaths_state ~ to_submodel(
         exports_deaths_model(export_deaths_daily, growth_state,
             cfr_state.CFR, delay_state.dist, asc_state.p_uganda;
+            pre_start_deaths = pre_start_deaths,
             window           = window_state.w,
             daily_travellers = daily_travellers,
             source_population = source_population),
@@ -1198,6 +1204,7 @@ end
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
         source_population::Real = ITURI_POPULATION,
+        pre_start_deaths::Union{Missing, Integer} = 0,
         first_export_detection_delta::Union{Missing, Real} = missing)
 
     growth_state     ~ to_submodel(growth, false)
@@ -1216,6 +1223,7 @@ end
     exports_deaths_state ~ to_submodel(
         exports_deaths_model(export_deaths_daily, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;
+            pre_start_deaths = pre_start_deaths,
             window           = exports_state.w,
             daily_travellers = exports_state.daily_travellers,
             source_population = source_population),
@@ -1652,6 +1660,7 @@ posterior_pair_fig #hide
 pp_joint   = predict(
     bvd_joint(missing, missing, missing,
               fill(missing, length(obs.export_deaths_daily));
+              pre_start_deaths = missing,
               first_export_detection_delta = obs.first_export_detection_delta),
     chn_joint);
 pp_exports        = vec(Array(pp_joint[:exported_cases]));
@@ -1868,7 +1877,8 @@ pp_deaths_only  = vec(Array(predict(
 pp_cases_only   = vec(Array(predict(
     cases_only_model(missing),   chn_cases  )[:reported_cases]));
 pp_exports_deaths_only = vec(sum.(predict(
-    exports_deaths_only_model(fill(missing, length(obs.export_deaths_daily))),
+    exports_deaths_only_model(fill(missing, length(obs.export_deaths_daily));
+        pre_start_deaths = missing),
     chn_exports_deaths)[@varname(export_deaths_daily)]));
 
 ppc_grid_fig = plot_posterior_predictive_grid(;
