@@ -52,6 +52,7 @@ const DIAGRAM_BODY = raw"""
   W  [as={Detection\\window}];
   K  [as={Surveillance\\dispersion}];
   A  [as={Ascertainment}];
+  V  [as={Traveller\\volume}];
   OE [as={Exports}];
   OD [as={Deaths}];
   OC [as={Cases}];
@@ -68,6 +69,7 @@ const DIAGRAM_BODY = raw"""
   W -> { OE, OX };
   K -> { OD, OC };
   A -> { OE, OC, OX };
+  V -> { OE, OX };
   OE -> { CE, CI, CJ };
   OD -> { CD, CI, CJ };
   OC -> { CC, CJ };
