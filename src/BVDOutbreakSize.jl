@@ -28,7 +28,7 @@ using CairoMakie: Figure, Axis, hist!, density!, vlines!,
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
        ITURI_DAILY_TRAVEL_SD,
-       EXPORTED_CASES, EXPORTS_DEATHS, TOTAL_DEATHS, REPORTED_CASES,
+       EXPORTED_CASES, EXPORTS_DEATHS,
        load_observations,
        summary_table, posterior_summary,
        fit_diagnostics, diagnostics_table,
@@ -105,24 +105,6 @@ const EXPORTED_CASES = 2
 Deaths recorded in Uganda among the exported BVD cases.
 """
 const EXPORTS_DEATHS = 1
-
-"""
-    TOTAL_DEATHS
-
-Suspected BVD deaths reported in DRC, taken from the most recent
-Guardian situation report (19 May 2026). Imperial's 18 May 2026
-report uses the earlier 16 May 2026 snapshot of 88 deaths.
-"""
-const TOTAL_DEATHS = 130
-
-"""
-    REPORTED_CASES
-
-Suspected BVD cases reported in DRC, taken from the Guardian
-situation report (19 May 2026). Used by the ascertainment extension
-beyond Imperial Methods 1 and 2.
-"""
-const REPORTED_CASES = 500
 
 """
 $(TYPEDSIGNATURES)
@@ -595,7 +577,7 @@ _panel_exports!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(20, ceil(Int, quantile(pp, 0.99)))
     ax = Axis(fig[r, c];
         xlabel = "Replicated exported cases",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Exports (cases)",
         limits = ((0, upper), nothing),
     )
@@ -610,7 +592,7 @@ _panel_exports_deaths!(fig, pos, pp, obs;
     upper = max(3, ceil(Int, quantile(pp, 0.995)))
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths among exports",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Exports (deaths)",
         limits = ((0, upper), nothing),
     )
@@ -624,7 +606,7 @@ _panel_deaths!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(1.0, quantile(pp, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Deaths (DRC)",
         limits = ((0, upper), nothing),
     )
@@ -639,7 +621,7 @@ _panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(1.0, quantile(pp, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated reported cases",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Reported cases (DRC)",
         limits = ((0, upper), nothing),
     )
@@ -891,7 +873,7 @@ with `F_d` the Gamma(α, θ) onset-to-death CDF, returning a
 - `:total_projected`  `obs_deaths + delta_deaths`
 
 `obs_deaths` is the number of deaths already observed at time `T`
-(e.g. `TOTAL_DEATHS` from the bundled observations). `alg` is the
+(e.g. `obs.total_deaths` from the bundled observations). `alg` is the
 quadrature scheme used for ΔD; defaults to `GaussLegendre(n = 64)`,
 matching the rest of the package.
 """
@@ -1086,7 +1068,7 @@ function plot_forecast(fc::DataFrame)
         v = fc[!, col]
         upper = max(1.0, quantile(v, 0.995))
         ax = Axis(fig[1, i];
-            xlabel = title, ylabel = "Forecast count",
+            xlabel = title, ylabel = "Predictive frequency",
             title = "One week ahead", limits = ((0, upper), nothing))
         hist!(ax, v; bins = range(0, upper; length = 30),
               color = (colour, 0.7))
