@@ -35,6 +35,7 @@ export REPORT_SCENARIOS,
        DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
        integrate, expected_deaths,
        integrate_cumulative, integrate_exports_deaths,
+       expected_exports, expected_exports_deaths,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
@@ -133,8 +134,23 @@ function load_observations(
     raw = TOML.parsefile(path)
     _val(k) = raw[k]["value"]
     _src(k) = String(raw[k]["source"])
+    as_of = String(raw["as_of_date"])
+    _gap(d) = date2epochdays(Date(as_of)) - date2epochdays(Date(String(d)))
+    ## Days between a recorded event date and the cut-off, used as the
+    ## elapsed-time offset for the timing terms. A scalar date gives a
+    ## `missing` offset when absent (so its term is a no-op).
+    _delta(k) = haskey(raw, k) ? _gap(_val(k)) : missing
+    ## Daily export-death series, earliest dated death (index 1) to the
+    ## cut-off day (offset 0, kept); empty when no dates are present.
+    export_deaths_daily = if haskey(raw, "export_death_dates")
+        offs = Int[_gap(d) for d in _val("export_death_dates")]
+        isempty(offs) ? Int[] :
+            Int[count(==(δ), offs) for δ in maximum(offs):-1:0]
+    else
+        Int[]
+    end
     return (;
-        as_of_date                   = String(raw["as_of_date"]),
+        as_of_date                   = as_of,
         exported_cases               = Int(_val("exported_cases")),
         exports_deaths               = Int(_val("exports_deaths")),
         total_deaths                 = Int(_val("total_deaths")),
@@ -144,6 +160,8 @@ function load_observations(
         daily_outbound_travellers_sd = float(
             _val("daily_outbound_travellers_sd")),
         source_population            = Int(_val("source_population")),
+        export_deaths_daily          = export_deaths_daily,
+        first_export_detection_delta = _delta("first_export_detection_date"),
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
@@ -350,6 +368,58 @@ function integrate_exports_deaths(cumulative, delay_dist, lo, hi, T;
         s -> cumulative(s) * cdf_to(T - s)
     end
     return integrate(g, lo, hi; alg)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative detected exports by elapsed time `t`, clamped to be
+strictly positive and finite:
+
+```math
+\\mathbb{E}[\\text{exports}(t)] = p \\cdot q \\cdot
+    \\int_{t-w}^{t} C(s)\\, ds,
+```
+
+with `cumulative` the trajectory ``C(s)``, `p` the detection
+probability, `q` the per-capita travel rate, and `window` the detection
+window ``w``. Backs both the exports count likelihood (evaluated at
+`t = T`) and the first-export-detection survival term (evaluated at an
+earlier `t`). Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function expected_exports(cumulative, p, q, t, window;
+        alg = CUMULATIVE_INTEGRAL_ALG)
+    window_start = max(t - window, zero(t))
+    integral = integrate_cumulative(cumulative, window_start, t; alg)
+    raw = p * q * integral
+    return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative deaths among detected exports by elapsed time `t`,
+clamped to be strictly positive and finite:
+
+```math
+\\mathbb{E}[D_{\\text{uganda}}(t)] = \\mathrm{CFR} \\cdot
+    p \\cdot q \\cdot
+    \\int_{t-w}^{t} C(s)\\, F_d(t - s)\\, ds,
+```
+
+with `cumulative` the trajectory ``C(s)``, `delay_dist` the onset-to-death
+distribution (CDF ``F_d``), `p` the detection probability, `q` the
+per-capita travel rate, and `window` the detection window ``w``. Backs
+the binned-Poisson export-death likelihood, evaluated at the daily bin
+edges. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function expected_exports_deaths(cumulative, delay_dist, CFR, p, q,
+        t, window; alg = CUMULATIVE_INTEGRAL_ALG)
+    window_start = max(t - window, zero(t))
+    integral = integrate_exports_deaths(
+        cumulative, delay_dist, window_start, t, t; alg)
+    raw = CFR * p * q * integral
+    return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
 end
 
 _draws(chn, name::Symbol) = vec(Array(chn[name]))

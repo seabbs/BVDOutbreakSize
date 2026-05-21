@@ -6,6 +6,15 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
+## Unreleased
+
+- Export deaths modelled as a time-resolved binned Poisson process: a
+  continuous survival weight for the no-death stretch before the first
+  dated death, then a per-day Poisson from that day to the cut-off,
+  bounding the elapsed time `T`. A first-export-detection survival term
+  uses the Uganda admission date likewise. Dates supplied in
+  `data/observations.toml`.
+
 ## v1.0.0
 
 First release.
