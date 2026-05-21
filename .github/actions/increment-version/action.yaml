@@ -108,6 +108,19 @@ runs:
 
         # Create new branch
         BRANCH_NAME="auto/version-increment-${NEW_VERSION}"
+
+        # If the branch already exists on the remote (an earlier run left
+        # it behind, or a previous version PR was closed without deleting
+        # it), don't fail the workflow on every subsequent push to main.
+        # Log a notice and exit cleanly; a later push proceeds once the
+        # stale branch is cleared.
+        if git ls-remote --exit-code --heads origin "$BRANCH_NAME" \
+            >/dev/null 2>&1; then
+          echo "::notice::Branch $BRANCH_NAME already exists on the" \
+            "remote; skipping version-increment PR creation."
+          exit 0
+        fi
+
         git checkout -b "$BRANCH_NAME"
 
         # Commit changes
@@ -119,8 +132,14 @@ runs:
         Previous version: $OLD_VERSION
         New version: $NEW_VERSION"
 
-        # Push branch
-        git push origin "$BRANCH_NAME"
+        # Push branch. Tolerate a race where a concurrent push to main
+        # created the same branch first: log and exit cleanly rather than
+        # failing the run.
+        if ! git push origin "$BRANCH_NAME"; then
+          echo "::notice::Could not push $BRANCH_NAME (it may already" \
+            "exist); skipping PR creation."
+          exit 0
+        fi
 
         # Create PR using GitHub CLI
         PR_OUTPUT=$(gh pr create \
