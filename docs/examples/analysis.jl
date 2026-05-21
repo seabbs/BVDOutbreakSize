@@ -979,6 +979,10 @@ end
     return (;)
 end
 
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ##### First export detection — timing survival term
 #
 # The same logic applies to the *first detected export case* (Uganda's
