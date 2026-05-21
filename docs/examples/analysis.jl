@@ -1633,6 +1633,15 @@ end;
 
 summary_ranges #hide
 
+# **Why our estimate is higher than McCabe et al.**
+# Our central estimate sits above the McCabe et al. [mccabe2026](@cite)
+# report mainly because we fit more data streams and average over the
+# uncertainty in the parameters the report fixes one scenario at a time,
+# and because we use more recent counts.
+# See [what we do differently](#What-we-do-differently-from-McCabe-et-al.),
+# the [comparison with McCabe et al.](#Comparison-with-McCabe-et-al.) and
+# the [limitations](#Limitations) for the detail behind this.
+
 # ### Joint model estimates
 #
 # Our main result is an estimate of the current cumulative case load —
