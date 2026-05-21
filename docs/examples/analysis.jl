@@ -961,20 +961,12 @@ end
     Λ(t) = expected_exports_deaths(
         cumulative, delay_dist, CFR, p_uganda, q, t, window)
 
-    ## Continuous zero-weighting: all export-death mass before the
-    ## earliest dated death (elapsed [0, T-n]) is observed as no deaths,
-    ## collapsing the long pre-death zero stretch into one Poisson term.
-    ## At the observed 0 this contributes -Λ(T-n), identical to the
-    ## survival weight, but as a proper `~` it exposes a predictable node
-    ## for posterior-predictive checks (pass `missing` to generate).
+    ## Pre-death zero stretch as one Poisson observed at 0; `missing`
+    ## generates it for predictive checks (see equation (20)).
     pre = T - n > zero(T) ? Λ(T - n) : zero(T)
     pre_start_deaths ~ Poisson(max(pre, zero(pre)))
 
-    ## Per-day Poisson from the earliest death day to the cut-off. Day i
-    ## (i = 1 earliest) is the elapsed bin [T-n+i-1, T-n+i]; its mean is
-    ## the increment in the cumulative export-death intensity. Carry the
-    ## upper edge forward as the next bin's lower edge so each Λ is
-    ## evaluated once (n+1 integrals, not 2n).
+    ## Carry the upper edge forward so each Λ is evaluated once.
     λlo = pre
     for i in 1:n
         λhi = Λ(T - n + i)
