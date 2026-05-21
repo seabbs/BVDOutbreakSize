@@ -56,8 +56,6 @@ jobs:
             const repo_owner = context.repo.owner;
             const repo_name = context.repo.repo;
 
-            // Use the configured Pages URL (custom domain aware) as the
-            // base, falling back to the default github.io host.
             let base_url;
             try {
               const pages = await github.rest.repos.getPages({
