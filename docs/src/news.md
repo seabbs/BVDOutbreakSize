@@ -10,8 +10,10 @@ each push to `main` also republishes the rendered analysis and the
 
 ### Modelling
 
-- Bound the seeding time `T` from below with a soft genetic TMRCA
-  prior.
+- Bound the seeding time `T` from below with a soft prior on the
+  genetic time to the most recent common ancestor (TMRCA). Inspired by
+  and following the estimate of N. Ferguson, using the first eight BDBV
+  genomes reported on virological.org.
 - Switched the export deaths to a daily (time-resolved binned) Poisson
   process: a continuous survival weight for the no-death stretch before
   the first dated death, then a per-day Poisson from that day to the
