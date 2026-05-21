@@ -40,6 +40,10 @@ each push to `main` also republishes the rendered analysis and the
 
 ### Docs
 
+- Added a scope note to the README and analysis report framing the
+  work as an external view built on our understanding of real-time
+  infectious disease dynamics, and inviting feedback, reuse and
+  adaptation.
 - Surfaced results from the README and analysis landing page, added
   stable and dev docs badges.
 - Plotting and labelling fixes: surveillance dispersion on the 1/√k

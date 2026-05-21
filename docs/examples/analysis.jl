@@ -29,6 +29,15 @@
 #md # Markdown.parse(strip(m.captures[1]))
 #md # ```
 #
+# **Scope.** This work is motivated by adding an external view of the
+# current situation, based on our understanding of real-time infectious
+# disease dynamics and the infection process that gives rise to
+# observed epidemic surveillance counts.
+# We are actively developing it and encourage feedback, so please get
+# in touch.
+# We fully support reuse and adaptation.
+# Find out more in the [contributing guide](contributing.md).
+#
 # **Use of AI.** The model code and this analysis were drafted by a
 # language model and reviewed and revised under human oversight; the
 # named authors are responsible for that oversight (see the
