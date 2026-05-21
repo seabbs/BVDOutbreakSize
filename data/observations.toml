@@ -13,6 +13,14 @@ source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Week
 value  = 1
 source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — one death among the two Uganda imported cases"
 
+[first_export_detection_date]
+value  = "2026-05-11"
+source = "WHO DON 2026-DON602 — first Uganda export hospital-admitted 11 May 2026 (point-of-entry/hospital detection date). Used as a one-sided timing bound on T."
+
+[export_death_dates]
+value  = ["2026-05-14"]
+source = "WHO DON 2026-DON602 — the fatal Uganda export was hospital-admitted 11 May 2026 and died 14 May 2026 (hospital-recorded death date). A list of dated export deaths; loaded as a daily series and fitted with a binned-Poisson likelihood that bounds T."
+
 [total_deaths]
 value  = 131
 source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — DRC suspected deaths"

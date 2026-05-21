@@ -7,7 +7,7 @@ using Distributions: Gamma, Normal, Poisson, Beta, pdf, truncated
 using Integrals: IntegralProblem, GaussLegendre, solve
 using StatsFuns: logit, logistic
 using Turing: Turing, @model, sample, Prior, to_submodel
-import MCMCChains
+import FlexiChains
 
 const _XD_ALG = GaussLegendre(; n = 32)
 
@@ -118,7 +118,7 @@ end
 @testset "exports_deaths_model prior draws produce non-negative counts" begin
     m = _xd_only(missing)
     chn = sample(m, Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     xd = vec(Array(chn[:exports_deaths]))
     @test length(xd) == 200
     @test all(isfinite, xd)
@@ -131,7 +131,7 @@ end
 
 @testset "exports_deaths_only fits a zero observation" begin
     chn = sample(_xd_only(0), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     C = vec(Array(chn[:cumulative_cases]))
     @test length(C) == 200
     @test all(isfinite, C)

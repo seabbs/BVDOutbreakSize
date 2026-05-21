@@ -52,26 +52,30 @@ const DIAGRAM_BODY = raw"""
   W  [as={Detection\\window}];
   K  [as={Surveillance\\dispersion}];
   A  [as={Ascertainment}];
+  V  [as={Traveller\\volume}];
   OE [as={Exports}];
   OD [as={Deaths}];
   OC [as={Cases}];
-  OX [as={Export deaths}];
+  OX [as={Export deaths\\(time-resolved)}];
+  TE [as={First export-detection\\timing}];
   CE [as={Exports only}];
   CD [as={Deaths only}];
   CC [as={Cases only}];
   CX [as={Export deaths\\only}];
   CI [as={Imperial\\(exports+deaths)}];
   CJ [as={Joint\\(all streams)}];
-  G -> { OE, OD, OC, OX };
+  G -> { OE, OD, OC, OX, TE };
   D -> { OD, OX };
   CFR -> { OD, OX };
-  W -> { OE, OX };
+  W -> { OE, OX, TE };
   K -> { OD, OC };
-  A -> { OE, OC, OX };
+  A -> { OE, OC, OX, TE };
+  V -> { OE, OX, TE };
   OE -> { CE, CI, CJ };
   OD -> { CD, CI, CJ };
   OC -> { CC, CJ };
   OX -> { CX, CJ };
+  TE -> { CJ };
 };
 """
 
@@ -85,7 +89,7 @@ function model_diagram_svg()
     save(SVG(out), tp)
     svg = read(out * ".svg", String)
     svg = svg[findfirst("<svg", svg)[1]:end]            # drop xml/doctype
-    style = "width:100%;height:auto;"
+    style = "width:60%;height:auto;"
     svg = replace(svg, r"<svg " => "<svg style=\"$style\" "; count = 1)
     ## Break the diagram out of the narrow prose column so the layered
     ## graph renders large enough to read. Centre a wider container and

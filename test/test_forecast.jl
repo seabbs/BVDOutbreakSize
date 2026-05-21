@@ -5,7 +5,7 @@
 using DataFrames: DataFrame, nrow
 using Distributions: Normal, Gamma, Beta, truncated
 using Turing: Turing, @model, sample, Prior
-import MCMCChains
+import FlexiChains
 
 @model function _forecast_test()
     r          ~ truncated(Normal(0.05, 0.01); lower = 1e-3)
@@ -23,7 +23,7 @@ end
 
 @testset "forecast_reported returns the documented columns" begin
     chn = sample(_forecast_test(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
 
     fc = forecast_reported(chn;
         horizon           = 7,
@@ -50,7 +50,7 @@ end
 
 @testset "forecast_table and plot_forecast" begin
     chn = sample(_forecast_test(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     fc = forecast_reported(chn;
         horizon = 7, daily_travellers = 1871,
         source_population = 4_392_200,

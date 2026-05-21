@@ -10,7 +10,7 @@ end
 
 @testset "summary_table returns expected columns and rows" begin
     chn = sample(_summary_model(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     params = [:a, :b]
     df = summary_table(chn, params)
 

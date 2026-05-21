@@ -1,6 +1,6 @@
 module BVDOutbreakSize
 
-using Statistics: quantile
+using Statistics: quantile, mean, std
 using Printf: @sprintf
 using TOML
 using DataFrames: DataFrame
@@ -12,8 +12,6 @@ using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using Turing
 using Turing.DynamicPPL: InitFromPrior
-using MCMCChains: Chains
-import MCMCChains
 import FlexiChains
 using DocStringExtensions
 using Distributions: Gamma, ccdf, pdf, Poisson, NegativeBinomial
@@ -28,7 +26,7 @@ using CairoMakie: Figure, Axis, hist!, density!, vlines!,
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
        ITURI_DAILY_TRAVEL_SD,
-       EXPORTED_CASES, EXPORTS_DEATHS, TOTAL_DEATHS, REPORTED_CASES,
+       EXPORTED_CASES, EXPORTS_DEATHS,
        load_observations,
        summary_table, posterior_summary,
        fit_diagnostics, diagnostics_table,
@@ -37,6 +35,7 @@ export REPORT_SCENARIOS,
        DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
        integrate, expected_deaths,
        integrate_cumulative, integrate_exports_deaths,
+       expected_exports, expected_exports_deaths,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
@@ -107,24 +106,6 @@ Deaths recorded in Uganda among the exported BVD cases.
 const EXPORTS_DEATHS = 1
 
 """
-    TOTAL_DEATHS
-
-Suspected BVD deaths reported in DRC, taken from the most recent
-Guardian situation report (19 May 2026). Imperial's 18 May 2026
-report uses the earlier 16 May 2026 snapshot of 88 deaths.
-"""
-const TOTAL_DEATHS = 130
-
-"""
-    REPORTED_CASES
-
-Suspected BVD cases reported in DRC, taken from the Guardian
-situation report (19 May 2026). Used by the ascertainment extension
-beyond Imperial Methods 1 and 2.
-"""
-const REPORTED_CASES = 500
-
-"""
 $(TYPEDSIGNATURES)
 
 Load the observation block from `data/observations.toml` and return
@@ -153,8 +134,23 @@ function load_observations(
     raw = TOML.parsefile(path)
     _val(k) = raw[k]["value"]
     _src(k) = String(raw[k]["source"])
+    as_of = String(raw["as_of_date"])
+    _gap(d) = date2epochdays(Date(as_of)) - date2epochdays(Date(String(d)))
+    ## Days between a recorded event date and the cut-off, used as the
+    ## elapsed-time offset for the timing terms. A scalar date gives a
+    ## `missing` offset when absent (so its term is a no-op).
+    _delta(k) = haskey(raw, k) ? _gap(_val(k)) : missing
+    ## Daily export-death series, earliest dated death (index 1) to the
+    ## cut-off day (offset 0, kept); empty when no dates are present.
+    export_deaths_daily = if haskey(raw, "export_death_dates")
+        offs = Int[_gap(d) for d in _val("export_death_dates")]
+        isempty(offs) ? Int[] :
+            Int[count(==(δ), offs) for δ in maximum(offs):-1:0]
+    else
+        Int[]
+    end
     return (;
-        as_of_date                   = String(raw["as_of_date"]),
+        as_of_date                   = as_of,
         exported_cases               = Int(_val("exported_cases")),
         exports_deaths               = Int(_val("exports_deaths")),
         total_deaths                 = Int(_val("total_deaths")),
@@ -164,6 +160,8 @@ function load_observations(
         daily_outbound_travellers_sd = float(
             _val("daily_outbound_travellers_sd")),
         source_population            = Int(_val("source_population")),
+        export_deaths_daily          = export_deaths_daily,
+        first_export_detection_delta = _delta("first_export_detection_date"),
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
@@ -255,6 +253,64 @@ function integrate(f, lo, hi; alg = CUMULATIVE_INTEGRAL_ALG)
     return halfwidth * solve(prob, alg).u
 end
 
+# Change of variables clustering the reference nodes towards `hi`. With
+# `d = hi - s` measured back from the upper limit and `v = (u + 1) / 2`,
+# the map `d = span · vᵖ` sends the dense end of the reference grid to
+# `s = hi` and stretches the sparse end out to `s = lo`. The Jacobian
+# `dd/du = span · p · vᵖ⁻¹ / 2` is folded into the integrand so a single
+# fixed `solve` covers the whole domain.
+_clustered_kernel(u, p) = begin
+    v = (u + one(u)) / 2
+    d = p.span * v^p.expo
+    return p.f(p.hi - d) * (p.span * p.expo * v^(p.expo - one(p.expo)) / 2)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Integrate a scalar function `f` over `[lo, hi]` by Gauss-Legendre
+quadrature with the nodes clustered towards `hi`, resolving features of
+size `scale` near that limit. Use for onset-to-death convolutions, whose
+integrand mass piles up against the cut-off `hi` over a window set by the
+sampled delay scale: the uniform [`integrate`](@ref) spread across a wide
+`[lo, hi]` would resolve that peak too coarsely. The whole domain is
+still covered (no truncation), so a delay wider than `[lo, hi]` is
+integrated exactly; when `scale ≥ hi - lo` the map reduces to the uniform
+method. Returns zero when `hi <= lo`. The default scheme is
+[`DEATH_INTEGRAL_ALG`](@ref).
+"""
+function integrate(f, lo, hi, scale; alg = DEATH_INTEGRAL_ALG)
+    hi <= lo && return zero(hi - lo)
+    span = hi - lo
+    # `expo` places ~half the nodes within `scale` of `hi`; `expo = 1`
+    # (uniform) once the feature is as wide as the domain. Fall back to
+    # the uniform rule for a degenerate scale so a non-finite delay
+    # moment cannot produce a `NaN` exponent on an AD proposal.
+    (isfinite(scale) && scale > zero(scale)) ||
+        return integrate(f, lo, hi; alg)
+    expo = max(one(span), log(span / scale) / log(oftype(span, 2)))
+    prob = IntegralProblem(_clustered_kernel, (-1.0, 1.0),
+                           (; f, hi, span, expo))
+    return solve(prob, alg).u
+end
+
+"""
+    DELAY_SUPPORT_K
+
+Number of standard deviations beyond the mean used as the clustering
+scale for a delay distribution in the onset-to-death convolution
+integrals. `mean + DELAY_SUPPORT_K · std` is the width near the cut-off
+over which the clustered [`integrate`](@ref) packs roughly half its
+nodes, so the quadrature tracks the delay's scale as it is sampled.
+"""
+const DELAY_SUPPORT_K = 10
+
+# Clustering scale for a delay distribution, `mean + K·std`: the width of
+# the window near the cut-off where the convolution integrand has mass.
+# Scales with the sampled `std`, so gradients flow through it on the
+# AD-supported parameter path used by the clustered `integrate`.
+_delay_scale(dist) = mean(dist) + DELAY_SUPPORT_K * std(dist)
+
 """
 $(TYPEDSIGNATURES)
 
@@ -267,17 +323,20 @@ exponential growth at rate `r`:
 ```
 
 with `f` the `delay_dist` onset-to-death density. The integrand returns
-zero past `T` so the convolution support is respected. Uses
-[`DEATH_INTEGRAL_ALG`](@ref).
+zero past `T` so the convolution support is respected. Integrated with
+the clustered [`integrate`](@ref) so the quadrature nodes pack near `T`,
+where `f(T − s)` has mass, over a window set by the delay scale (see
+[`DELAY_SUPPORT_K`](@ref)). Uses [`DEATH_INTEGRAL_ALG`](@ref).
 """
 function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
+    scale = _delay_scale(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> begin
             d = T - s
             d <= 0 ? zero(r) : exp(r * s) * pdf(delay_dist, d)
         end
     end
-    return CFR * integrate(g, zero(T), T; alg)
+    return CFR * integrate(g, zero(T), T, scale; alg)
 end
 
 """
@@ -309,6 +368,58 @@ function integrate_exports_deaths(cumulative, delay_dist, lo, hi, T;
         s -> cumulative(s) * cdf_to(T - s)
     end
     return integrate(g, lo, hi; alg)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative detected exports by elapsed time `t`, clamped to be
+strictly positive and finite:
+
+```math
+\\mathbb{E}[\\text{exports}(t)] = p \\cdot q \\cdot
+    \\int_{t-w}^{t} C(s)\\, ds,
+```
+
+with `cumulative` the trajectory ``C(s)``, `p` the detection
+probability, `q` the per-capita travel rate, and `window` the detection
+window ``w``. Backs both the exports count likelihood (evaluated at
+`t = T`) and the first-export-detection survival term (evaluated at an
+earlier `t`). Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function expected_exports(cumulative, p, q, t, window;
+        alg = CUMULATIVE_INTEGRAL_ALG)
+    window_start = max(t - window, zero(t))
+    integral = integrate_cumulative(cumulative, window_start, t; alg)
+    raw = p * q * integral
+    return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative deaths among detected exports by elapsed time `t`,
+clamped to be strictly positive and finite:
+
+```math
+\\mathbb{E}[D_{\\text{uganda}}(t)] = \\mathrm{CFR} \\cdot
+    p \\cdot q \\cdot
+    \\int_{t-w}^{t} C(s)\\, F_d(t - s)\\, ds,
+```
+
+with `cumulative` the trajectory ``C(s)``, `delay_dist` the onset-to-death
+distribution (CDF ``F_d``), `p` the detection probability, `q` the
+per-capita travel rate, and `window` the detection window ``w``. Backs
+the binned-Poisson export-death likelihood, evaluated at the daily bin
+edges. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function expected_exports_deaths(cumulative, delay_dist, CFR, p, q,
+        t, window; alg = CUMULATIVE_INTEGRAL_ALG)
+    window_start = max(t - window, zero(t))
+    integral = integrate_exports_deaths(
+        cumulative, delay_dist, window_start, t, t; alg)
+    raw = CFR * p * q * integral
+    return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
 end
 
 _draws(chn, name::Symbol) = vec(Array(chn[name]))
@@ -415,8 +526,8 @@ the smallest bulk effective sample size across parameters, and the
 number of divergent transitions.
 """
 function fit_diagnostics(chn)
-    rhats = _scalar_stats(MCMCChains.rhat(chn))
-    esses = _scalar_stats(MCMCChains.ess(chn; kind = :bulk))
+    rhats = _scalar_stats(FlexiChains.rhat(chn))
+    esses = _scalar_stats(FlexiChains.ess(chn; kind = :bulk))
     return (max_rhat     = maximum(rhats),
             min_ess_bulk = minimum(esses),
             n_divergent  = _num_divergences(chn))
@@ -534,7 +645,7 @@ _panel_exports!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(20, ceil(Int, quantile(pp, 0.99)))
     ax = Axis(fig[r, c];
         xlabel = "Replicated exported cases",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Exports (cases)",
         limits = ((0, upper), nothing),
     )
@@ -549,7 +660,7 @@ _panel_exports_deaths!(fig, pos, pp, obs;
     upper = max(3, ceil(Int, quantile(pp, 0.995)))
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths among exports",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Exports (deaths)",
         limits = ((0, upper), nothing),
     )
@@ -563,7 +674,7 @@ _panel_deaths!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(1.0, quantile(pp, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Deaths (DRC)",
         limits = ((0, upper), nothing),
     )
@@ -578,7 +689,7 @@ _panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(1.0, quantile(pp, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated reported cases",
-        ylabel = "$(predictive_label) predictive count",
+        ylabel = "$(predictive_label) predictive frequency",
         title  = "Reported cases (DRC)",
         limits = ((0, upper), nothing),
     )
@@ -803,10 +914,11 @@ end
 function _committed_deaths_one(r, T, α, θ, CFR;
         alg = DEATH_INTEGRAL_ALG)
     delay_dist = Gamma(α, θ)
+    scale = _delay_scale(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> r * exp(r * s) * ccdf(delay_dist, T - s)
     end
-    return CFR * integrate(g, zero(T), T; alg)
+    return CFR * integrate(g, zero(T), T, scale; alg)
 end
 
 """
@@ -829,7 +941,7 @@ with `F_d` the Gamma(α, θ) onset-to-death CDF, returning a
 - `:total_projected`  `obs_deaths + delta_deaths`
 
 `obs_deaths` is the number of deaths already observed at time `T`
-(e.g. `TOTAL_DEATHS` from the bundled observations). `alg` is the
+(e.g. `obs.total_deaths` from the bundled observations). `alg` is the
 quadrature scheme used for ΔD; defaults to `GaussLegendre(n = 64)`,
 matching the rest of the package.
 """
@@ -1024,7 +1136,7 @@ function plot_forecast(fc::DataFrame)
         v = fc[!, col]
         upper = max(1.0, quantile(v, 0.995))
         ax = Axis(fig[1, i];
-            xlabel = title, ylabel = "Forecast count",
+            xlabel = title, ylabel = "Predictive frequency",
             title = "One week ahead", limits = ((0, upper), nothing))
         hist!(ax, v; bins = range(0, upper; length = 30),
               color = (colour, 0.7))

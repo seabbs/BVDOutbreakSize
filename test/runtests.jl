@@ -16,8 +16,8 @@ using DataFrames: DataFrame, nrow
 using Distributions: Normal
 using Random: MersenneTwister
 using Turing: Turing, @model, sample, Prior
-import MCMCChains
-using MCMCChains: Chains
+import FlexiChains
+using FlexiChains: VNChain
 import CairoMakie
 
 # Make sure Makie does not try to open a screen.
@@ -37,3 +37,5 @@ include("test_cases_model.jl")
 include("test_forecast.jl")
 include("test_pooled_ascertainment.jl")
 include("test_exports_deaths.jl")
+include("test_integrate.jl")
+include("test_exports_death_timing.jl")
