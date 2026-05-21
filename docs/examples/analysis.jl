@@ -1,6 +1,7 @@
 # # Estimating the current size of the 2026 DRC Bundibugyo virus outbreak: a joint Bayesian re-analysis of the McCabe et al. report
 #
-# **Authors.** Sam Abbott, Samuel Brand and Sebastian Funk.
+# **Authors.** Sam Abbott, Kath Sherratt, Samuel Brand and Sebastian
+# Funk.
 #
 # **Last updated.** 2026-05-20. This is a live report, re-run as new
 # data arrive, so the estimates change between updates.
@@ -801,8 +802,7 @@ end
 # $D(T) \approx \mathrm{CFR}\cdot C(T)\cdot(1 + r/\beta)^{-\alpha}$
 # (valid for $T \gtrsim 12/(\beta+r)$), which
 # drops that factor. We evaluate equation (16) numerically instead,
-# which is exact and lets the delay family be swapped with no change to
-# the quadrature. The
+# which is exact. The
 # observed deaths follow the NegBinomial likelihood of equation (8)
 # with the dispersion $k$ of equation (9), supplied by the composer so
 # it can be shared with the cases likelihood:
@@ -2051,4 +2051,5 @@ CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws);
 # The full analysis code, data and model definitions are in the
 # [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
 # repository. Issues, corrections and suggestions are welcome there.
-# Maintained by Sam Abbott, Samuel Brand and Sebastian Funk.
+# Maintained by Sam Abbott, Kath Sherratt, Samuel Brand and Sebastian
+# Funk.
