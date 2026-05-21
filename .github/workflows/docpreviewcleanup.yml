@@ -4,6 +4,14 @@ on:
   pull_request:
     types: [closed]
 
+# Serialise concurrent cleanup runs. The non-force push below is what
+# guards against clobbering a julia-docdeploy push: if a deploy lands
+# first the push is rejected as non-fast-forward rather than overwriting
+# it, so no history is lost.
+concurrency:
+  group: gh-pages-cleanup
+  cancel-in-progress: false
+
 jobs:
   doc-preview-cleanup:
     runs-on: ubuntu-latest
@@ -15,15 +23,14 @@ jobs:
         with:
           ref: gh-pages
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Delete preview and history + push changes
+      - name: Delete preview and push changes
         run: |
             if [ -d "previews/PR$PRNUM" ]; then
               git config user.name "BVDOutbreakSize"
               git config user.email "action@github.com"
               git rm -rf "previews/PR$PRNUM"
               git commit -m "delete preview for PR$PRNUM"
-              git branch gh-pages-new $(echo "delete history" | git commit-tree HEAD^{tree})
-              git push --force origin gh-pages-new:gh-pages
+              git push origin gh-pages
             fi
         env:
             PRNUM: ${{ github.event.number }}
