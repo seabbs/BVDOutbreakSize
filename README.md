@@ -5,19 +5,20 @@
 **Last updated:** 20 May 2026. This is a live report, re-run as new
 data arrive, so the estimates change between updates.
 
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev)
+
 **Data as of:** 18 May 2026, the release date of the WHO AFRO External
 Situation Report 01 the counts are taken from. Estimates are reported
 as of this date; it can lag the update date above.
 
 [![DOI](https://zenodo.org/badge/1243778099.svg)](https://doi.org/10.5281/zenodo.20312758)
 
-**→ Jump to the results.** The headline estimate and every figure are on
-the [analysis page](https://epiforecasts.io/BVDOutbreakSize/dev/analysis).
-Go straight to the
-[current outbreak size](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Results),
-the [comparison with the Imperial report](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Comparison-with-McCabe-et-al.),
-[how each data stream compares](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#How-the-data-streams-compare),
-or the [limitations](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Limitations).
+**See:**
+[current outbreak size](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Summary) ·
+[comparison with McCabe et al.](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Comparison-with-McCabe-et-al.) ·
+[how the data streams compare](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#How-the-data-streams-compare) ·
+[limitations](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Limitations).
 
 <!-- ABSTRACT:START -->
 **Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus

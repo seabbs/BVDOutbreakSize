@@ -74,6 +74,12 @@ function build_standalone(build_dir::AbstractString, out_file::AbstractString)
     # jump links work in the standalone file rather than navigating to
     # the hosted site.
     content = replace(content, r"/BVDOutbreakSize/[^\"#]*analysis#" => "#")
+    # Any remaining root-relative site links point at other doc pages
+    # (citations resolve to the references page, etc.) that are not part
+    # of this single file. Absolutise them against the hosted site so
+    # they resolve instead of breaking against the local filesystem.
+    content = replace(content, "href=\"/BVDOutbreakSize/" =>
+                      "href=\"https://epiforecasts.io/BVDOutbreakSize/")
 
     css = ""
     for f in readdir(assets)

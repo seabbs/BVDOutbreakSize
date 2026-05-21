@@ -19,6 +19,9 @@
 #md #     "the update date above.")
 #md # ```
 #
+# [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable/analysis)
+# [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev/analysis)
+#
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
@@ -58,11 +61,11 @@
 # report, built from the same run, is attached to each results release:
 # [download the latest](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest/download/analysis.html).
 #
-# **→ Jump straight to the results:**
-# [current outbreak size](#Results) ·
-# [comparison with McCabe et al.](#Comparison-with-McCabe-et-al.) ·
-# [how the data streams compare](#How-the-data-streams-compare) ·
-# [limitations](#Limitations).
+# **See:**
+# [current outbreak size](@ref "Summary") ·
+# [comparison with McCabe et al.](@ref "Comparison with McCabe et al.") ·
+# [how the data streams compare](@ref "How the data streams compare") ·
+# [limitations](@ref "Limitations").
 #
 # ## What we do differently from McCabe et al.
 #
