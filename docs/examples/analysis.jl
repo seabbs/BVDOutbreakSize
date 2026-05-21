@@ -566,9 +566,9 @@ end
 #
 # giving $k$ a prior median near $3$ with a 90% range of about $1$-$14$.
 # Because the prior allows near-Poisson counts, $k$ itself ranges over
-# many orders of magnitude and is hard to read in pair plots, so we
-# show dispersion on the sampled $1/\sqrt{k}$ scale there and report
-# both scales in the summary table.
+# many orders of magnitude, so the pair plots and summary table show
+# dispersion on both the sampled $1/\sqrt{k}$ scale, which is easier to
+# read, and the more familiar $k$ scale.
 # Because each stream contributes essentially one aggregate count, $k$
 # is only weakly identified, so this prior carries the inference and is
 # set to reflect the overdispersion we expect from passive surveillance.
@@ -1232,7 +1232,7 @@ prior_C_table #hide
 #md # ```
 
 prior_pair_fig = plot_pair(prior_chn,
-    [:τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k,
+    [:τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k, :k,
      :p_drc, :p_uganda, :τ_logit]);
 
 #md # ```@raw html
@@ -1548,7 +1548,7 @@ joint_summary #hide
 #md # ```
 
 posterior_pair_fig = plot_pair(chn_joint,
-    [:τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k,
+    [:τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k, :k,
      :p_drc, :p_uganda, :τ_logit];
     prior = prior_chn);
 
