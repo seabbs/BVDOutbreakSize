@@ -255,26 +255,62 @@ function integrate(f, lo, hi; alg = CUMULATIVE_INTEGRAL_ALG)
     return halfwidth * solve(prob, alg).u
 end
 
+# Change of variables clustering the reference nodes towards `hi`. With
+# `d = hi - s` measured back from the upper limit and `v = (u + 1) / 2`,
+# the map `d = span · vᵖ` sends the dense end of the reference grid to
+# `s = hi` and stretches the sparse end out to `s = lo`. The Jacobian
+# `dd/du = span · p · vᵖ⁻¹ / 2` is folded into the integrand so a single
+# fixed `solve` covers the whole domain.
+_clustered_kernel(u, p) = begin
+    v = (u + one(u)) / 2
+    d = p.span * v^p.expo
+    return p.f(p.hi - d) * (p.span * p.expo * v^(p.expo - one(p.expo)) / 2)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Integrate a scalar function `f` over `[lo, hi]` by Gauss-Legendre
+quadrature with the nodes clustered towards `hi`, resolving features of
+size `scale` near that limit. Use for onset-to-death convolutions, whose
+integrand mass piles up against the cut-off `hi` over a window set by the
+sampled delay scale: the uniform [`integrate`](@ref) spread across a wide
+`[lo, hi]` would resolve that peak too coarsely. The whole domain is
+still covered (no truncation), so a delay wider than `[lo, hi]` is
+integrated exactly; when `scale ≥ hi - lo` the map reduces to the uniform
+method. Returns zero when `hi <= lo`. The default scheme is
+[`DEATH_INTEGRAL_ALG`](@ref).
+"""
+function integrate(f, lo, hi, scale; alg = DEATH_INTEGRAL_ALG)
+    hi <= lo && return zero(hi - lo)
+    span = hi - lo
+    # `expo` places ~half the nodes within `scale` of `hi`; `expo = 1`
+    # (uniform) once the feature is as wide as the domain. Fall back to
+    # the uniform rule for a degenerate scale so a non-finite delay
+    # moment cannot produce a `NaN` exponent on an AD proposal.
+    (isfinite(scale) && scale > zero(scale)) ||
+        return integrate(f, lo, hi; alg)
+    expo = max(one(span), log(span / scale) / log(oftype(span, 2)))
+    prob = IntegralProblem(_clustered_kernel, (-1.0, 1.0),
+                           (; f, hi, span, expo))
+    return solve(prob, alg).u
+end
+
 """
     DELAY_SUPPORT_K
 
-Number of standard deviations beyond the mean used to bound a delay
-distribution's effective support in the onset-to-death convolution
-integrals. `mean + DELAY_SUPPORT_K · std` sits far enough into the tail
-that the omitted mass is negligible for a gamma delay, while keeping the
-integration window proportional to the delay's scale.
+Number of standard deviations beyond the mean used as the clustering
+scale for a delay distribution in the onset-to-death convolution
+integrals. `mean + DELAY_SUPPORT_K · std` is the width near the cut-off
+over which the clustered [`integrate`](@ref) packs roughly half its
+nodes, so the quadrature tracks the delay's scale as it is sampled.
 """
 const DELAY_SUPPORT_K = 10
 
-# Upper edge of a delay distribution's effective support, `mean + K·std`.
-# The convolution integrals run over the full outbreak window `[0, T]`
-# (with `T` up to several hundred days), but the delay density only has
-# mass within roughly this distance of the cut-off. Bounding the domain
-# here keeps the fixed Gauss-Legendre nodes clustered on that support,
-# so the quadrature stays accurate as the sampled delay narrows instead
-# of spreading nodes across an empty tail. The bound scales with the
-# sampled `std`, so gradients flow through it on the AD-supported
-# parameter path used by `integrate`.
+# Clustering scale for a delay distribution, `mean + K·std`: the width of
+# the window near the cut-off where the convolution integrand has mass.
+# Scales with the sampled `std`, so gradients flow through it on the
+# AD-supported parameter path used by the clustered `integrate`.
 _delay_support_upper(dist) = mean(dist) + DELAY_SUPPORT_K * std(dist)
 
 """
@@ -289,20 +325,20 @@ exponential growth at rate `r`:
 ```
 
 with `f` the `delay_dist` onset-to-death density. The integrand returns
-zero past `T` so the convolution support is respected. The lower limit
-is lifted to `max(0, T − (mean + K·std))` of `delay_dist` so the
-quadrature nodes cluster on the part of the window where `f(T − s)` has
-mass (see [`DELAY_SUPPORT_K`](@ref)). Uses [`DEATH_INTEGRAL_ALG`](@ref).
+zero past `T` so the convolution support is respected. Integrated with
+the clustered [`integrate`](@ref) so the quadrature nodes pack near `T`,
+where `f(T − s)` has mass, over a window set by the delay scale (see
+[`DELAY_SUPPORT_K`](@ref)). Uses [`DEATH_INTEGRAL_ALG`](@ref).
 """
 function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
-    lo = max(zero(T), T - _delay_support_upper(delay_dist))
+    scale = _delay_support_upper(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> begin
             d = T - s
             d <= 0 ? zero(r) : exp(r * s) * pdf(delay_dist, d)
         end
     end
-    return CFR * integrate(g, lo, T; alg)
+    return CFR * integrate(g, zero(T), T, scale; alg)
 end
 
 """
@@ -828,11 +864,11 @@ end
 function _committed_deaths_one(r, T, α, θ, CFR;
         alg = DEATH_INTEGRAL_ALG)
     delay_dist = Gamma(α, θ)
-    lo = max(zero(T), T - _delay_support_upper(delay_dist))
+    scale = _delay_support_upper(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> r * exp(r * s) * ccdf(delay_dist, T - s)
     end
-    return CFR * integrate(g, lo, T; alg)
+    return CFR * integrate(g, zero(T), T, scale; alg)
 end
 
 """
