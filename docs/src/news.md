@@ -12,8 +12,8 @@ each push to `main` also republishes the rendered analysis and the
 
 - Bound the seeding time `T` from below with a soft prior on the
   genetic time to the most recent common ancestor (TMRCA). Inspired by
-  and following the estimate of N. Ferguson, using the first eight BDBV
-  genomes reported on
+  an estimate from Neil Ferguson, using the first eight BDBV genomes
+  reported on
   [virological.org](https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032).
 - Switched the export deaths to a daily (time-resolved binned) Poisson
   process: a continuous survival weight for the no-death stretch before
