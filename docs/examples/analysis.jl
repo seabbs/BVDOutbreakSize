@@ -69,8 +69,7 @@
 #   which drops that factor and
 #   is therefore an approximation. We evaluate the integral
 #   numerically instead, which recovers the exact value and lets the
-#   onset-to-death distribution be swapped for any other family
-#   without re-deriving the integral.
+#   onset-to-death distribution be swapped for any other family.
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list McCabe et al. cite for their
 #   point estimates [bdbv_linelist_analysis_2026](@cite),
@@ -341,8 +340,6 @@ observations_table #hide
 # Each building-block submodel introduces only the mathematical objects
 # and priors for one parameter family; the likelihoods and forward
 # integrals enter later, in the observation submodels that use them.
-# Swapping a building block (a different delay study, a different growth
-# assumption) needs no edits to the joint structure.
 #
 # The implementation approach taken here is based on the hantavirus
 # modelling project [hantavirus_2026](@cite): Mooncake
@@ -685,8 +682,7 @@ end
 # and ties one data stream to the latent $C(T)$. The forward integrals
 # (the at-risk person-time integral for exports, the gamma convolution
 # for deaths, and the deaths-among-exports convolution) are solved
-# numerically, so they support any onset-to-death delay or growth curve
-# without re-derivation. Each submodel introduces its likelihood by
+# numerically. Each submodel introduces its likelihood by
 # referring back to the parameters defined in equations (1)-(11).
 
 # ##### Exports — Method 1 (geographic spread)
