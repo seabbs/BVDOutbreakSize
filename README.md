@@ -55,10 +55,41 @@ date.
 The [analysis](https://epiforecasts.io/BVDOutbreakSize/dev/analysis)
 lays out each deviation alongside the matching Imperial method.
 
+## Installing the package
+
+To use the model and the bundled outbreak data from your own Julia
+environment, add the package:
+
+```julia
+using Pkg
+Pkg.add("BVDOutbreakSize")
+```
+
+Until it appears in the General registry, install from the
+repository instead:
+
+```julia
+using Pkg
+Pkg.add(url = "https://github.com/epiforecasts/BVDOutbreakSize")
+```
+
+You can then load the model machinery and the data the report is
+fitted to:
+
+```julia
+using BVDOutbreakSize
+obs = load_observations()
+```
+
+This gives you the exported model components, constants and data
+loaders. Reproducing the full report (fitting the models and writing
+the result tables and plots) is a separate flow that runs from a
+clone of the repository, described next.
+
 ## Running
 
 ```bash
-git clone --recurse-submodules https://github.com/seabbs/BVDOutbreakSize
+git clone --recurse-submodules https://github.com/epiforecasts/BVDOutbreakSize
 cd BVDOutbreakSize
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 julia --project=. docs/examples/analysis.jl
