@@ -36,6 +36,8 @@ reimplementation of the
 report's approach and its original published estimates.
 <!-- ABSTRACT:END -->
 
+**Scope.** This model is a re-analysis of the McCabe et al. Imperial College report and is not a general-purpose outbreak-size estimator. The priors, likelihood structure, data streams, and epidemiological framing are anchored to that specific work. Users applying this to other outbreaks or data snapshots should reassess whether the framing carries over; the model may be developed beyond this use-case in future.
+
 **Use of AI:** The model code and analysis were drafted by a language
 model and reviewed and revised under human oversight; the named authors
 are responsible for that oversight.

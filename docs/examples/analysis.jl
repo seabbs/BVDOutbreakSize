@@ -95,6 +95,12 @@
 #
 # ## Limitations
 #
+# - *Scope anchored to the McCabe et al. report.* This model is a re-analysis of the
+#   McCabe et al. [mccabe2026](@cite) Imperial College report, not a standalone
+#   outbreak-size estimator. The priors, likelihood structure, data streams, and
+#   epidemiological assumptions are chosen in response to that specific work.
+#   Users applying this to other outbreaks or data snapshots should reassess whether
+#   the framing carries over; the model may be developed beyond this use-case in future.
 # - *Fitted only to aggregate reported counts.* The data are a
 #   handful of summary figures — total suspected cases in the DRC,
 #   total suspected deaths in the DRC, and cases (and one death)
