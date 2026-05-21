@@ -12,8 +12,6 @@ using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using Turing
 using Turing.DynamicPPL: InitFromPrior
-using MCMCChains: Chains
-import MCMCChains
 import FlexiChains
 using DocStringExtensions
 using Distributions: Gamma, ccdf, pdf, Poisson, NegativeBinomial
@@ -458,8 +456,8 @@ the smallest bulk effective sample size across parameters, and the
 number of divergent transitions.
 """
 function fit_diagnostics(chn)
-    rhats = _scalar_stats(MCMCChains.rhat(chn))
-    esses = _scalar_stats(MCMCChains.ess(chn; kind = :bulk))
+    rhats = _scalar_stats(FlexiChains.rhat(chn))
+    esses = _scalar_stats(FlexiChains.ess(chn; kind = :bulk))
     return (max_rhat     = maximum(rhats),
             min_ess_bulk = minimum(esses),
             n_divergent  = _num_divergences(chn))

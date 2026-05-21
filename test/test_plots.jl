@@ -57,14 +57,14 @@ end
 
 @testset "plot_pair returns a renderable object" begin
     chn = sample(_plot_model(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     obj = plot_pair(chn, [:a, :b]; thin = 4)
     @test obj !== nothing
 end
 
 @testset "plot_pair overlays a prior series" begin
     chn = sample(_plot_model(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     obj = plot_pair(chn, [:a, :b]; thin = 4, prior = chn)
     @test obj !== nothing
 end
@@ -83,7 +83,9 @@ end
     rng = MersenneTwister(16)
     n = 200
     vals = hcat(abs.(randn(rng, n)) .+ 7, abs.(randn(rng, n)) .* 30)
-    chn = MCMCChains.Chains(reshape(vals, n, 2, 1), [:τ, :T])
+    chn = FlexiChains.FlexiChain{Symbol}(n, 1, Dict(
+        FlexiChains.Parameter(:τ) => reshape(vals[:, 1], n, 1),
+        FlexiChains.Parameter(:T) => reshape(vals[:, 2], n, 1)))
     fig = plot_start_date_pair(chn; as_of_date = "2026-05-20")
     @test fig isa CairoMakie.Makie.Figure
 end

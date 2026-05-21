@@ -6,7 +6,7 @@
 using Distributions: Normal, truncated
 using StatsFuns: logit, logistic
 using Turing: Turing, @model, sample, Prior, to_submodel
-import MCMCChains
+import FlexiChains
 
 @model function _pooled_test(;
         mu_prior  = Normal(logit(0.25), 1.0),
@@ -31,7 +31,7 @@ end
 
 @testset "pooled_ascertainment prior draws produce p ∈ (0, 1)" begin
     chn = sample(_pooled_test(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     p_drc    = vec(Array(chn[:p_drc]))
     p_uganda = vec(Array(chn[:p_uganda]))
     τ_logit  = vec(Array(chn[:τ_logit]))
@@ -46,7 +46,7 @@ end
 
 @testset "pooled_ascertainment composes via to_submodel" begin
     chn = sample(_pooled_test_compose(), Prior(), 100;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     p_drc    = vec(Array(chn[:p_drc_outer]))
     p_uganda = vec(Array(chn[:p_uganda_outer]))
     @test length(p_drc) == 100

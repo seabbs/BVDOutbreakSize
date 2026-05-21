@@ -65,17 +65,64 @@ The analysis page sets out
 alongside the matching Imperial method, and reports the
 [full joint results](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Results).
 
-## Running
+## Installing the package
 
-```bash
-git clone --recurse-submodules https://github.com/seabbs/BVDOutbreakSize
-cd BVDOutbreakSize
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --project=. docs/examples/analysis.jl
+To use the model and the bundled outbreak data from your own Julia
+environment, add the package from the repository:
+
+```julia
+using Pkg
+Pkg.add(url = "https://github.com/epiforecasts/BVDOutbreakSize")
 ```
 
-Render the docs page (executes the literate and produces HTML at
-`docs/build/`):
+You can then load the model machinery and the data the report is
+fitted to:
+
+```julia
+using BVDOutbreakSize
+obs = load_observations()
+```
+
+This gives you the exported model components, constants and data
+loaders, enough to build your own analysis on top of the package.
+Reproducing the full report (fitting the models and writing the
+result tables and plots) can be done in a few ways, described next.
+
+## Running
+
+There are a couple of ways to re-fit the model.
+
+### Re-fit from a clone
+
+```bash
+git clone --recurse-submodules https://github.com/epiforecasts/BVDOutbreakSize
+cd BVDOutbreakSize
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
+julia --project=. scripts/run.jl
+```
+
+`scripts/run.jl` fits the models and writes the output CSVs (the
+analysis literate is also run as part of the docs build). Running
+`docs/examples/analysis.jl` directly instead steps through the full
+narrative.
+
+### Re-fit without cloning
+
+`scripts/reproduce.jl` fetches the package, instantiates its
+environment, and runs the fit:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/epiforecasts/BVDOutbreakSize/main/scripts/reproduce.jl | julia
+```
+
+Outputs land in `./bvd-output`; set `BVD_OUTPUT_DIR` to write them
+elsewhere, or `BVD_REF` to a release tag to reproduce a specific
+version. The script clones into a temporary directory and runs from
+there, so it leaves your own Julia environments untouched.
+
+### Render the docs page
+
+Executes the literate and produces HTML at `docs/build/`:
 
 ```bash
 julia --project=docs -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
@@ -105,19 +152,6 @@ GitHub Releases.
 The rendered report is published from the
 [`gh-pages` branch](https://github.com/epiforecasts/BVDOutbreakSize/tree/gh-pages),
 where past and development versions of the analysis page can be found.
-
-To regenerate the same outputs locally:
-
-```bash
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --project=. scripts/run.jl
-```
-
-This fits the model and writes the CSVs to an `output/` directory at
-the repository root (`output/posterior_summary.csv`,
-`cumulative_cases_by_stream.csv`, `imperial_comparison.csv`,
-`scenario_coverage.csv`, `posterior_draws.csv`, and a copy of
-`observations.toml`).
 
 ## Submodules
 
