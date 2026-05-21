@@ -1454,14 +1454,12 @@ summary_ranges #hide
 # Our central estimate sits above the McCabe et al.
 # [mccabe2026](@cite) report, and we think this is for a few reasons.
 # The main one is that we use more of the available data and carry the
-# uncertainty through rather than reading the answer off a single
-# scenario.
-# We fit two data streams the report does not (deaths among exported
-# cases, and reported DRC cases with an ascertainment component), and we
-# put priors on the quantities the report fixes and varies one at a time
-# (doubling time, delays, case fatality ratio, reporting fractions), so
-# the headline number averages over a plausible range for each instead
-# of one chosen value.
+# uncertainty through the whole calculation.
+# We fit two extra data streams (deaths among exported cases, and
+# reported DRC cases with an ascertainment component), and we put priors
+# on the quantities the report fixes and varies one at a time (doubling
+# time, delays, case fatality ratio, reporting fractions), so the
+# headline number averages over a plausible range for each.
 # Some of our changes push the other way: the exact export integral and
 # the numerical deaths convolution correct approximations that, on their
 # own, lower the estimate, and using newer data moves it again.
