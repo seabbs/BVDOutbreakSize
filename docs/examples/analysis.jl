@@ -913,7 +913,7 @@ end
 # model the detected export deaths as an inhomogeneous Poisson process
 # with cumulative intensity $\mathbb{E}[D_{\text{uganda}}(t)]$
 # (equation (19), at any elapsed time $t$) and use its time-resolved
-# likelihood, not just the total. Splitting $[0, T]$ at the earliest
+# likelihood. Splitting $[0, T]$ at the earliest
 # dated death (offset $\Delta_1$ before the cut-off, elapsed time
 # $T-\Delta_1$): before it no export death was seen, contributing one
 # continuous survival term over $[0, T-\Delta_1]$; from that day to the
