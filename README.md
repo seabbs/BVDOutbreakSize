@@ -80,20 +80,9 @@ result tables and plots) can be done in a few ways, described next.
 
 ## Running
 
-There are a few ways to run or read the analysis, depending on
-whether you want the numbers, the code, or a full re-fit.
+There are a couple of ways to re-fit the model.
 
-### Read or download, no Julia needed
-
-Browse the rendered
-[analysis page](https://epiforecasts.io/BVDOutbreakSize/dev/analysis),
-which shows every code block alongside its output, or download the
-result tables, plots and a self-contained `analysis.html` from the
-[latest release](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest).
-You can copy snippets from the analysis page straight into a Julia
-session that has the package installed.
-
-### Re-fit from a clone (full reproduction)
+### Re-fit from a clone
 
 ```bash
 git clone --recurse-submodules https://github.com/epiforecasts/BVDOutbreakSize
