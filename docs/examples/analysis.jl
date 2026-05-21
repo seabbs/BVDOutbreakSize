@@ -1406,13 +1406,11 @@ diagnostics_table( #hide
 #
 # ### Summary
 #
-# For the response the question that matters is how many people have
-# already been infected: the reported counts capture only part of the
-# outbreak, and planning for beds, contacts and vaccine needs depends
-# on the true total. The numbers below are our current best estimate of
-# that total, computed from the joint posterior and refreshed on every
-# build. We give 90% credible-interval ranges here; the full 30/60/90%
-# intervals are in the tables below.
+# Reported case counts capture only part of the outbreak. The numbers
+# below are our current best estimate of the true total, computed from
+# the joint posterior and refreshed on every build. We give 90%
+# credible-interval ranges here; the full 30/60/90% intervals are in
+# the tables below.
 
 #md # ```@raw html
 #md # <details><summary>Compute the headline ranges</summary>
