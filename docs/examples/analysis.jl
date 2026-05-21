@@ -1,6 +1,7 @@
 # # Estimating the current size of the 2026 DRC Bundibugyo virus outbreak: a joint Bayesian re-analysis of the McCabe et al. report
 #
-# **Authors.** Sam Abbott, Samuel Brand and Sebastian Funk.
+# **Authors.** Sam Abbott, Kath Sherratt, Samuel Brand and Sebastian
+# Funk.
 #
 # **Last updated.** 2026-05-20. This is a live report, re-run as new
 # data arrive, so the estimates change between updates.
@@ -43,7 +44,11 @@
 # report, built from the same run, is attached to each results release:
 # [download the latest](https://github.com/epiforecasts/BVDOutbreakSize/releases/latest/download/analysis.html).
 #
-# **→ Jump to the [results](#Results).**
+# **→ Jump straight to the results:**
+# [current outbreak size](#Results) ·
+# [comparison with McCabe et al.](#Comparison-with-McCabe-et-al.) ·
+# [how the data streams compare](#How-the-data-streams-compare) ·
+# [limitations](#Limitations).
 #
 # ## What we do differently from McCabe et al.
 #
@@ -68,8 +73,7 @@
 #   which drops that factor and
 #   is therefore an approximation. We evaluate the integral
 #   numerically instead, which recovers the exact value and lets the
-#   onset-to-death distribution be swapped for any other family
-#   without re-deriving the integral.
+#   onset-to-death distribution be swapped for any other family.
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list McCabe et al. cite for their
 #   point estimates [bdbv_linelist_analysis_2026](@cite),
@@ -157,7 +161,7 @@
 #   count weights the exported at-risk person-time by the onset-to-death
 #   CDF $F_d(T-s)$ rather than convolving the death delay against the
 #   exported-case incidence; this treats the cohort present at time $s$
-#   as if infected at $s$. A cleaner construction would convolve the
+#   as if infected at $s$. A more direct construction would convolve the
 #   onset-to-death delay against the exported-case incidence trajectory.
 # - *Ascertainment partially pooled, not separately identified.*
 #   Uganda's exported-case ascertainment $p_{\text{uganda}}$ and DRC's
@@ -264,8 +268,6 @@ const ITURI_POPULATION    = obs.source_population
 const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
 const EXPORTED_CASES      = obs.exported_cases
 const EXPORTS_DEATHS      = obs.exports_deaths
-const TOTAL_DEATHS        = obs.total_deaths
-const REPORTED_CASES      = obs.reported_cases
 
 #md # ```@raw html
 #md # </details>
@@ -297,12 +299,11 @@ observations_table #hide
 # ascertainment parameters across the streams that depend on them.
 #
 # In implementation terms, the model is assembled from small reusable
-# Turing [ge2018turing](@cite) submodels rather than written as one
-# monolithic block. Each
+# Turing [ge2018turing](@cite) submodels. Each
 # *building-block submodel* owns the maths and priors for one epidemic
 # parameter family. The *observation submodels* assemble those blocks,
 # introduce the forward integrals and the likelihoods, and tie one data
-# stream to the latent state. The *composers* glue the observation
+# stream to the latent state. The *composers* combine the observation
 # submodels into the per-stream fits and the joint fit. The diagram
 # below traces that flow:
 #
@@ -322,8 +323,8 @@ observations_table #hide
 #    stream to the latent $C(T)$.
 # 3. **Composers** — one per analysis: the four single-stream fits, a
 #    two-stream reimplementation of the report's methods (exports and
-#    deaths), and the full joint fit. Each is a thin wrapper that
-#    samples the building blocks and the relevant observation
+#    deaths), and the full joint fit. Each samples the building blocks
+#    and the relevant observation
 #    submodels. A composer conditionally includes only the likelihoods
 #    for the streams it uses, so a single-stream fit never instantiates
 #    the other observation submodels.
@@ -341,8 +342,6 @@ observations_table #hide
 # Each building-block submodel introduces only the mathematical objects
 # and priors for one parameter family; the likelihoods and forward
 # integrals enter later, in the observation submodels that use them.
-# Swapping a building block (a different delay study, a different growth
-# assumption) needs no edits to the joint structure.
 #
 # The implementation approach taken here is based on the hantavirus
 # modelling project [hantavirus_2026](@cite): Mooncake
@@ -685,8 +684,7 @@ end
 # and ties one data stream to the latent $C(T)$. The forward integrals
 # (the at-risk person-time integral for exports, the gamma convolution
 # for deaths, and the deaths-among-exports convolution) are solved
-# numerically, so they support any onset-to-death delay or growth curve
-# without re-derivation. Each submodel introduces its likelihood by
+# numerically. Each submodel introduces its likelihood by
 # referring back to the parameters defined in equations (1)-(11).
 
 # ##### Exports — Method 1 (geographic spread)
@@ -714,8 +712,8 @@ end
 #          + \int_{T-w}^{T} i(s) \, (T - s) \, ds \Bigr], \tag{13}
 # ```
 #
-# which integration by parts collapses to the cleaner at-risk person-
-# time form using the cumulative-incidence trajectory $C(s)$ of
+# which integration by parts collapses to the at-risk person-time form
+# using the cumulative-incidence trajectory $C(s)$ of
 # equation (1):
 #
 # ```math
@@ -802,8 +800,7 @@ end
 # $D(T) \approx \mathrm{CFR}\cdot C(T)\cdot(1 + r/\beta)^{-\alpha}$
 # (valid for $T \gtrsim 12/(\beta+r)$), which
 # drops that factor. We evaluate equation (16) numerically instead,
-# which is exact and lets the delay family be swapped with no change to
-# the quadrature. The
+# which is exact. The
 # observed deaths follow the NegBinomial likelihood of equation (8)
 # with the dispersion $k$ of equation (9), supplied by the composer so
 # it can be shared with the cases likelihood:
@@ -958,10 +955,10 @@ end
 
 # #### Composers
 #
-# These composers stitch the building blocks into the **full
-# generative models** for each analysis. McCabe et al. invert a
+# These composers combine the building blocks into the full model for
+# each analysis. McCabe et al. invert a
 # deterministic summary formula at fixed nuisance parameters; here we
-# sample the entire generative process — growth, delay, CFR, detection
+# sample all of them — growth, delay, CFR, detection
 # window, traveller volume, dispersion, ascertainment — and condition
 # on the observed counts. Each composer conditionally includes only the
 # likelihoods
@@ -1276,7 +1273,7 @@ posterior_C_exports_deaths =
 #
 # Fit-quality diagnostics for the joint and per-stream fits: the worst
 # R-hat, the smallest bulk effective sample size, and the number of
-# divergent transitions. Open the panel to inspect them.
+# divergent transitions.
 
 #md # ```@raw html
 #md # <details><summary>Fit diagnostics</summary>
@@ -1587,14 +1584,13 @@ joint_ppc_fig #hide
 # ### Counterfactual: lower bound under no further transmission
 #
 # The lower bound on cumulative deaths if transmission stopped at the
-# report date (method above): still-expected and projected-total deaths
-# per draw.
+# report date: still-expected and projected-total deaths per draw.
 
 #md # ```@raw html
 #md # <details><summary>Project no-onward deaths and summarise</summary>
 #md # ```
 
-no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = TOTAL_DEATHS);
+no_onward = predict_no_onward_deaths(chn_joint; obs_deaths = obs.total_deaths);
 
 no_onward_table = streams_table(
     "no-onward total" => no_onward.total_projected;
@@ -1617,7 +1613,7 @@ no_onward_table #hide
 #md # <details><summary>No-onward projected-deaths plot</summary>
 #md # ```
 
-no_onward_fig = plot_no_onward_deaths(no_onward; obs_deaths = TOTAL_DEATHS);
+no_onward_fig = plot_no_onward_deaths(no_onward; obs_deaths = obs.total_deaths);
 
 #md # ```@raw html
 #md # </details>
@@ -1627,8 +1623,8 @@ no_onward_fig #hide
 
 # ### One-week-ahead forecast
 #
-# The seven-day no-change projection (method above): cumulative and new
-# expected counts per stream by $T + 7$.
+# The seven-day no-change projection: cumulative and new expected counts
+# per stream by $T + 7$.
 
 #md # ```@raw html
 #md # <details><summary>Generate the one-week-ahead forecast</summary>
@@ -1638,8 +1634,8 @@ forecast = forecast_reported(chn_joint;
     horizon           = 7,
     daily_travellers  = ITURI_DAILY_TRAVEL,
     source_population = ITURI_POPULATION,
-    obs_cases         = REPORTED_CASES,
-    obs_deaths        = TOTAL_DEATHS,
+    obs_cases         = obs.reported_cases,
+    obs_deaths        = obs.total_deaths,
     obs_exports       = EXPORTED_CASES);
 forecast_summary = forecast_table(forecast);
 
@@ -1665,8 +1661,8 @@ forecast_fig #hide
 
 # ### Delay sensitivity
 #
-# Refit under the community-only onset-to-death delay (method above):
-# the baseline and re-anchored $C(T)$ posteriors side by side.
+# Refit under the community-only onset-to-death delay: the baseline and
+# re-anchored $C(T)$ posteriors side by side.
 
 #md # ```@raw html
 #md # <details><summary>Refit the joint model with the community-only delay</summary>
@@ -1689,8 +1685,7 @@ posterior_C_community = vec(Array(chn_joint_community[:cumulative_cases]));
 #md # </details>
 #md # ```
 
-# Fit diagnostics for the community-only delay refit. Open the panel to
-# inspect them.
+# Fit diagnostics for the community-only delay refit.
 
 #md # ```@raw html
 #md # <details><summary>Fit diagnostics</summary>
@@ -1824,7 +1819,7 @@ cumulative_density_fig #hide
 # ### Comparison with McCabe et al.
 #
 # Our joint fit against the McCabe et al. estimates and our Method 2
-# reproduction (method above): point estimates with 90% intervals.
+# reproduction: point estimates with 90% intervals.
 
 #md # ```@raw html
 #md # <details><summary>Fit our model to the report-date data, and run the Method 2 reproduction</summary>
@@ -1891,7 +1886,7 @@ comparison_fig = plot_estimate_comparison(comparison_rows);
 comparison_fig #hide
 
 # Fit diagnostics for the report-data joint fit and the Method 2
-# reproduction. Open the panel to inspect them.
+# reproduction.
 
 #md # ```@raw html
 #md # <details><summary>Fit diagnostics</summary>
@@ -1960,8 +1955,8 @@ imperial_density_fig #hide
 
 # ### McCabe et al. report sense check
 #
-# Whether our reproduction lands on McCabe et al.'s reported 501
-# (method above): the recovered estimate and its summary table.
+# Whether our reproduction lands on McCabe et al.'s reported 501:
+# the recovered estimate and its summary table.
 
 #md # ```@raw html
 #md # <details><summary>Reproduction vs McCabe et al. 501</summary>
@@ -2054,4 +2049,5 @@ CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws);
 # The full analysis code, data and model definitions are in the
 # [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
 # repository. Issues, corrections and suggestions are welcome there.
-# Maintained by Sam Abbott, Samuel Brand and Sebastian Funk.
+# Maintained by Sam Abbott, Kath Sherratt, Samuel Brand and Sebastian
+# Funk.
