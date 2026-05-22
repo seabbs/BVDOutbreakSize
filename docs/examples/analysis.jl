@@ -1056,8 +1056,12 @@ end
     q          = daily_travellers / source_population
     n          = length(export_deaths_daily)   # days from earliest death to cut-off
 
+    ## Precompute the onset-to-death CDF once and reuse it across every
+    ## bin edge below (`T - s ≤ window` over the domain; see
+    ## `ExportDeathDelay`).
+    delay = ExportDeathDelay(delay_dist, window)
     Λ(t) = expected_exports_deaths(
-        cumulative, delay_dist, CFR, p_uganda, q, t, window)
+        cumulative, delay, CFR, p_uganda, q, t, window)
 
     ## Pre-death zero stretch as one Poisson observed at 0; `missing`
     ## generates it for predictive checks (see equation (20)).
