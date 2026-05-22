@@ -12,7 +12,7 @@ using BVDOutbreakSize: renewal_joint, default_adtype
 using Turing
 using Turing.DynamicPPL: LogDensityFunction, VarInfo
 const LDP = Turing.LogDensityProblems
-using Random: MersenneTwister
+using Random: MersenneTwister, seed!
 
 obs = load_observations()
 
@@ -38,7 +38,7 @@ gen = renewal_joint(
     tmrca_days = obs.genetic_tmrca_days,
     tmrca_days_sd = obs.genetic_tmrca_days_sd,
 )
-rng = MersenneTwister(20260522)
+seed!(20260522)            # `gen()` draws from the global RNG
 draw = gen()
 println("    C_T (cumulative infections at T) = ", round(draw.C_T))
 println("    E[deaths]            = ", round(draw.expected_deaths_T;
