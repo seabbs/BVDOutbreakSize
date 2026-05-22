@@ -165,12 +165,13 @@
 #   model with the community-only delay (the $n = 5$ cases who died
 #   without admission, weak evidence of a shorter delay) to show how
 #   much the outbreak-size estimate leans on the delay assumption.
-# - *Genetic seeding bound depends on a fixed clock rate.* The TMRCA is
-#   dated under an external Ebola clock rate; the sampled tree is also
-#   almost entirely from Bunia. The
-#   [clock-rate sensitivity](#Clock-rate-sensitivity) section refits the
-#   joint model under the faster early-epidemic rate to show how much
-#   the timing, growth-rate and outbreak-size estimates move.
+# - *Genetic seeding bound depends on a fixed clock rate.* The time to
+#   the most recent common ancestor (TMRCA) is dated under an external
+#   Ebola clock rate; the sampled tree is also almost entirely from
+#   Bunia. The [clock-rate sensitivity](#Clock-rate-sensitivity) section
+#   refits the joint model under the faster early-epidemic rate to show
+#   how much the timing, growth-rate and outbreak-size estimates are
+#   impacted.
 # - *Detection window is weakly motivated.* $w$ lumps incubation and
 #   onset-to-detection together — both poorly characterised for BVD —
 #   so the quantity itself is loosely defined. Its prior is even less
@@ -447,10 +448,9 @@ end
 # ##### Genetic seeding bound
 #
 # A BEAST time tree of the first ten sequenced genomes
-# [virological2026](@cite) places the time to the most recent common
-# ancestor (TMRCA), the age of the oldest internal node of the tree,
-# at a mean of 25 March 2026, roughly 54 days before the cut-off, with
-# a 95% HPD interval of about $\pm 30$ days.
+# [virological2026](@cite) places the TMRCA, the age of the oldest
+# internal node of the tree, at a mean of 25 March 2026, with a 95% HPD
+# interval of about $\pm 30$ days.
 # The clock is fixed, as the temporal sampling range is too short to
 # estimate it, to the $1.2\times10^{-3}$ substitutions/site/year rate
 # from all public data for the 2013–2016 West African Ebola epidemic
@@ -468,7 +468,7 @@ end
 #
 # ```math
 # p_\text{gen}(T) = \Pr[B \le T] = \Phi\!\left(\frac{T - g}{\sigma}\right),
-# \qquad g \approx 54\ \text{d}, \ \sigma = 15\ \text{d}. \tag{3a}
+# \qquad \sigma = 15\ \text{d}. \tag{3a}
 # ```
 
 #md # ```@raw html
