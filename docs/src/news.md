@@ -6,17 +6,6 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
-## Unreleased
-
-### Performance
-
-- Sped up the deaths-among-exports likelihood by precomputing the
-  onset-to-death CDF once per evaluation on a grid (`ExportDeathDelay`)
-  and reusing it across every bin edge, in place of the per-node nested
-  quadrature. Selected by dispatch, with the distribution method kept as
-  the reference; gives a roughly 30x faster gradient with no change to
-  the fitted model.
-
 ## v1.1.0
 
 ### Modelling
@@ -35,6 +24,9 @@ each push to `main` also republishes the rendered analysis and the
   survival term on the Uganda admission date. Dates supplied in
   `data/observations.toml`.
 - Death-convolution quadrature adapted to the sampled delay scale.
+- Sped up the deaths-among-exports likelihood: precompute the
+  onset-to-death CDF once and reuse it across bin edges
+  (`ExportDeathDelay`), replacing the per-node nested quadrature.
 - Removed hardcoded death and case constants that diverged from the
   observations in `data/observations.toml`.
 
