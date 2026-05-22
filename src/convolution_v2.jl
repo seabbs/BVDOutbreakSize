@@ -125,13 +125,15 @@ end
 
 function OnsetIncidence(r, incub_dist, T;
         npts::Integer = ONSET_GRID_POINTS, alg = DEATH_INTEGRAL_ALG)
+    npts >= 2 || throw(ArgumentError("OnsetIncidence needs npts >= 2"))
     Tt = float(T)
     dt = Tt / (npts - 1)
+    ## Probe the element type from a node away from the seed; `i_onset`
+    ## is exactly zero at `t = 0`.
     v1 = onset_incidence(r, incub_dist, dt; alg)
     vals = Vector{typeof(v1)}(undef, npts)
     vals[1] = zero(v1)
-    vals[2] = v1
-    @inbounds for i in 3:npts
+    @inbounds for i in 2:npts
         vals[i] = onset_incidence(r, incub_dist, (i - 1) * dt; alg)
     end
     return OnsetIncidence(r, Tt, oftype(Tt, dt), vals)
