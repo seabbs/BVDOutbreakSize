@@ -132,6 +132,11 @@ Fields returned:
   `genetic_tmrca` block is present.
 - `genetic_tmrca_days_sd::Union{Real, Missing}` — SD (days) on the
   location of that floor; `missing` when absent.
+- `genetic_tmrca_alt_days::Union{Real, Missing}` — TMRCA (days before
+  `as_of_date`) under the alternative clock rate, for the clock-rate
+  sensitivity; `missing` when no `alt_date` is present.
+- `genetic_tmrca_alt_days_sd::Union{Real, Missing}` — SD (days) on the
+  alternative-clock floor; `missing` when absent.
 - `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
   :reported_cases, :daily_outbound_travellers,
   :daily_outbound_travellers_sd, :source_population, :genetic_tmrca),
@@ -176,6 +181,12 @@ function load_observations(
             _gap(raw["genetic_tmrca"]["date"]) : missing,
         genetic_tmrca_days_sd        = has_gen ?
             float(raw["genetic_tmrca"]["days_sd"]) : missing,
+        genetic_tmrca_alt_days       =
+            has_gen && haskey(raw["genetic_tmrca"], "alt_date") ?
+            _gap(raw["genetic_tmrca"]["alt_date"]) : missing,
+        genetic_tmrca_alt_days_sd    =
+            has_gen && haskey(raw["genetic_tmrca"], "alt_days_sd") ?
+            float(raw["genetic_tmrca"]["alt_days_sd"]) : missing,
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),

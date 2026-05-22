@@ -165,6 +165,12 @@
 #   model with the community-only delay (the $n = 5$ cases who died
 #   without admission, weak evidence of a shorter delay) to show how
 #   much the outbreak-size estimate leans on the delay assumption.
+# - *Genetic seeding bound depends on a fixed clock rate.* The TMRCA is
+#   dated under an external Ebola clock rate; the sampled tree is also
+#   almost entirely from Bunia. The
+#   [clock-rate sensitivity](#Clock-rate-sensitivity) section refits the
+#   joint model under the faster early-epidemic rate to show how much
+#   the timing, growth-rate and outbreak-size estimates move.
 # - *Detection window is weakly motivated.* $w$ lumps incubation and
 #   onset-to-detection together — both poorly characterised for BVD —
 #   so the quantity itself is loosely defined. Its prior is even less
@@ -1957,6 +1963,107 @@ delay_sensitivity_fig = plot_cumulative_cases(
 #md # ```
 
 delay_sensitivity_fig #hide
+
+# ### Clock-rate sensitivity
+#
+# The genetic seeding bound uses the BEAST TMRCA at the
+# $1.2\times10^{-3}$ substitutions/site/year clock rate this analysis
+# assumes. The same temporal tree under the faster $1.9\times10^{-3}$
+# early-epidemic rate gives a TMRCA about three weeks more recent
+# [virological2026](@cite); the authors report both without favouring
+# either. We refit the joint model under that alternative bound and
+# compare the impact on the outbreak size $C(T)$, the seeding time $T$
+# and the growth rate $r$.
+
+#md # ```@raw html
+#md # <details><summary>Refit the joint model under the 1.9e-3 clock</summary>
+#md # ```
+
+genetic_seeding_clock19 = T -> genetic_seeding_model(T,
+    obs.genetic_tmrca_alt_days;
+    tmrca_days_sd = obs.genetic_tmrca_alt_days_sd)
+
+chn_joint_clock19 = nuts_sample(
+    bvd_joint(obs.exported_cases, obs.total_deaths,
+              obs.reported_cases, obs.export_deaths_daily;
+              first_export_detection_delta = obs.first_export_detection_delta,
+              genetic = genetic_seeding_clock19));
+
+posterior_C_clock19 = vec(Array(chn_joint_clock19[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# Fit diagnostics for the 1.9e-3 clock-rate refit.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "joint (1.9e-3 clock)" => chn_joint_clock19) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# Outbreak size $C(T)$ under the two clock rates:
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate C_T table</summary>
+#md # ```
+
+clock_sensitivity_C_table = streams_table(
+    "joint (1.2e-3 clock)" => posterior_C_joint,
+    "joint (1.9e-3 clock)" => posterior_C_clock19);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_C_table #hide
+
+# Seeding time $T$ (days before the cut-off) and growth rate $r$ (per
+# day): a more recent TMRCA permits later seeding and faster growth.
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate timing and growth table</summary>
+#md # ```
+
+clock_sensitivity_timing_table = streams_table(
+    "T, 1.2e-3 clock (days)" => vec(Array(chn_joint[:T])),
+    "T, 1.9e-3 clock (days)" => vec(Array(chn_joint_clock19[:T]));
+    digits = 0);
+
+clock_sensitivity_growth_table = streams_table(
+    "r, 1.2e-3 clock (per day)" => vec(Array(chn_joint[:r])),
+    "r, 1.9e-3 clock (per day)" => vec(Array(chn_joint_clock19[:r]));
+    digits = 3);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_timing_table #hide
+clock_sensitivity_growth_table #hide
+
+# Overlaid posterior densities of $C(T)$ under the two clock rates:
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate C_T density plot</summary>
+#md # ```
+
+clock_sensitivity_fig = plot_cumulative_cases(
+    "1.2e-3 clock" => posterior_C_joint,
+    "1.9e-3 clock" => posterior_C_clock19;
+    scenarios = []);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_fig #hide
 
 # ### How the data streams compare
 #

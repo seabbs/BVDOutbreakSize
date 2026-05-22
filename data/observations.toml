@@ -50,8 +50,14 @@ source = "McCabe et al. Table 1 — Ituri Province population"
 # `days_sd` is the SD on the location of the floor (uncertainty in the
 # estimate, in either direction), not a constraint on how old T can be;
 # it is derived from the reported 95% HPD interval (about +/- 30 days,
-# so SD ~ 15 days).
+# so SD ~ 15 days). `alt_date` / `alt_days_sd` carry the same estimate
+# under the faster 1.9e-3 early-epidemic clock rate (mean 2026-04-11,
+# 95% HPD 2026-03-23 to 2026-04-28, so SD ~ 9 days), used by the
+# clock-rate sensitivity. Both dates are converted to days before
+# `as_of_date` at load time, so they track changes to the cut-off.
 [genetic_tmrca]
-date    = "2026-03-25"
-days_sd = 15
+date        = "2026-03-25"
+days_sd     = 15
+alt_date    = "2026-04-11"
+alt_days_sd = 9
 source = "BEAST v10.5.0 temporal tree of the first 10 BDBV genomes (virological2026, 2026-05-21 update; HKY substitution model, strict molecular clock, exponential coalescent prior). Mean TMRCA 2026-03-25, 95% HPD 2026-02-20 to 2026-04-20, at the 1.2e-3 substitutions/site/year clock rate (holmes2016, all public 2013-2016 EBOV data) matching this analysis. The faster 1.9e-3 early-epidemic rate gives a more recent mean TMRCA of 2026-04-11 (HPD 2026-03-23 to 2026-04-28). Estimate is Bunia-specific and a lower bound, since further or geographically broader sequencing only pushes the TMRCA older. Using the genetic TMRCA as a seeding bound follows a suggestion of N. Ferguson (ferguson2026)."

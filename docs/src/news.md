@@ -23,6 +23,10 @@ each push to `main` also republishes the rendered analysis and the
   survival term on the Uganda admission date. Dates supplied in
   `data/observations.toml`.
 - Death-convolution quadrature adapted to the sampled delay scale.
+- Added a clock-rate sensitivity: refit the joint model under the
+  faster 1.9e-3 early-epidemic TMRCA estimate and compare the impact on
+  outbreak size, seeding time and growth rate against the 1.2e-3
+  baseline.
 - Sped up the deaths-among-exports likelihood: precompute the
   onset-to-death CDF once and reuse it across bin edges
   (`ExportDeathDelay`), replacing the per-node nested quadrature.
