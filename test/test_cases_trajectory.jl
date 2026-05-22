@@ -8,7 +8,8 @@
 ## increments through the cumulative intensity `Λ(s) = p_drc · C(s)`.
 
 using Distributions: Beta, NegativeBinomial, truncated, Normal, logpdf
-using Turing: Turing, @model, sample, Prior, to_submodel
+using Turing: Turing, @model, sample, Prior, to_submodel, NUTS
+using Random: MersenneTwister
 import FlexiChains
 
 ## NaN/Inf-safe negative binomial mirroring `safe_nbinomial` in the
@@ -49,6 +50,43 @@ end
 ## elapsed time `s_v = T - offset_v`, evaluate the cumulative intensity
 ## `Λ(s) = p_drc · C(s)` at each bin edge, and condition the between-
 ## vintage increment on the difference `μ_v = Λ(s_v) − Λ(s_{v-1})`.
+function _ct_increments(case_trajectory)
+    n = length(case_trajectory)
+    increments = Vector{Union{Missing, Int}}(undef, n)
+    offsets    = Vector{Int}(undef, n)
+    prev_count = 0
+    for i in 1:n
+        offsets[i] = case_trajectory[i][1]
+        cnt        = case_trajectory[i][2]
+        increments[i] = ismissing(cnt) ? missing : cnt - prev_count
+        prev_count    = ismissing(cnt) ? prev_count : cnt
+    end
+    return increments, offsets
+end
+
+@model function _ct_traj(increments::AbstractVector,
+        offsets::AbstractVector, growth_state, k::Real, p_report::Real)
+    cumulative = growth_state.cumulative
+    T = growth_state.T
+    Λ(s) = p_report * cumulative(s)
+    n = length(increments)
+    λlo = zero(T)
+    last_expected = zero(T)
+    total = 0
+    for i in 1:n
+        s_v   = T - offsets[i]
+        λhi   = Λ(s_v)
+        raw   = λhi - λlo
+        μ_bin = isfinite(raw) ?
+            max(raw, eps(typeof(raw))) : eps(typeof(raw))
+        increments[i] ~ _ct_safe_nbinomial(k, μ_bin)
+        total += increments[i]
+        λlo = λhi
+        last_expected = λhi
+    end
+    return (; expected_reports = last_expected, total)
+end
+
 @model function _ct_likelihood(
         reported_cases::Union{Missing, Integer},
         growth_state, k::Real;
@@ -57,7 +95,6 @@ end
     asc_state ~ to_submodel(ascertainment, false)
     p_report  = asc_state.p_report
     C_T = growth_state.C_T
-    T   = growth_state.T
 
     if isempty(case_trajectory)
         raw_reports        = p_report * C_T
@@ -68,34 +105,11 @@ end
         return (; p_report, expected_reports)
     end
 
-    cumulative = growth_state.cumulative
-    Λ(s) = p_report * cumulative(s)
-    n = length(case_trajectory)
-
-    increments = Vector{Union{Missing, Int}}(undef, n)
-    prev_count = 0
-    for i in 1:n
-        cnt = case_trajectory[i][2]
-        increments[i] = ismissing(cnt) ? missing : cnt - prev_count
-        prev_count = ismissing(cnt) ? prev_count : cnt
-    end
-
-    λlo = zero(T)
-    last_expected = zero(T)
-    total = 0
-    for i in 1:n
-        s_v   = T - case_trajectory[i][1]
-        λhi   = Λ(s_v)
-        raw   = λhi - λlo
-        μ_bin = isfinite(raw) ?
-            max(raw, eps(typeof(raw))) : eps(typeof(raw))
-        increments[i] ~ _ct_safe_nbinomial(k, μ_bin)
-        total += increments[i]
-        λlo = λhi
-        last_expected = λhi
-    end
-    expected_reports := last_expected
-    reported_cases := total
+    increments, offsets = _ct_increments(case_trajectory)
+    traj_state ~ to_submodel(
+        _ct_traj(increments, offsets, growth_state, k, p_report), false)
+    expected_reports := traj_state.expected_reports
+    reported_cases := traj_state.total
     return (; p_report, expected_reports)
 end
 
@@ -168,4 +182,17 @@ end
     @test all(isfinite, rc)
     @test all(rc .>= 0)
     @test all(rc[i] == sum(inc[i]) for i in eachindex(rc))
+end
+
+@testset "trajectory passes the NUTS model check" begin
+    ## NUTS runs `check_model`, which rejected an earlier design that set
+    ## a `:=` deterministic twice across the nested submodels. The
+    ## increments are passed in as data (like `export_deaths_daily`), so
+    ## the discrete likelihood is an observation and the fit initialises.
+    m = _ct_only(516; case_trajectory = ((2, 336), (0, 516)))
+    chn = sample(MersenneTwister(1), m, NUTS(0.8), 40;
+                 chain_type = FlexiChains.VNChain, progress = false)
+    C = vec(Array(chn[:cumulative_cases]))
+    @test all(isfinite, C)
+    @test all(C .> 0)
 end

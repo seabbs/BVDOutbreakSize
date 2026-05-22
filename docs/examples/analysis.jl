@@ -1011,13 +1011,33 @@ end
 #md # <details><summary>Submodel: cases_model</summary>
 #md # ```
 
+# `case_increments` from a trajectory of `(offset, count)` vintages
+# (cut-off vintage at offset 0, entries earliest first). The increment
+# vector is what the binned likelihood observes, so it is built outside
+# the model and passed in as data, exactly as `export_deaths_daily` is.
+# A `missing` count flows through as a `missing` increment for the
+# predictive generator. Returns the increments and the matching bin-edge
+# offsets.
+function case_increments(case_trajectory)
+    n = length(case_trajectory)
+    increments = Vector{Union{Missing, Int}}(undef, n)
+    offsets    = Vector{Int}(undef, n)
+    prev_count = 0
+    for i in 1:n
+        offsets[i] = case_trajectory[i][1]
+        cnt        = case_trajectory[i][2]
+        increments[i] = ismissing(cnt) ? missing : cnt - prev_count
+        prev_count    = ismissing(cnt) ? prev_count : cnt
+    end
+    return increments, offsets
+end
+
 @model function cases_model(
         reported_cases::Union{Missing, Integer},
         growth_state, k::Real, p_drc::Real;
         case_trajectory = ())
 
     C_T = growth_state.C_T
-    T   = growth_state.T
 
     if isempty(case_trajectory)
         ## Single cumulative total at the cut-off: one bin from 0 to
@@ -1030,30 +1050,51 @@ end
         return (; p_drc, expected_reports)
     end
 
-    ## Multi-vintage trajectory. Each entry is `(offset, count)` with
-    ## the offset in days before the cut-off (cut-off vintage at 0,
-    ## entries ordered earliest first) and `count` the cumulative cases
-    ## reported by that vintage. Condition on the between-vintage
-    ## increments through Λ(s) = p_drc · C(s).
-    cumulative = growth_state.cumulative
-    Λ(s) = p_drc * cumulative(s)
-    n = length(case_trajectory)
+    ## Multi-vintage trajectory: observe the between-vintage increments
+    ## through the binned submodel (the increment vector is data, like
+    ## `export_deaths_daily`, so the discrete likelihood is not mistaken
+    ## for a sampled variable).
+    increments, offsets = case_increments(case_trajectory)
+    traj_state ~ to_submodel(
+        case_trajectory_model(increments, offsets, growth_state, k, p_drc),
+        false)
 
-    ## Between-vintage increments; `missing` flows through for the
-    ## predictive generator.
-    increments = Vector{Union{Missing, Int}}(undef, n)
-    prev_count = 0
-    for i in 1:n
-        cnt = case_trajectory[i][2]
-        increments[i] = ismissing(cnt) ? missing : cnt - prev_count
-        prev_count = ismissing(cnt) ? prev_count : cnt
-    end
+    expected_reports := traj_state.expected_reports
+    ## Cut-off cumulative total replicated by the model, so prior- and
+    ## posterior-predictive checks on `reported_cases` still work.
+    reported_cases := traj_state.total
+    return (; p_drc, expected_reports)
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# The binned trajectory likelihood. Each between-vintage increment is a
+# negative-binomial count given the cumulative reporting intensity
+# `Λ(s) = p_drc · C(s)` evaluated at the bin-edge elapsed times
+# `s_v = T − offset_v`, with bin mean `μ_v = Λ(s_v) − Λ(s_{v-1})`. The
+# increments are passed in as data so the discrete likelihood is treated
+# as an observation, mirroring `exports_deaths_model`.
+
+#md # ```@raw html
+#md # <details><summary>Submodel: case_trajectory_model</summary>
+#md # ```
+
+@model function case_trajectory_model(
+        increments::AbstractVector, offsets::AbstractVector,
+        growth_state, k::Real, p_drc::Real)
+
+    cumulative = growth_state.cumulative
+    T          = growth_state.T
+    Λ(s) = p_drc * cumulative(s)
+    n = length(increments)
 
     λlo = zero(T)
     last_expected = zero(T)
     total = 0
     for i in 1:n
-        s_v   = T - case_trajectory[i][1]
+        s_v   = T - offsets[i]
         λhi   = Λ(s_v)
         raw   = λhi - λlo
         μ_bin = isfinite(raw) ?
@@ -1065,13 +1106,10 @@ end
         λlo = λhi
         last_expected = λhi
     end
-    expected_reports := last_expected
-
-    ## Cut-off cumulative total replicated by the model, so prior- and
-    ## posterior-predictive checks on `reported_cases` still work.
-    reported_cases := total
-
-    return (; p_drc, expected_reports)
+    ## Return the cut-off intensity and replicated total as plain values;
+    ## the parent submodel tracks them as deterministics (a `:=` here too
+    ## would set the same name twice in the flattened trace).
+    return (; expected_reports = last_expected, total)
 end
 
 #md # ```@raw html
