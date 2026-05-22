@@ -23,16 +23,6 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v6
-      - name: Install TeX toolchain for the model diagram
-        # The analysis page renders a TikZ model-structure diagram to
-        # SVG via TikzPictures (lualatex + dvisvgm + the pgf
-        # graphdrawing layered layout).
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            texlive-luatex texlive-latex-recommended \
-            texlive-latex-extra texlive-pictures \
-            texlive-fonts-recommended dvisvgm
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1'

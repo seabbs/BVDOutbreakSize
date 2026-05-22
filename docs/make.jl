@@ -6,7 +6,6 @@ using DocumenterCitations
 using DocumenterVitepress
 using Literate
 using BVDOutbreakSize
-using TikzPictures
 
 const bib = CitationBibliography(
     joinpath(@__DIR__, "src", "refs.bib");
@@ -52,74 +51,6 @@ Literate.markdown(
     execute = true,
     credit  = false,
 )
-
-# Model-structure diagram. Compiled from TikZ to a standalone SVG with
-# lualatex + dvisvgm (via TikzPictures), then inlined into the analysis
-# page in place of the `{{MODEL_DIAGRAM}}` placeholder. Inlining avoids
-# relying on Vitepress relative-asset copying.
-const DIAGRAM_BODY = raw"""
-\graph[layered layout, grow=right,
-       level distance=34mm, sibling distance=11mm,
-       nodes={draw,rounded corners,align=center,inner sep=5pt},
-       edges={->,>={Stealth},gray}]{
-  G  [as={Growth\\$C(s)=e^{rs}$}];
-  D  [as={Onset-to-death\\delay}];
-  CFR[as={Case-fatality\\ratio}];
-  W  [as={Detection\\window}];
-  K  [as={Surveillance\\dispersion}];
-  A  [as={Ascertainment}];
-  V  [as={Traveller\\volume}];
-  OE [as={Exports}];
-  OD [as={Deaths}];
-  OC [as={Cases}];
-  OX [as={Export deaths\\(time-resolved)}];
-  TE [as={First export-detection\\timing}];
-  CE [as={Exports only}];
-  CD [as={Deaths only}];
-  CC [as={Cases only}];
-  CX [as={Export deaths\\only}];
-  CI [as={Imperial\\(exports+deaths)}];
-  CJ [as={Joint\\(all streams)}];
-  G -> { OE, OD, OC, OX, TE };
-  D -> { OD, OX };
-  CFR -> { OD, OX };
-  W -> { OE, OX, TE };
-  K -> { OD, OC };
-  A -> { OE, OC, OX, TE };
-  V -> { OE, OX, TE };
-  OE -> { CE, CI, CJ };
-  OD -> { CD, CI, CJ };
-  OC -> { CC, CJ };
-  OX -> { CX, CJ };
-  TE -> { CJ };
-};
-"""
-
-function model_diagram_svg()
-    tp = TikzPicture(
-        DIAGRAM_BODY;
-        preamble = "\\usetikzlibrary{graphs,graphdrawing,arrows.meta}\n" *
-                   "\\usegdlibrary{layered}",
-    )
-    out = joinpath(tempdir(), "model_structure")
-    save(SVG(out), tp)
-    svg = read(out * ".svg", String)
-    svg = svg[findfirst("<svg", svg)[1]:end]            # drop xml/doctype
-    style = "width:60%;height:auto;"
-    svg = replace(svg, r"<svg " => "<svg style=\"$style\" "; count = 1)
-    ## Break the diagram out of the narrow prose column so the layered
-    ## graph renders large enough to read. Centre a wider container and
-    ## let it scroll horizontally when the viewport is narrower.
-    wrap = "width:92vw;max-width:1100px;position:relative;left:50%;" *
-           "transform:translateX(-50%);text-align:center;overflow-x:auto;"
-    return "```@raw html\n<div style=\"$wrap\">\n$svg\n</div>\n```"
-end
-
-let analysis_md = joinpath(LITERATE_OUT, "analysis.md")
-    text = read(analysis_md, String)
-    text = replace(text, "{{MODEL_DIAGRAM}}" => model_diagram_svg())
-    write(analysis_md, text)
-end
 
 # References page sourced from refs.bib through `@bibliography`.
 open(joinpath(LITERATE_OUT, "references.md"), "w") do io
