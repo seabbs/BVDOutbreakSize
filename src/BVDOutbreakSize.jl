@@ -1056,11 +1056,12 @@ function plot_start_date_pair(chn;
     )
     density!(ax, start_days; color = (:steelblue, 0.5),
              strokecolor = :steelblue, strokewidth = 2)
-    ## Fortnightly date ticks across the posterior range, so the start
-    ## date is readable rather than relying on the default locator.
+    ## Date ticks every four weeks across the posterior range, so the
+    ## start date stays readable rather than relying on the default
+    ## locator or crowding the axis as the range widens.
     lo = floor(Int, minimum(start_days))
     hi = ceil(Int, maximum(start_days))
-    ax.xticks = collect(lo:14:hi)
+    ax.xticks = collect(lo:28:hi)
     ax.xtickformat = vals ->
         [string(epochdays2date(round(Int, v))) for v in vals]
 
@@ -1348,36 +1349,48 @@ function plot_forecast(fc::DataFrame)
 end
 
 """
-    plot_forecast_vs_truth(fc::DataFrame; cases, deaths, exports)
+    plot_forecast_vs_truth(fc::DataFrame; cases, deaths, exports,
+                           baseline_cases = 0, baseline_deaths = 0,
+                           baseline_exports = 0)
 
-Three-panel validation figure for a [`forecast_reported`](@ref)
-projection. Each panel shows the cumulative forecast distribution for one
-stream (DRC reported cases, DRC deaths, Uganda exports) as a histogram,
-with the 90% predictive interval shaded and the count later observed
-(`cases`, `deaths`, `exports`) drawn as a dashed black rule, so a reader
-can see whether the truth falls within the projection.
+Validation figure for a [`forecast_reported`](@ref) projection, laid out
+as a 2×3 grid. The top row shows the cumulative forecast distribution per
+stream (DRC reported cases, DRC deaths, Uganda exports); the bottom row
+shows the new counts forecast over the horizon, mirroring the
+one-week-ahead forecast. Each panel is a histogram with the 90%
+predictive interval shaded and the later-observed count drawn as a dashed
+black rule. `cases`, `deaths` and `exports` are the observed cumulative
+counts; `baseline_*` are the counts at the forecast origin, so the
+observed new count is the cumulative truth minus the baseline.
 """
 function plot_forecast_vs_truth(fc::DataFrame;
-        cases::Real, deaths::Real, exports::Real)
-    fig = Figure(; size = (1100, 360))
-    cols = ((:cases_cum,   "Cumulative reported cases (DRC)", :steelblue,
-             float(cases)),
-            (:deaths_cum,  "Cumulative deaths (DRC)",         :firebrick,
-             float(deaths)),
-            (:exports_cum, "Cumulative exports (Uganda)",     :seagreen,
-             float(exports)))
-    for (i, (col, title, colour, obs)) in enumerate(cols)
-        v   = fc[!, col]
-        lo  = quantile(v, 0.05)
-        hi  = quantile(v, 0.95)
+        cases::Real, deaths::Real, exports::Real,
+        baseline_cases::Real = 0, baseline_deaths::Real = 0,
+        baseline_exports::Real = 0)
+    fig = Figure(; size = (1100, 680))
+    function panel!(row, col, v, obs, title, colour)
+        lo    = quantile(v, 0.05)
+        hi    = quantile(v, 0.95)
         upper = max(1.0, quantile(v, 0.995), obs * 1.05)
-        ax = Axis(fig[1, i];
+        ax = Axis(fig[row, col];
             xlabel = title, ylabel = "Predictive frequency",
-            title = "Forecast vs observed", limits = ((0, upper), nothing))
+            limits = ((0, upper), nothing))
         vspan!(ax, lo, hi; color = (colour, 0.15))
         hist!(ax, v; bins = range(0, upper; length = 30),
               color = (colour, 0.7))
         vlines!(ax, [obs]; color = :black, linestyle = :dash, linewidth = 2)
+    end
+    streams = (
+        (:cases_cum,   :cases_new,   "reported cases (DRC)", :steelblue,
+         float(cases),   float(cases)   - float(baseline_cases)),
+        (:deaths_cum,  :deaths_new,  "deaths (DRC)",         :firebrick,
+         float(deaths),  float(deaths)  - float(baseline_deaths)),
+        (:exports_cum, :exports_new, "exports (Uganda)",     :seagreen,
+         float(exports), float(exports) - float(baseline_exports)))
+    for (j, (ccol, ncol, name, colour, obs_cum, obs_new)) in
+            enumerate(streams)
+        panel!(1, j, fc[!, ccol], obs_cum, "Cumulative $name", colour)
+        panel!(2, j, fc[!, ncol], max(obs_new, 0.0), "New $name", colour)
     end
     return fig
 end
