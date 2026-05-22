@@ -41,6 +41,24 @@ _v2_model(e, d, c; tmrca = missing) = bvd_joint_v2(
     e, d, c, growth_v2(), _cfr_bb(), _disp_bb(), _asc_bb(), _travel_bb();
     tmrca_days = tmrca)
 
+@testset "every delay parameter is sampled (no fixed delays)" begin
+    ## Project-owner invariant: all delays (incubation, onset-to-death,
+    ## onset-to-report) and the onset-to-detection window must be drawn
+    ## from priors, not fixed. Their parameters must therefore appear as
+    ## sampled variables in the model's VarInfo.
+    model = _v2_model(missing, missing, missing)
+    vi = VarInfo(model)
+    sampled = Set(Symbol.(string.(keys(vi))))
+    ## Incubation gamma (infection→onset), onset→death gamma,
+    ## onset→report gamma, and the onset→detection window.
+    for v in (:α_inc, :θ_inc, :α, :θ, :α_otr, :θ_otr, :w)
+        @test v in sampled
+    end
+    ## Growth timescale is sampled too (no fixed generation time).
+    @test :τ in sampled
+    @test :m in sampled
+end
+
 @testset "bvd_joint_v2 generates a prior-predictive draw" begin
     draw = _v2_model(missing, missing, missing)()
     @test haskey(draw, :I_T)

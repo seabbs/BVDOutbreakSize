@@ -12,6 +12,19 @@
 ## here. Two pieces are new: an incubation (infection-to-onset) delay,
 ## and an onset-to-report delay. Both carry weakly-supported priors
 ## (see `docs/proposals/convolution-v2.md`).
+##
+## Design invariant (project owner directive): EVERY delay is specified
+## via a prior. No delay distribution and no generation time is a fixed
+## constant. The three delays the observation expectations consume —
+## incubation (`incubation_v2`), onset-to-death (`onset_to_death_v2`)
+## and onset-to-report (`onset_to_report_v2`) — each sample both gamma
+## parameters from a prior in their own submodel and carry the
+## resulting distribution into the fit, as does the onset-to-detection
+## window `w`. The growth rate `r` (and hence the timescale of spread)
+## is itself sampled via `τ` and `m`; there is no fixed generation
+## time anywhere. The test
+## `test_models_v2.jl` "every delay parameter is sampled" enforces this
+## so a future fixed delay cannot slip in unnoticed.
 
 """
 $(TYPEDSIGNATURES)

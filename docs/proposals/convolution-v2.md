@@ -91,24 +91,43 @@ The growth, CFR, traveller-volume, dispersion and pooled-ascertainment
 priors are unchanged from the current model and are injected into the
 v2 composer rather than re-defined.
 
-## New incubation prior
+## Delay priors: every delay is sampled, none is fixed
 
-The Imperial report cites a 6-11 day incubation range across three
-PubMed studies but no Bayesian posterior exists anywhere, and the
-vendored bdbv-linelist analysis does not fit incubation (its line list
-has onset dates only).
-The prior is constructed from the narrative range as a gamma delay with
-weakly-informative truncated-Normal priors on its parameters:
+Design invariant (project owner directive): every delay in the fit is
+specified through a prior, and there is no fixed delay distribution and
+no fixed generation time.
+Each delay samples both gamma parameters from a prior in its own
+submodel and carries the resulting distribution into the likelihoods,
+the same pattern as the current model's `delay_model`.
+The three delays the observation expectations consume are:
 
-```math
-\alpha_{inc} \sim \mathrm{Normal}^+(11, 3), \qquad
-\theta_{inc} \sim \mathrm{Normal}^+(0.74, 0.25),
-```
+| Delay | Submodel | Prior | Status |
+|---|---|---|---|
+| Infection → onset (incubation) | `incubation_v2` | `α_inc ~ Normal⁺(11, 3)`, `θ_inc ~ Normal⁺(0.74, 0.25)` | new, prior from narrative range |
+| Onset → death | `onset_to_death_v2` | `α ~ Normal⁺(4.3, 1.22)`, `θ ~ Normal⁺(2.6, 0.82)` | prior-based (bdbv-linelist reanalysis) |
+| Onset → report | `onset_to_report_v2` | `α_otr ~ Normal⁺(4, 1.5)`, `θ_otr ~ Normal⁺(4.5, 1.5)` | new, prior with 30-day-cap caveat |
 
-giving `Gamma(α, θ)` a mean near 8 days, covering the cited 6-11 day
-span.
-Both parameters are expected to be prior-dominated (see Identifiability).
+The onset-to-detection window `w ~ Normal⁺(7, 3)` is sampled too, and
+the growth timescale enters through the sampled `τ` and `m`, so the
+rate of spread is not a fixed input either.
+A regression test
+(`test_models_v2.jl`, "every delay parameter is sampled")
+asserts that `α_inc, θ_inc, α, θ, α_otr, θ_otr, w, τ, m` all appear as
+sampled variables, so a future fixed delay cannot slip in unnoticed.
 
+The forward-layer helpers (`expected_deaths_v2`, `expected_reports_v2`,
+`expected_exports_v2`, `onset_incidence`) take the delay *distribution*
+as an argument and hold no constants; the fixed `Gamma(...)` values in
+the unit tests exist only to pin the deterministic integrals and never
+enter the fitted model.
+
+The incubation prior is constructed from the Imperial report's
+narrative 6-11 day range across three PubMed studies (no Bayesian
+posterior exists anywhere, and the vendored bdbv-linelist analysis does
+not fit incubation since its line list has onset dates only).
+`Gamma(α_inc, θ_inc)` then has a mean near 8 days, covering that span;
+both parameters are expected to be prior-dominated (see
+Identifiability).
 The onset-to-report delay carries the same caveat as in issue #4: the
 bdbv-linelist Isiro 2012 onset-to-notification estimate is 19.7 d
 (13.7-30.1), but Charniga 2024 flags a 30-day-cap truncation bias, so
