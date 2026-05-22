@@ -56,39 +56,46 @@ end
         case_trajectory = ())
     asc_state ~ to_submodel(ascertainment, false)
     p_report  = asc_state.p_report
+    C_T = growth_state.C_T
+    T   = growth_state.T
+
+    if isempty(case_trajectory)
+        raw_reports        = p_report * C_T
+        expected_reports := isfinite(raw_reports) ?
+            max(raw_reports, eps(typeof(raw_reports))) :
+            eps(typeof(raw_reports))
+        reported_cases ~ _ct_safe_nbinomial(k, expected_reports)
+        return (; p_report, expected_reports)
+    end
+
     cumulative = growth_state.cumulative
-    T          = growth_state.T
     Λ(s) = p_report * cumulative(s)
+    n = length(case_trajectory)
 
-    ## Build the vintage bins. With no trajectory the single total is one
-    ## bin observed at the cut-off (offset 0), recovering the single-total
-    ## likelihood `μ = p_report · C(T)`.
-    offsets = isempty(case_trajectory) ? (0,) :
-        Tuple(o for (o, _) in case_trajectory)
-    counts = isempty(case_trajectory) ? (reported_cases,) :
-        Tuple(c for (_, c) in case_trajectory)
-
-    ## Between-vintage increments; `missing` flows through for predictive
-    ## draws.
-    increments = Vector{Union{Missing, Int}}(undef, length(offsets))
+    increments = Vector{Union{Missing, Int}}(undef, n)
     prev_count = 0
-    for i in eachindex(counts)
-        increments[i] = ismissing(counts[i]) ? missing :
-            counts[i] - prev_count
-        prev_count = ismissing(counts[i]) ? prev_count : counts[i]
+    for i in 1:n
+        cnt = case_trajectory[i][2]
+        increments[i] = ismissing(cnt) ? missing : cnt - prev_count
+        prev_count = ismissing(cnt) ? prev_count : cnt
     end
 
     λlo = zero(T)
-    last_expected = λlo
-    for i in eachindex(offsets)
-        s_v   = T - offsets[i]
+    last_expected = zero(T)
+    total = 0
+    for i in 1:n
+        s_v   = T - case_trajectory[i][1]
         λhi   = Λ(s_v)
-        μ_bin = max(λhi - λlo, eps(typeof(λhi)))
+        raw   = λhi - λlo
+        μ_bin = isfinite(raw) ?
+            max(raw, eps(typeof(raw))) : eps(typeof(raw))
         increments[i] ~ _ct_safe_nbinomial(k, μ_bin)
+        total += increments[i]
         λlo = λhi
         last_expected = λhi
     end
     expected_reports := last_expected
+    reported_cases := total
     return (; p_report, expected_reports)
 end
 
@@ -147,4 +154,18 @@ end
     @test length(C) == 200
     @test all(isfinite, C)
     @test all(C .> 0)
+end
+
+@testset "trajectory replicates the cut-off cumulative total" begin
+    ## In the predictive generator the replicated `reported_cases` is the
+    ## running sum of the generated increments, so prior-predictive
+    ## checks on the cut-off total still work.
+    m = _ct_only(missing; case_trajectory = ((2, missing), (0, missing)))
+    chn = sample(m, Prior(), 200;
+                 chain_type = FlexiChains.VNChain, progress = false)
+    rc  = vec(Array(chn[:reported_cases]))
+    inc = vec(Array(chn[:increments]))
+    @test all(isfinite, rc)
+    @test all(rc .>= 0)
+    @test all(rc[i] == sum(inc[i]) for i in eachindex(rc))
 end

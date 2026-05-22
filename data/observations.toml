@@ -29,6 +29,17 @@ source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Week
 value  = 516
 source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — DRC suspected cases"
 
+# Cumulative reported-case totals across situation-report vintages. We
+# trust each vintage's cumulative-at-date count but not the per-case
+# timing (heavy backfill), so the model fits the between-vintage
+# increments rather than the nested cumulative totals. Dates are the
+# report cut-offs; values are cumulative DRC suspected cases. The cut-off
+# vintage (18 May) matches `reported_cases`.
+[reported_case_history]
+dates  = ["2026-05-16", "2026-05-18"]
+values = [336, 516]
+source = "336 as of 16 May 2026 from McCabe et al. Imperial College London report (DOI 10.25560/130007); 516 as of 18 May 2026 from WHO AFRO Weekly External Situation Report 01. DRC suspected cases."
+
 [daily_outbound_travellers]
 value  = 1871
 source = "McCabe et al. Table 3 — mean daily PoE flow across seven Uganda-DRC border points, Ituri side"

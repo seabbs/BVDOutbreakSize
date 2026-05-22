@@ -80,3 +80,45 @@ end
         @test load_observations(path).export_deaths_daily == Int[]
     end
 end
+
+## The reported-case trajectory is loaded as `(offset, count)` tuples,
+## earliest first, with the cut-off vintage at offset 0. Build the data
+## file with a history block and check the offsets and ordering.
+function _write_obs_history(io; as_of, dates, values)
+    write(io, "as_of_date = \"$as_of\"\n")
+    qd = join(("\"$d\"" for d in dates), ", ")
+    qv = join(string.(values), ", ")
+    write(io, "[reported_case_history]\ndates = [$qd]\n",
+          "values = [$qv]\nsource = \"x\"\n")
+    for k in ("exported_cases", "exports_deaths", "total_deaths",
+              "reported_cases", "daily_outbound_travellers",
+              "daily_outbound_travellers_sd", "source_population")
+        write(io, "[$k]\nvalue = 1\nsource = \"x\"\n")
+    end
+end
+
+@testset "reported_case_trajectory maps dates to offsets" begin
+    mktempdir() do dir
+        path = joinpath(dir, "obs.toml")
+        open(io -> _write_obs_history(io; as_of = "2026-05-18",
+                                      dates = ["2026-05-16", "2026-05-18"],
+                                      values = [336, 516]), path, "w")
+        traj = load_observations(path).reported_case_trajectory
+        ## Earliest first: 16 May is offset 2, 18 May (cut-off) offset 0.
+        @test traj == [(2, 336), (0, 516)]
+    end
+end
+
+@testset "reported_case_trajectory is empty when no history present" begin
+    mktempdir() do dir
+        path = joinpath(dir, "obs.toml")
+        open(io -> _write_obs(io; as_of = "2026-05-18"), path, "w")
+        @test load_observations(path).reported_case_trajectory ==
+            Tuple{Int, Int}[]
+    end
+end
+
+@testset "bundled observations expose the documented trajectory" begin
+    traj = load_observations().reported_case_trajectory
+    @test traj == [(2, 336), (0, 516)]
+end

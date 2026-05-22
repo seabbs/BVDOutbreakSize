@@ -123,6 +123,11 @@ Fields returned:
 - `exports_deaths::Int`
 - `total_deaths::Int`
 - `reported_cases::Int`
+- `reported_case_trajectory::Vector{Tuple{Int, Int}}` — cumulative
+  reported-case totals across situation-report vintages as
+  `(offset, count)`, offset in days before `as_of_date`, earliest
+  first, cut-off vintage at offset 0. Empty when no
+  `reported_case_history` block is present.
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
@@ -132,10 +137,12 @@ Fields returned:
   `genetic_tmrca` block is present.
 - `genetic_tmrca_days_sd::Union{Real, Missing}` — SD (days) on the
   location of that floor; `missing` when absent.
-- `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
-  :reported_cases, :daily_outbound_travellers,
-  :daily_outbound_travellers_sd, :source_population, :genetic_tmrca),
-  NTuple{8, String}}` — citation per field.
+- `sources::NamedTuple` — citation per field, with keys
+  `:exported_cases`, `:exports_deaths`, `:total_deaths`,
+  `:reported_cases`, `:daily_outbound_travellers`,
+  `:daily_outbound_travellers_sd`, `:source_population`,
+  `:genetic_tmrca` and `:reported_case_history`. The last two are
+  `missing` when their blocks are absent.
 """
 function load_observations(
         path::AbstractString = joinpath(@__DIR__, "..", "data",
@@ -158,6 +165,23 @@ function load_observations(
     else
         Int[]
     end
+    ## Reported-case trajectory across situation-report vintages. Each
+    ## vintage reported a cumulative case total as of its date; we trust
+    ## the cumulative-at-date count (not the per-case timing) and fit the
+    ## between-vintage increments. Returned as `(offset, count)` tuples,
+    ## earliest first, with the cut-off vintage at offset 0. Empty when
+    ## no `reported_case_history` block is present, so the model falls
+    ## back to the single latest total.
+    reported_case_trajectory = if haskey(raw, "reported_case_history")
+        hist  = raw["reported_case_history"]
+        dates = String.(hist["dates"])
+        vals  = Int.(hist["values"])
+        offs  = Int[_gap(d) for d in dates]
+        order = sortperm(offs; rev = true)
+        Tuple{Int, Int}[(offs[i], vals[i]) for i in order]
+    else
+        Tuple{Int, Int}[]
+    end
     has_gen = haskey(raw, "genetic_tmrca")
     return (;
         as_of_date                   = as_of,
@@ -171,6 +195,7 @@ function load_observations(
             _val("daily_outbound_travellers_sd")),
         source_population            = Int(_val("source_population")),
         export_deaths_daily          = export_deaths_daily,
+        reported_case_trajectory     = reported_case_trajectory,
         first_export_detection_delta = _delta("first_export_detection_date"),
         genetic_tmrca_days           = has_gen ?
             _gap(raw["genetic_tmrca"]["date"]) : missing,
@@ -186,6 +211,9 @@ function load_observations(
             source_population            = _src("source_population"),
             genetic_tmrca                = has_gen ?
                 String(raw["genetic_tmrca"]["source"]) : missing,
+            reported_case_history        =
+                haskey(raw, "reported_case_history") ?
+                String(raw["reported_case_history"]["source"]) : missing,
         ),
     )
 end

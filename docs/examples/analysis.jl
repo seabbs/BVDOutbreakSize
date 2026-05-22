@@ -941,6 +941,41 @@ end
 #
 # The dispersion $k$ (equation (9)) is shared with the deaths
 # likelihood; both are sampled once by the composer.
+#
+# A single situation report carries one cumulative total. Successive
+# reports add a growth-rate signal that is otherwise prior-driven: a
+# sitrep that reported $y$ cumulative cases as of its cut-off date $d$
+# is trusted as a cumulative-at-date count even though the per-case
+# timing is not (heavy backfill). Because successive cumulative totals
+# are nested (e.g. 336 cases by 16 May $\subset$ 516 by 18 May),
+# treating them as independent draws from $\mu_c$ would double-count the
+# overlap. We instead condition on the *between-vintage increments*,
+# which are conditionally independent given the curve. With the
+# cumulative reporting intensity $\Lambda(s) = p_{\text{DRC}}\,C(s)$ and
+# each vintage's cut-off date mapped to elapsed time
+# $s_v = T - (d_{\text{as of}} - d_v)$, the increment over interval $v$
+# has mean
+#
+# ```math
+# \mu_v = \Lambda(s_v) - \Lambda(s_{v-1})
+#       = p_{\text{DRC}}\,\bigl(C(s_v) - C(s_{v-1})\bigr),
+# \qquad
+# \Delta Y_v \sim \mathrm{NegBinomial}(\mu_v,\ k), \tag{18a}
+# ```
+#
+# one negative-binomial term per bin, sharing the same dispersion $k$
+# (this is the binned pattern of equation (20)). The cut-off vintage
+# sits at offset 0, so $s_{\text{last}} = T$ and the cumulative total
+# replicated by the model is $\sum_v \Delta Y_v$. With a single total
+# (no earlier vintage) there is one bin from $\Lambda(0)=0$ to
+# $\Lambda(T)=\mu_c$, so equation (18a) reduces exactly to the
+# single-total likelihood of equation (18).
+#
+# !!! note "Right-truncation follow-up"
+#     The most recent vintage may be incomplete (reporting lag), so its
+#     increment can be biased downward. We do not yet apply a
+#     completeness factor on the final bin; see the linked follow-up
+#     issue.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: cases_model</summary>
@@ -948,16 +983,63 @@ end
 
 @model function cases_model(
         reported_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real)
+        growth_state, k::Real, p_drc::Real;
+        case_trajectory = ())
 
     C_T = growth_state.C_T
+    T   = growth_state.T
 
-    raw_reports        = p_drc * C_T
-    expected_reports := isfinite(raw_reports) ?
-        max(raw_reports, eps(typeof(raw_reports))) :
-        eps(typeof(raw_reports))
+    if isempty(case_trajectory)
+        ## Single cumulative total at the cut-off: one bin from 0 to
+        ## Λ(T) = p_drc · C(T). Identical to the original likelihood.
+        raw_reports        = p_drc * C_T
+        expected_reports := isfinite(raw_reports) ?
+            max(raw_reports, eps(typeof(raw_reports))) :
+            eps(typeof(raw_reports))
+        reported_cases ~ safe_nbinomial(k, expected_reports)
+        return (; p_drc, expected_reports)
+    end
 
-    reported_cases ~ safe_nbinomial(k, expected_reports)
+    ## Multi-vintage trajectory. Each entry is `(offset, count)` with
+    ## the offset in days before the cut-off (cut-off vintage at 0,
+    ## entries ordered earliest first) and `count` the cumulative cases
+    ## reported by that vintage. Condition on the between-vintage
+    ## increments through Λ(s) = p_drc · C(s).
+    cumulative = growth_state.cumulative
+    Λ(s) = p_drc * cumulative(s)
+    n = length(case_trajectory)
+
+    ## Between-vintage increments; `missing` flows through for the
+    ## predictive generator.
+    increments = Vector{Union{Missing, Int}}(undef, n)
+    prev_count = 0
+    for i in 1:n
+        cnt = case_trajectory[i][2]
+        increments[i] = ismissing(cnt) ? missing : cnt - prev_count
+        prev_count = ismissing(cnt) ? prev_count : cnt
+    end
+
+    λlo = zero(T)
+    last_expected = zero(T)
+    total = 0
+    for i in 1:n
+        s_v   = T - case_trajectory[i][1]
+        λhi   = Λ(s_v)
+        raw   = λhi - λlo
+        μ_bin = isfinite(raw) ?
+            max(raw, eps(typeof(raw))) : eps(typeof(raw))
+        increments[i] ~ safe_nbinomial(k, μ_bin)
+        ## tilde-assignment fills a `missing` entry with its draw, so the
+        ## running total covers both the conditioned and generated paths.
+        total += increments[i]
+        λlo = λhi
+        last_expected = λhi
+    end
+    expected_reports := last_expected
+
+    ## Cut-off cumulative total replicated by the model, so prior- and
+    ## posterior-predictive checks on `reported_cases` still work.
+    reported_cases := total
 
     return (; p_drc, expected_reports)
 end
@@ -1207,7 +1289,8 @@ end
         growth        = exponential_growth_model(),
         cases         = cases_model,
         dispersion    = surveillance_dispersion_model(),
-        ascertainment = pooled_ascertainment_model())
+        ascertainment = pooled_ascertainment_model(),
+        case_trajectory = ())
 
     growth_state     ~ to_submodel(growth, false)
     dispersion_state ~ to_submodel(dispersion, false)
@@ -1215,7 +1298,8 @@ end
     k = dispersion_state.k
 
     cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, asc_state.p_drc), false)
+        cases(reported_cases, growth_state, k, asc_state.p_drc;
+              case_trajectory = case_trajectory), false)
 
     cumulative_cases := growth_state.C_T
 end
@@ -1295,7 +1379,8 @@ end
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
         pre_detection_exports::Union{Missing, Integer} = 0,
-        first_export_detection_delta::Union{Missing, Real} = missing)
+        first_export_detection_delta::Union{Missing, Real} = missing,
+        case_trajectory = ())
 
     growth_state     ~ to_submodel(growth, false)
     if genetic !== nothing
@@ -1312,7 +1397,8 @@ end
     deaths_state ~ to_submodel(
         deaths(total_deaths, growth_state, k), false)
     cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, p_drc), false)
+        cases(reported_cases, growth_state, k, p_drc;
+              case_trajectory = case_trajectory), false)
     exports_deaths_state ~ to_submodel(
         exports_deaths_model(export_deaths_daily, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;
@@ -1443,11 +1529,13 @@ chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
               obs.reported_cases, obs.export_deaths_daily;
               first_export_detection_delta = obs.first_export_detection_delta,
+              case_trajectory = obs.reported_case_trajectory,
               genetic = genetic_seeding));
 
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
 chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths));
-chn_cases   = nuts_sample(cases_only_model(obs.reported_cases));
+chn_cases   = nuts_sample(cases_only_model(obs.reported_cases;
+    case_trajectory = obs.reported_case_trajectory));
 chn_exports_deaths = nuts_sample(
     exports_deaths_only_model(obs.export_deaths_daily));
 
@@ -1770,12 +1858,19 @@ posterior_pair_fig #hide
 #md # <details><summary>Joint posterior predictive plot</summary>
 #md # ```
 
+## Mirror the fitted trajectory with missing counts so the predictive
+## uses the same binned structure; `reported_cases` is then the running
+## sum of the generated increments at the cut-off.
+pp_case_trajectory = Tuple{Int, Any}[(o, missing)
+    for (o, _) in obs.reported_case_trajectory]
+
 pp_joint   = predict(
     bvd_joint(missing, missing, missing,
               fill(missing, length(obs.export_deaths_daily));
               pre_start_deaths = missing,
               pre_detection_exports = missing,
               first_export_detection_delta = obs.first_export_detection_delta,
+              case_trajectory = pp_case_trajectory,
               genetic = genetic_seeding),
     chn_joint);
 pp_exports        = vec(Array(pp_joint[:exported_cases]));
@@ -1991,7 +2086,9 @@ pp_exports_only = vec(Array(predict(
 pp_deaths_only  = vec(Array(predict(
     deaths_only_model(missing),  chn_deaths )[:total_deaths]));
 pp_cases_only   = vec(Array(predict(
-    cases_only_model(missing),   chn_cases  )[:reported_cases]));
+    cases_only_model(missing;
+        case_trajectory = pp_case_trajectory),
+    chn_cases)[:reported_cases]));
 pp_exports_deaths_only = vec(sum.(predict(
     exports_deaths_only_model(fill(missing, length(obs.export_deaths_daily));
         pre_start_deaths = missing),

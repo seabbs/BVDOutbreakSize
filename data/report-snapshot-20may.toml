@@ -36,6 +36,15 @@ source = "McCabe et al. 20 May 2026 update — 131 suspected deaths in DRC as of
 value  = 516
 source = "McCabe et al. 20 May 2026 update — 516 suspected cases in DRC as of 20 May 2026"
 
+# Cumulative reported-case totals across the report vintages. The model
+# fits the between-vintage increment (336 -> 516) rather than the nested
+# cumulative totals, trusting the cumulative-at-date counts but not the
+# per-case timing. The cut-off vintage (20 May) matches `reported_cases`.
+[reported_case_history]
+dates  = ["2026-05-16", "2026-05-20"]
+values = [336, 516]
+source = "336 as of 16 May 2026 from the McCabe et al. report (DOI 10.25560/130007); 516 as of 20 May 2026 from the McCabe et al. 20 May 2026 update (DOI 10.25560/13005307). DRC suspected cases."
+
 [daily_outbound_travellers]
 value  = 1871
 source = "McCabe et al. Table 3 — mean daily PoE flow, Ituri side (16 May 2026 snapshot)"
