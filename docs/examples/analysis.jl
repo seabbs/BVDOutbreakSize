@@ -2299,13 +2299,13 @@ imperial_summary_20may #hide
 #
 # The one-week-ahead forecast above projects from the current fit, so it
 # cannot yet be checked. We can instead validate the same machinery
-# retrospectively: take our joint fit to the original McCabe et al.
-# snapshot (16 May, `report-snapshot.toml`), project each posterior draw
-# forward to the current data cut-off, and compare the predicted
-# cumulative counts against the counts that have since been observed.
-# This is a genuine out-of-sample check — the model never saw the later
-# data — of whether the no-change projection and its uncertainty are
-# calibrated over the few days between the snapshots.
+# retrospectively: take our joint fit to the original (18 May) McCabe et
+# al. report's data (`report-snapshot.toml`, cut off 16 May), project
+# each posterior draw forward to the current data cut-off, and compare
+# the predicted cumulative counts against the counts that have since been
+# observed. This is a genuine out-of-sample check — the model never saw
+# the later data — of whether the no-change projection and its
+# uncertainty are calibrated over the few days between the cut-offs.
 #
 # The horizon is the gap between the two cut-offs. With only a handful
 # of days and a single observed total per stream this is a weak check,
@@ -2313,7 +2313,7 @@ imperial_summary_20may #hide
 # inside the projection's 90% predictive interval.
 
 #md # ```@raw html
-#md # <details><summary>Forecast from the 16 May snapshot and compare to current data</summary>
+#md # <details><summary>Forecast from the original-report snapshot and compare to current data</summary>
 #md # ```
 
 validation_horizon =
@@ -2343,9 +2343,9 @@ forecast_validation_table = forecast_vs_truth(forecast_validation;
 #md #     "report-snapshot.toml")).as_of_date
 #md # cur = load_observations().as_of_date
 #md # h = value(Date(cur) - Date(rep))
-#md # Markdown.parse("Projecting the 16 May snapshot fit $(h) days " *
-#md #     "forward to the $(cur) cut-off, against the counts observed " *
-#md #     "by then:")
+#md # Markdown.parse("Projecting the original-report snapshot fit " *
+#md #     "(data cut off $(rep)) $(h) days forward to the $(cur) " *
+#md #     "cut-off, against the counts observed by then:")
 #md # ```
 
 forecast_validation_table #hide
