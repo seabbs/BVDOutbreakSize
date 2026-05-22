@@ -974,8 +974,8 @@ end
 # !!! note "Right-truncation follow-up"
 #     The most recent vintage may be incomplete (reporting lag), so its
 #     increment can be biased downward. We do not yet apply a
-#     completeness factor on the final bin; see the linked follow-up
-#     issue.
+#     completeness factor on the final bin; this and a matching deaths
+#     trajectory are tracked in issue #106.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: cases_model</summary>
