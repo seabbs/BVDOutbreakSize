@@ -333,20 +333,24 @@ outbreak age; pass `missing` to drop it.
     end
 
     ## Stream 1: exported cases detected in Uganda ----------------------
-    ## Recent cases (within the detection window) cross the border at rate
-    ## q and are ascertained at p_uganda. Detection window via an
-    ## onset-to-detection delay PMF.
+    ## A case's onsets cross the border and are ascertained at rate
+    ## p_uganda · q; `export_onsets` is the onset incidence among detected
+    ## exports, timed at onset. The detection event is then this convolved
+    ## with the onset-to-detection delay (timed at detection).
+    export_onsets = p_uganda .* q .* onsets
     detect_pmf = discretise_delay(Gamma((10 / 4)^2, 4^2 / 10), incubation_nmax)
-    detect_daily = convolve_delay(onsets, detect_pmf)
-    expected_exports_T := _safe_rate(p_uganda * q * sum(detect_daily))
+    detect_daily = convolve_delay(export_onsets, detect_pmf)
+    expected_exports_T := _safe_rate(sum(detect_daily))
     if !ismissing(exported_cases)
         exported_cases ~ Poisson(expected_exports_T)
     end
 
     ## Stream 4: deaths among exported cases ----------------------------
-    ## Exported cases that subsequently die, onset-to-death weighted.
-    export_deaths_daily = CFR .* p_uganda .* q .*
-        convolve_delay(detect_daily, od_state.pmf)
+    ## Deaths among detected exports, timed from the same export *onsets* by
+    ## the onset-to-death delay (both detection and death are measured from
+    ## onset, so death is convolved against `export_onsets`, not against the
+    ## detection-timed series).
+    export_deaths_daily = CFR .* convolve_delay(export_onsets, od_state.pmf)
     expected_exports_deaths_T := _safe_rate(sum(export_deaths_daily))
     if !ismissing(exports_deaths)
         exports_deaths ~ Poisson(expected_exports_deaths_T)
