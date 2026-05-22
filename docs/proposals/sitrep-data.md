@@ -74,11 +74,12 @@ The defensible signal is the cumulative count *at each known report date*, with 
 ## 2. How to use it defensibly: the minimal design
 
 The minimal defensible step is to condition on the cumulative reported-case count at each known report date (the vintage trajectory), not on daily incidence and not on reported-case timings.
-Concretely, generalise `cases_model` from one scalar to a small set of dated cumulative observations:
+Concretely, generalise `cases_model` from one scalar to a small set of dated cumulative observations.
+Let `d_ref` be the reference date (the latest vintage's cut-off, the date `T` is measured to) and, for each vintage `v`, let `d_v` be its cut-off date and `y_v` its cumulative count:
 
 ```
 for each vintage v with cut-off date d_v and count y_v:
-    s_v   = T − (cut-off − d_v)          # outbreak age at that vintage
+    s_v   = T − (d_ref − d_v)            # outbreak age at d_v (T is age at d_ref)
     μ_v   = ρ(d_v) · p_DRC · C(s_v)       # ascertained cumulative at d_v
     y_v   ~ NegBinomial(μ_v, k)
 ```
