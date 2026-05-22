@@ -2156,6 +2156,7 @@ obs_report_20may = load_observations(
 chn_joint_report = nuts_sample(
     bvd_joint(obs_report.exported_cases, obs_report.total_deaths,
               obs_report.reported_cases, obs_report.export_deaths_daily;
+              case_trajectory = obs_report.reported_case_trajectory,
               first_export_detection_delta =
                   obs_report.first_export_detection_delta));
 posterior_C_joint_report =
@@ -2166,6 +2167,8 @@ chn_joint_report_20may = nuts_sample(
               obs_report_20may.total_deaths,
               obs_report_20may.reported_cases,
               obs_report_20may.export_deaths_daily;
+              case_trajectory =
+                  obs_report_20may.reported_case_trajectory,
               first_export_detection_delta =
                   obs_report_20may.first_export_detection_delta));
 posterior_C_joint_report_20may =
