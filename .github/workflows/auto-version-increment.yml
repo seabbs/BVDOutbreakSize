@@ -45,5 +45,6 @@ jobs:
         with:
           increment-type: patch
           pr-title-prefix: "chore: auto-increment version"
+          update-readme-date: 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
