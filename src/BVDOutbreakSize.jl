@@ -21,7 +21,7 @@ import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
-using CairoMakie: Figure, Axis, hist!, density!, vlines!,
+using CairoMakie: Figure, Axis, hist!, density!, vlines!, vspan!,
                   lines!, scatter!
 
 export REPORT_SCENARIOS,
@@ -44,7 +44,7 @@ export REPORT_SCENARIOS,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
-       forecast_vs_truth
+       forecast_vs_truth, plot_forecast_vs_truth
 
 """
     REPORT_SCENARIOS
@@ -1250,10 +1250,11 @@ Validate a [`forecast_reported`](@ref) projection against the counts
 that were later observed. `cases`, `deaths` and `exports` are the
 observed cumulative DRC reported cases, DRC deaths and Uganda exports at
 the forecast target date. Returns a `DataFrame` with one row per stream
-giving the observed count, the forecast central (median) estimate, the
-90% predictive-interval endpoints, and whether the observed count falls
-inside that interval. Use it to forecast from an earlier data snapshot
-and check the now-known truth against the projection.
+giving the observed count, the equal-tailed 30/60/90% predictive
+intervals (the same endpoints as the other summary tables), and whether
+the observed count falls inside the 90% interval. Use it to forecast
+from an earlier data snapshot and check the now-known truth against the
+projection.
 """
 function forecast_vs_truth(fc::DataFrame;
         cases::Real, deaths::Real, exports::Real, digits::Integer = 0)
@@ -1262,8 +1263,9 @@ function forecast_vs_truth(fc::DataFrame;
         lo = round(s.lo90; digits)
         hi = round(s.hi90; digits)
         (stream = label, observed = round(obs; digits),
-         central_estimate = round(quantile(draws, 0.5); digits),
-         lower_90 = lo, upper_90 = hi,
+         lower_90 = lo, lower_60 = round(s.lo60; digits),
+         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+         upper_60 = round(s.hi60; digits), upper_90 = hi,
          within_90 = lo <= obs <= hi ? "yes" : "no")
     end
     rows = [
@@ -1293,6 +1295,41 @@ function plot_forecast(fc::DataFrame)
             title = "One week ahead", limits = ((0, upper), nothing))
         hist!(ax, v; bins = range(0, upper; length = 30),
               color = (colour, 0.7))
+    end
+    return fig
+end
+
+"""
+    plot_forecast_vs_truth(fc::DataFrame; cases, deaths, exports)
+
+Three-panel validation figure for a [`forecast_reported`](@ref)
+projection. Each panel shows the cumulative forecast distribution for one
+stream (DRC reported cases, DRC deaths, Uganda exports) as a histogram,
+with the 90% predictive interval shaded and the count later observed
+(`cases`, `deaths`, `exports`) drawn as a dashed black rule, so a reader
+can see whether the truth falls within the projection.
+"""
+function plot_forecast_vs_truth(fc::DataFrame;
+        cases::Real, deaths::Real, exports::Real)
+    fig = Figure(; size = (1100, 360))
+    cols = ((:cases_cum,   "Cumulative reported cases (DRC)", :steelblue,
+             float(cases)),
+            (:deaths_cum,  "Cumulative deaths (DRC)",         :firebrick,
+             float(deaths)),
+            (:exports_cum, "Cumulative exports (Uganda)",     :seagreen,
+             float(exports)))
+    for (i, (col, title, colour, obs)) in enumerate(cols)
+        v   = fc[!, col]
+        lo  = quantile(v, 0.05)
+        hi  = quantile(v, 0.95)
+        upper = max(1.0, quantile(v, 0.995), obs * 1.05)
+        ax = Axis(fig[1, i];
+            xlabel = title, ylabel = "Predictive frequency",
+            title = "Forecast vs observed", limits = ((0, upper), nothing))
+        vspan!(ax, lo, hi; color = (colour, 0.15))
+        hist!(ax, v; bins = range(0, upper; length = 30),
+              color = (colour, 0.7))
+        vlines!(ax, [obs]; color = :black, linestyle = :dash, linewidth = 2)
     end
     return fig
 end

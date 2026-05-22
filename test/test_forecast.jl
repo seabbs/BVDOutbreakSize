@@ -85,8 +85,8 @@ end
     ## One row per stream (cases, deaths, exports).
     @test nrow(tbl) == 3
     @test names(tbl) ==
-          ["Stream", "Observed", "Central estimate",
-           "Lower 90%", "Upper 90%", "Within 90% PI"]
+          ["Stream", "Observed", "Lower 90%", "Lower 60%", "Lower 30%",
+           "Upper 30%", "Upper 60%", "Upper 90%", "Within 90% PI"]
     @test Set(tbl[!, "Stream"]) ==
           Set(["DRC reported cases", "DRC deaths", "Uganda exports"])
 
@@ -95,4 +95,7 @@ end
         covered = row["Lower 90%"] <= row.Observed <= row["Upper 90%"]
         @test row["Within 90% PI"] == (covered ? "yes" : "no")
     end
+
+    fig = plot_forecast_vs_truth(fc; cases = 600, deaths = 150, exports = 3)
+    @test fig !== nothing
 end

@@ -2350,6 +2350,25 @@ forecast_validation_table = forecast_vs_truth(forecast_validation;
 
 forecast_validation_table #hide
 
+# Each panel shows the cumulative forecast distribution for one stream
+# with its 90% predictive interval shaded and the count later observed
+# drawn as a dashed rule, so coverage can be read off directly.
+
+#md # ```@raw html
+#md # <details><summary>Forecast-validation plot</summary>
+#md # ```
+
+forecast_validation_fig = plot_forecast_vs_truth(forecast_validation;
+    cases   = obs.reported_cases,
+    deaths  = obs.total_deaths,
+    exports = obs.exported_cases);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+forecast_validation_fig #hide
+
 # ## Saving results
 #
 # The tables above are written to an `output/` directory at the repo
