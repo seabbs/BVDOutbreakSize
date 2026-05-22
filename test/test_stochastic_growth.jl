@@ -53,16 +53,24 @@ end
     @test all(σ .>= 0)
 end
 
-@testset "onset_timing_model is a no-op when delta is missing" begin
+@testset "onset_timing_model: delta missing is no-op, else samples sd" begin
     @model function _onset_wrap(; onset_delta)
         T ~ Normal(100.0, 10.0)
         s ~ to_submodel(
             onset_timing_model(T; onset_delta = onset_delta), false)
         return T
     end
-    ## With a missing delta the term adds no observation, so the prior on
-    ## T is unchanged; with a delta it bounds T from below.
+    ## With a missing delta the term adds no observation and no extra
+    ## parameter, so the prior on T is unchanged.
     free = sample(_onset_wrap(; onset_delta = missing), Prior(), 400;
                   chain_type = FlexiChains.VNChain, progress = false)
     @test all(isfinite, vec(Array(free[:T])))
+
+    ## With a delta the timing SD is sampled from its prior (a delay
+    ## carried as prior uncertainty, not a fixed constant) and is > 0.
+    bound = sample(_onset_wrap(; onset_delta = 120.0), Prior(), 400;
+                   chain_type = FlexiChains.VNChain, progress = false)
+    sd = vec(Array(bound[:onset_sd]))
+    @test length(sd) == 400
+    @test all(sd .> 0)
 end

@@ -54,8 +54,10 @@ I model it as a soft one-sided bound on `T`, reusing exactly the construction th
 p_onset(T) = P[Normal(T, σ_o) ≥ onset_delta] = Φ((T − onset_delta) / σ_o).
 ```
 
-`σ_o` absorbs onset-date and seeding-time uncertainty.
-Passing `onset_delta = missing` makes the term a no-op, so it is safe to add unconditionally.
+`σ_o` is the SD on the location of the bound.
+It absorbs the infection-to-onset (incubation) delay and onset-date recording uncertainty, so it is itself a delay quantity.
+Per the project rule that every delay carries prior uncertainty into the fit, `σ_o` is *sampled*, not fixed: `σ_o ~ Normal⁺(14, 5)` days, a weakly-informative prior spanning plausible BVD incubation-plus-recording spreads where direct data is thin.
+Passing `onset_delta = missing` makes the term a no-op (and skips sampling `σ_o`), so it is safe to add unconditionally.
 
 This is implemented as `onset_timing_model` in `src/stochastic_growth.jl` and exercised in the prototype joint composer.
 The reason it is *usable* under the stochastic process but not the deterministic one is the early-phase variance: the bound only requires that *some* case had onset by `onset_delta`, which the stochastic trajectory can satisfy via an early fluctuation above the mean, whereas the deterministic curve would have to shift its whole mean trajectory (and hence `r` or `T`) to honour the same date, conflicting with the death count.
@@ -68,7 +70,7 @@ The prototype script uses a placeholder offset pending that data entry.
 The stochastic growth submodel exposes the same `growth_state` interface as the deterministic one: the NamedTuple `(; τ, r, m, T, C_T, cumulative)`, where `cumulative` is the random trajectory `C(s)` and `C_T = C(T)` is read off its endpoint.
 Because every observation submodel only reads `cumulative`, `C_T`, `r` and `T`, all four streams map in unchanged:
 
-- Exports (Method 1): `expected_exports` integrates the at-risk person-time `∫_{T−w}^{T} C(s) ds` over the stochastic trajectory directly.
+- Exports (Method 1): `expected_exports` integrates the at-risk person-time `∫_{T−w}^{T} C(s) ds` over the stochastic trajectory directly. The detection window `w` (incubation + onset-to-detection) is a delay, so it is sampled from a prior (`w ~ Normal⁺(15, 5)` days), not fixed.
 - DRC reported cases: ascertained endpoint `p_DRC · C(T)`.
 - DRC deaths (Method 2): the onset-to-death convolution `CFR · ∫_0^T C(s) f(T−s) ds`.
 The package `expected_deaths` currently assumes `exp(r s)` internally; the prototype passes the matching `r` so the mean drift agrees.
@@ -78,6 +80,16 @@ A faithful version would convolve against the stochastic incidence `i(s) = C'(s)
 - Earliest onset: the new `onset_timing_model` bound, above.
 
 So the stochastic process drops in at exactly one seam and the rest of the model is reused, not rewritten.
+
+### Every delay is prior-based
+
+Per the project rule, no observation submodel uses a fixed delay distribution or a fixed generation time; every delay samples its parameters from a prior and carries that uncertainty into the fit.
+
+- Onset-to-death (deaths, deaths-among-exports): the Gamma shape and scale are sampled (`α ~ Normal⁺(4.3, 1.22)`, `θ ~ Normal⁺(2.6, 0.82)`), as in the baseline `delay_model`.
+- Detection window `w` (incubation + onset-to-detection, exports and deaths-among-exports): sampled, `w ~ Normal⁺(15, 5)` days, as in the baseline `detection_window_model`.
+- Infection-to-onset (incubation) timing on the earliest-onset bound: enters through `σ_o`, which is sampled from `Normal⁺(14, 5)` days rather than fixed.
+- No generation-interval / renewal kernel is hardcoded: growth is driven by the sampled rate `r` (from the doubling-time prior) plus the latent stochastic increments, so there is no fixed generation time to specify.
+- Onset-to-report: the prototype does not model an explicit reporting delay (DRC reported cases are an ascertained fraction `p_DRC · C(T)`, a thinning not a delay), so there is no fixed reporting-delay constant. If a reporting delay is added later it must likewise be sampled.
 
 ## Inference strategy and the make-or-break verdict
 
@@ -95,10 +107,10 @@ This handles discrete latent counts but is far slower, mixes poorly for the cont
 Verdict: the continuous relaxation (option 1) is tractable now.
 The prototype demonstrates it end-to-end:
 
-- The full joint model (34 latent dimensions, including 23 trajectory increments) compiles.
-- A prior-predictive draw gives finite, positive `C_T` with a sensible median (~110).
-- Mooncake returns a finite value and a finite gradient of the full 34-dimensional log-density, so NUTS has a usable gradient through the latent trajectory, the interpolation, and every downstream integral.
-- A short NUTS run samples without error and gives finite posterior `C_T` and a posterior `T` median around 120 days.
+- The full joint model (37 latent dimensions, including 23 trajectory increments and the sampled detection window, traveller volume and onset-timing SD) compiles.
+- A prior-predictive draw gives finite, positive `C_T` with a sensible median (~100).
+- Mooncake returns a finite value and a finite gradient of the full 37-dimensional log-density, so NUTS has a usable gradient through the latent trajectory, the interpolation, and every downstream integral.
+- A short NUTS run samples without error and gives finite posterior `C_T` and a posterior `T` median around 130 days.
 
 The exact discrete process via SMC (option 3) is a longer-term bet, not tractable in the time available and likely much slower; it is not recommended as the next step.
 The continuous relaxation captures the early-phase variance that issue #48 actually cares about while staying inside the existing NUTS + Mooncake machinery.

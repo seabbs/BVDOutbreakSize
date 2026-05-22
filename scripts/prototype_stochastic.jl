@@ -47,6 +47,21 @@ end
     return (; CFR)
 end
 
+## Detection window (incubation + onset-to-detection). A delay, so it is
+## sampled from a weakly-informative prior, not fixed — mirrors the
+## baseline `detection_window_model`.
+@model function _window()
+    w ~ truncated(Normal(15.0, 5.0); lower = 0)
+    return (; w)
+end
+
+## Daily traveller volume, sampled (the per-capita travel rate `q` is not
+## a delay, but the volume is an estimated input with its own prior).
+@model function _travel(; mean = 1871.0, sd = 200.0)
+    daily_travellers ~ truncated(Normal(mean, sd); lower = 0)
+    return (; daily_travellers)
+end
+
 @model function _dispersion()
     inv_sqrt_k ~ truncated(Normal(0.6, 0.2); lower = 1e-4)
     k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
@@ -91,9 +106,11 @@ end
     asc_state  ~ to_submodel(_ascertainment(), false)
     delay_state ~ to_submodel(_delay(), false)
     cfr_state   ~ to_submodel(_cfr(), false)
+    window_state ~ to_submodel(_window(), false)
+    travel_state ~ to_submodel(_travel(), false)
 
-    w = 15.0
-    q = 1871.0 / source_population
+    w = window_state.w
+    q = travel_state.daily_travellers / source_population
 
     ## Exports: at-risk person-time on the stochastic trajectory.
     μ_e = expected_exports(cumulative, asc_state.p_uganda, q, T, w)

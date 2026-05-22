@@ -157,8 +157,15 @@ g = \\texttt{onset\\_delta}.
 ```
 
 `onset_delta` is the elapsed time (days) from the earliest onset to the
-cut-off; `onset_sd` is the SD on the location of the bound. Passing
-`onset_delta = missing` makes the term a no-op.
+cut-off. The SD on the location of the bound, `σ_o`, is not a fixed
+constant: it is sampled from `onset_sd_prior`, because it is dominated by
+the infection-to-onset (incubation) delay plus onset-date recording
+uncertainty, and the project requires every delay to carry prior
+uncertainty into the fit rather than be hardcoded. The default prior is
+weakly informative, `σ_o ~ Normal⁺(14, 5)` days, spanning plausible BVD
+incubation-plus-recording spreads where direct data is thin. Passing
+`onset_delta = missing` makes the term a no-op (and skips sampling
+`σ_o`, so the term adds no parameters when unused).
 
 This is what makes the earliest onset (24 Apr 2026) *usable*: under the
 deterministic single-seed curve the implied first case is detection-
@@ -169,9 +176,14 @@ distorting the rest of the curve.
 """
 @model function onset_timing_model(T;
         onset_delta::Union{Missing, Real},
-        onset_sd::Real = 14.0)
+        onset_sd_prior = truncated(Normal(14.0, 5.0); lower = 1e-3))
     if !ismissing(onset_delta)
+        ## The bound's location SD absorbs the infection-to-onset
+        ## (incubation) delay and onset-date recording noise; sample it
+        ## so that delay uncertainty propagates, rather than fixing it.
+        onset_sd ~ onset_sd_prior
         onset_delta ~ censored(Normal(T, onset_sd); upper = onset_delta)
+        return (; onset_delta, onset_sd)
     end
-    return (; onset_delta, onset_sd)
+    return (; onset_delta, onset_sd = missing)
 end
