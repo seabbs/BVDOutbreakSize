@@ -37,8 +37,8 @@ function xd_vectorised(cumulative, delay_dist, lo, hi, T)
     halfwidth = (hi - lo) / 2
     acc = zero(promote_type(typeof(lo), typeof(T)))
     @inbounds for j in 1:NQ
-        s, y = halfwidth * (_GLN[j] + 1) + lo, zero(T)
-        y = T - (halfwidth * (_GLN[j] + 1) + lo)
+        s  = halfwidth * (_GLN[j] + 1) + lo
+        y  = T - s
         Fd = zero(y)
         if y > zero(y)
             inner = zero(y)
@@ -47,7 +47,7 @@ function xd_vectorised(cumulative, delay_dist, lo, hi, T)
             end
             Fd = y * inner
         end
-        acc += _GLW[j] * cumulative(halfwidth * (_GLN[j] + 1) + lo) * Fd
+        acc += _GLW[j] * cumulative(s) * Fd
     end
     return halfwidth * acc
 end
