@@ -957,7 +957,7 @@ end
 #md # </details>
 #md # ```
 
-# ##### Cases — ascertainment extension#
+# ##### Cases — ascertainment extension
 # Methods 1 and 2 use exports and deaths only. Reported
 # suspected cases from the same passive-surveillance system carry
 # information about $C(T)$ once the DRC ascertainment fraction $p_{\text{DRC}}$
