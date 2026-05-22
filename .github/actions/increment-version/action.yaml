@@ -139,9 +139,11 @@ runs:
 
         git checkout -b "$BRANCH_NAME"
 
-        # Commit changes (README.md is staged only if it actually changed)
+        # Commit changes
         git add Project.toml
-        git add README.md
+        if [ "${{ inputs.update-readme-date }}" = "true" ]; then
+          git add README.md
+        fi
         git commit -m "${{ inputs.pr-title-prefix }} to $NEW_VERSION
 
         Automatically incremented $INCREMENT_TYPE version.
@@ -208,9 +210,11 @@ runs:
         NEW_VERSION="${{ steps.increment.outputs.new-version }}"
         INCREMENT_TYPE="${{ inputs.increment-type }}"
 
-        # Commit changes (README.md is staged only if it actually changed)
+        # Commit changes
         git add Project.toml
-        git add README.md
+        if [ "${{ inputs.update-readme-date }}" = "true" ]; then
+          git add README.md
+        fi
         git commit -m "${{ inputs.pr-title-prefix }} to $NEW_VERSION
 
         Automatically incremented $INCREMENT_TYPE version.
