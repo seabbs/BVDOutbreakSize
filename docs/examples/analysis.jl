@@ -50,18 +50,19 @@
 # the model code it calls is in
 # [`src/`](https://github.com/epiforecasts/BVDOutbreakSize/tree/main/src).
 #
-# **How the numbers differ from McCabe et al.** Our estimates differ
-# from the McCabe et al. [mccabe2026](@cite) report for two reasons.
-# First, the method: we fit
+# **How the numbers compare with McCabe et al.** Two things can move our
+# estimate relative to the McCabe et al. [mccabe2026](@cite) report, the
+# method and the data. The method: we fit
 # all streams jointly in a single Bayesian model rather than combining
 # separate scenario analyses (see
 # [What we do differently](#What-we-do-differently-from-McCabe-et-al.)
-# below). Second, the data: results are reported as of the cut-off
+# below). The data: results are reported as of the cut-off
 # date in `data/observations.toml` (currently **2026-05-18**), using
 # the reported counts in the data table below. These match the 20 May
 # report's deaths and cases ($131$ and $516$) and are more recent than
 # the 16 May 2026 figures the 18 May report used (e.g. $88$ suspected
-# deaths). The joint
+# deaths), so the data agree with one report version while differing
+# from the other. The joint
 # posterior assumes a single common
 # cut-off for every data stream, so the deaths, exports and reported-
 # case counts must all be kept in sync to the same date.

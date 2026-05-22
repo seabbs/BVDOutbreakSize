@@ -6,6 +6,16 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
+## Unreleased
+
+### Documentation
+
+- Softened the language explaining why our numbers may differ from the
+  McCabe et al. report. The data is now framed as one factor that can
+  move the estimate rather than a fixed source of divergence, since our
+  snapshot agrees with one report version while differing from the
+  other.
+
 ## v1.1.0
 
 ### Modelling

@@ -64,15 +64,18 @@ Find out more in the
 model and reviewed and revised under human oversight; the named authors
 are responsible for that oversight.
 
-**Why our numbers differ from the Imperial report.** Two reasons.
-First, the method: we fit all data streams jointly in a single
-Bayesian model rather than combining separate scenario analyses (the
-abstract above and the analysis page list the full set of changes).
-Second, the data: we use the 18 May 2026 snapshot (sources per
+**Why our numbers may differ from the Imperial report.** Two things can
+move the estimate, the method and the data. The method: we fit all data
+streams jointly in a single Bayesian model rather than combining
+separate scenario analyses (the abstract above and the analysis page
+list the full set of changes). The data: we use the 18 May 2026
+snapshot (sources per
 [`data/observations.toml`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/data/observations.toml)),
-at or beyond the cut-offs used in either McCabe et al. report version.
-To separate these two effects we also refit the model to each report
-version's own data (18 May, then the 20 May update).
+which can sit at or beyond the cut-offs used in either McCabe et al.
+report version. Data differences need not always shift the estimate,
+and on some streams our counts match a report version, so to separate
+the two effects we also refit the model to each report version's own
+data (18 May, then the 20 May update).
 The joint posterior assumes a single common cut-off for
 every data stream, so the counts must be kept in sync to the same
 date.
