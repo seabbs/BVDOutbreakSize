@@ -1346,7 +1346,7 @@ end
 # no deaths-among-exports likelihood. This composer wraps just
 # those two observation submodels so the sense-check can fix the model
 # down to exactly the McCabe et al. joint configuration. Either stream may
-# be `missing`: passing `missing` for exports recovers a pure Method 2
+# be missing: passing missing for exports recovers a pure Method 2
 # (deaths-only) fit without instantiating the exports likelihood.
 
 #md # ```@raw html
