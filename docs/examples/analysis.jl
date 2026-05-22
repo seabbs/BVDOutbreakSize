@@ -2013,7 +2013,10 @@ diagnostics_table( #hide
 #md # </details>
 #md # ```
 
-# Outbreak size $C(T)$ under the two clock rates:
+# Each quantity is shown as a side-by-side table followed by overlaid
+# posterior densities under the two clock rates.
+#
+# Outbreak size $C(T)$:
 
 #md # ```@raw html
 #md # <details><summary>Clock-rate C_T table</summary>
@@ -2029,37 +2032,11 @@ clock_sensitivity_C_table = streams_table(
 
 clock_sensitivity_C_table #hide
 
-# Seeding time $T$ (days before the cut-off) and growth rate $r$ (per
-# day): a more recent TMRCA permits later seeding and faster growth.
-
-#md # ```@raw html
-#md # <details><summary>Clock-rate timing and growth table</summary>
-#md # ```
-
-clock_sensitivity_timing_table = streams_table(
-    "T, 1.2e-3 clock (days)" => vec(Array(chn_joint[:T])),
-    "T, 1.9e-3 clock (days)" => vec(Array(chn_joint_clock19[:T]));
-    digits = 0);
-
-clock_sensitivity_growth_table = streams_table(
-    "r, 1.2e-3 clock (per day)" => vec(Array(chn_joint[:r])),
-    "r, 1.9e-3 clock (per day)" => vec(Array(chn_joint_clock19[:r]));
-    digits = 3);
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-clock_sensitivity_timing_table #hide
-clock_sensitivity_growth_table #hide
-
-# Overlaid posterior densities of $C(T)$ under the two clock rates:
-
 #md # ```@raw html
 #md # <details><summary>Clock-rate C_T density plot</summary>
 #md # ```
 
-clock_sensitivity_fig = plot_cumulative_cases(
+clock_sensitivity_C_fig = plot_cumulative_cases(
     "1.2e-3 clock" => posterior_C_joint,
     "1.9e-3 clock" => posterior_C_clock19;
     scenarios = []);
@@ -2068,7 +2045,81 @@ clock_sensitivity_fig = plot_cumulative_cases(
 #md # </details>
 #md # ```
 
-clock_sensitivity_fig #hide
+clock_sensitivity_C_fig #hide
+
+# Seeding time $T$ (days before the cut-off); a more recent TMRCA
+# permits later seeding:
+
+T_clock12 = vec(Array(chn_joint[:T]));
+T_clock19 = vec(Array(chn_joint_clock19[:T]));
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate seeding-time table</summary>
+#md # ```
+
+clock_sensitivity_T_table = streams_table(
+    "joint (1.2e-3 clock)" => T_clock12,
+    "joint (1.9e-3 clock)" => T_clock19;
+    digits = 0);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_T_table #hide
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate seeding-time density plot</summary>
+#md # ```
+
+clock_sensitivity_T_fig = plot_density_overlay(
+    "1.2e-3 clock" => T_clock12,
+    "1.9e-3 clock" => T_clock19;
+    xlabel = "Seeding time T (days before cut-off)",
+    title = "Posterior seeding time by clock rate");
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_T_fig #hide
+
+# Growth rate $r$ (per day); later seeding implies faster growth to
+# reach the same observed counts:
+
+r_clock12 = vec(Array(chn_joint[:r]));
+r_clock19 = vec(Array(chn_joint_clock19[:r]));
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate growth-rate table</summary>
+#md # ```
+
+clock_sensitivity_r_table = streams_table(
+    "joint (1.2e-3 clock)" => r_clock12,
+    "joint (1.9e-3 clock)" => r_clock19;
+    digits = 3);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_r_table #hide
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate growth-rate density plot</summary>
+#md # ```
+
+clock_sensitivity_r_fig = plot_density_overlay(
+    "1.2e-3 clock" => r_clock12,
+    "1.9e-3 clock" => r_clock19;
+    xlabel = "Growth rate r (per day)",
+    title = "Posterior growth rate by clock rate");
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_r_fig #hide
 
 # ### How the data streams compare
 #

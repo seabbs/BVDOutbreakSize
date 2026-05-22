@@ -38,7 +38,7 @@ export REPORT_SCENARIOS,
        integrate_cumulative, integrate_exports_deaths,
        expected_exports, expected_exports_deaths,
        ExportDeathDelay, EXPORT_DELAY_GRID_POINTS,
-       plot_cumulative_cases, plot_prior_predictive,
+       plot_cumulative_cases, plot_density_overlay, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
        plot_cfr_prior,
@@ -737,6 +737,38 @@ function plot_cumulative_cases(
     isempty(scenario_xs) || vlines!(fg.figure.content[1], scenario_xs;
             color = (:grey, 0.4), linestyle = :dash)
     return fg
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Overlaid posterior densities of an arbitrary scalar quantity from one
+or more fits, built through AlgebraOfGraphics. Pass each fit as
+`"label" => draws`; `xlabel` and `title` set the axis text.
+"""
+function plot_density_overlay(
+        streams::Pair{String, <:AbstractVector}...;
+        xlabel::AbstractString = "Value",
+        title::AbstractString = "Posterior density")
+    df = @chain DataFrame(stream = String[], value = Float64[]) begin
+        let df = _
+            for (label, draws) in streams
+                for x in draws
+                    push!(df, (label, float(x)))
+                end
+            end
+            df
+        end
+    end
+
+    spec = AoG.data(df) *
+           AoG.mapping(:value => xlabel, color = :stream => "Fit") *
+           AoG.AlgebraOfGraphics.density() *
+           AoG.visual(linewidth = 2)
+    return AoG.draw(spec;
+        axis  = (; ylabel = "Posterior density", title = title),
+        figure = (; size = (760, 420)),
+    )
 end
 
 _panel_pos(pos::Integer) = (1, pos)
