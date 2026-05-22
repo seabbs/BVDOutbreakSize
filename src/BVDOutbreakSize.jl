@@ -15,7 +15,8 @@ using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions
 using Distributions: Distribution, Gamma, ccdf, pdf, Poisson,
-                     NegativeBinomial
+                     NegativeBinomial, Normal, LogNormal, truncated
+using Turing: @model, to_submodel, filldist, censored
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
@@ -44,7 +45,9 @@ export REPORT_SCENARIOS,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
-       forecast_vs_truth, plot_forecast_vs_truth
+       forecast_vs_truth, plot_forecast_vs_truth,
+       STOCH_GROWTH_KNOTS, lna_trajectory, lna_logC,
+       stochastic_growth_model, onset_timing_model
 
 """
     REPORT_SCENARIOS
@@ -1348,6 +1351,7 @@ function plot_forecast(fc::DataFrame)
     return fig
 end
 
+<<<<<<< HEAD
 """
     plot_forecast_vs_truth(fc::DataFrame; cases, deaths, exports,
                            baseline_cases = 0, baseline_deaths = 0,
@@ -1394,5 +1398,9 @@ function plot_forecast_vs_truth(fc::DataFrame;
     end
     return fig
 end
+
+## Stochastic latent growth prototype (issue #48). Additive; does not
+## change any existing behaviour. See docs/proposals/stochastic-latent.md.
+include("stochastic_growth.jl")
 
 end # module
