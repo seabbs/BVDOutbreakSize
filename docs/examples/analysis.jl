@@ -1042,10 +1042,9 @@ end
     q          = daily_travellers / source_population
     n          = length(export_deaths_daily)   # days from earliest death to cut-off
 
-    ## Precompute the onset-to-death CDF once on a grid over the detection
-    ## window and reuse it across every bin edge below, rather than
-    ## re-integrating the density at each outer quadrature node (see
-    ## `ExportDeathDelay`). `T - s ≤ window` over the integration domain.
+    ## Precompute the onset-to-death CDF once and reuse it across every
+    ## bin edge below (`T - s ≤ window` over the domain; see
+    ## `ExportDeathDelay`).
     delay = ExportDeathDelay(delay_dist, window)
     Λ(t) = expected_exports_deaths(
         cumulative, delay, CFR, p_uganda, q, t, window)

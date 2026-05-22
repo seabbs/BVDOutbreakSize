@@ -398,28 +398,18 @@ const EXPORT_DELAY_GRID_POINTS = 256
 $(TYPEDSIGNATURES)
 
 Onset-to-death delay carrying its CDF `F_d` precomputed on an evenly
-spaced grid over `[0, gmax]`. The deaths-among-exports convolution
-[`integrate_exports_deaths`](@ref) evaluates `F_d(T - s)` at every outer
-quadrature node and at every bin edge of the export-death timing loop;
-without precomputation each is a fresh inner integral of the density (a
-nested 32×32 quadrature). Building `F_d` once and interpolating collapses
-that to one density sweep reused across the whole likelihood evaluation.
+spaced grid over `[0, gmax]`, built once and reused across every outer
+node and bin edge of the deaths-among-exports convolution rather than
+re-integrating the density at each (see [`integrate_exports_deaths`](@ref)).
+`gmax` must cover the largest delay argument reached, the detection window
+`w`. Pass one in place of the raw delay distribution to select this path by
+dispatch; the distribution methods are unchanged and remain the reference.
 
-`gmax` must cover the largest delay argument reached, which is the
-detection window `w` (the outer integral runs over `[max(t - w, 0), t]`,
-so `T - s ≤ w`). The CDF is a cumulative trapezoid of the density,
-`F_d(x) = ∫_0^x f_d(u)\\,du`, so the convolution still differentiates
-through the density alone (the reverse-mode AD backend does not support
-the Gamma CDF shape-parameter derivative). The density is never evaluated
-at `0`, whose Gamma shape derivative is `0·log 0 = NaN` under AD; for a
-delay with `f_d(0) = 0` (any Gamma with shape > 1) the first trapezoid
-panel is exact regardless. Linear interpolation off the grid is
-differentiable in the grid values.
-
-Pass an `ExportDeathDelay` in place of the raw delay distribution to
-[`expected_exports_deaths`](@ref) or [`integrate_exports_deaths`](@ref) to
-select this path by dispatch; the distribution methods are unchanged and
-remain the reference.
+`F_d` is a cumulative trapezoid of the density, so the convolution still
+differentiates through the density alone (the AD backend lacks the Gamma
+CDF shape derivative). The density is never evaluated at `0`, whose Gamma
+shape derivative is `0·log 0 = NaN` under AD; for `f_d(0) = 0` (Gamma
+shape > 1) treating it as zero is exact.
 """
 struct ExportDeathDelay{D, T}
     dist::D

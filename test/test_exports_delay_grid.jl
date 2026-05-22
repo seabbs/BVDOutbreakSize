@@ -1,12 +1,7 @@
-## Regression tests for the precomputed onset-to-death CDF used to speed
-## up the deaths-among-exports nested integral. `ExportDeathDelay` builds
-## `F_d` once on a grid and interpolates it, replacing the per-node inner
-## quadrature in `integrate_exports_deaths`. These tests lock the fast
-## path to the distribution method (the reference) in both value and
-## gradient, and pin the gradient finite — the gridded build must never
-## evaluate the density at 0, whose Gamma shape derivative is NaN under
-## reverse-mode AD. The full fit is slow and lives in the doc build, so
-## this is the cheap guard that the speed-up did not change the maths.
+## Regression tests for the precomputed onset-to-death CDF
+## (`ExportDeathDelay`): lock the gridded fast path to the distribution
+## reference in value and gradient, and pin the gradient finite (the build
+## must avoid the density at 0, whose Gamma shape derivative is NaN).
 
 import BVDOutbreakSize
 using BVDOutbreakSize: ExportDeathDelay, integrate_exports_deaths,
