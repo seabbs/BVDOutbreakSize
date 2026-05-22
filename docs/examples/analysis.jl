@@ -453,6 +453,8 @@ end
 # This is a lower bound on the seeding time $T$, since the TMRCA only
 # moves older as more, or more geographically representative, sequences
 # are added (the sampled tree is almost entirely from Bunia).
+# Combining the genetic TMRCA with the other data streams as a seeding
+# bound follows a suggestion of N. Ferguson [ferguson2026](@cite).
 # We do not know exactly where the floor sits, so we treat it as an
 # uncertain threshold $B \sim \mathrm{Normal}(g, \sigma)$ and require
 # $T \ge B$, leaving $T$ free above it.
