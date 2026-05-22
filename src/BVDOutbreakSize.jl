@@ -1053,6 +1053,11 @@ function plot_start_date_pair(chn;
     )
     density!(ax, start_days; color = (:steelblue, 0.5),
              strokecolor = :steelblue, strokewidth = 2)
+    ## Fortnightly date ticks across the posterior range, so the start
+    ## date is readable rather than relying on the default locator.
+    lo = floor(Int, minimum(start_days))
+    hi = ceil(Int, maximum(start_days))
+    ax.xticks = collect(lo:14:hi)
     ax.xtickformat = vals ->
         [string(epochdays2date(round(Int, v))) for v in vals]
 

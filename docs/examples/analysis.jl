@@ -1626,7 +1626,8 @@ diagnostics_table( #hide
 # outbreak, and planning for beds, contacts and vaccine needs depends
 # on the true total. The numbers below are our current best estimate of
 # that total, computed from the joint posterior and refreshed on every
-# build. We give 90% credible-interval ranges here; the full 30/60/90%
+# build. For each headline number we give the median, a narrow 50%
+# credible interval and the wider 90% interval; the full 30/60/90%
 # intervals are in the tables below.
 
 #md # ```@raw html
@@ -1634,25 +1635,61 @@ diagnostics_table( #hide
 #md # ```
 
 summary_ranges = let
-    C    = posterior_C_joint
-    c_lo = round(Int, quantile(C, 0.05))
-    c_hi = round(Int, quantile(C, 0.95))
-    Tdraws = vec(Array(chn_joint[:T]))
-    t_lo = round(Int, quantile(Tdraws, 0.05))
-    t_hi = round(Int, quantile(Tdraws, 0.95))
-    start_earliest = Date(obs.as_of_date) - Day(t_hi)
-    start_latest   = Date(obs.as_of_date) - Day(t_lo)
-    f_lo = round(c_lo / obs.reported_cases; digits = 1)
-    f_hi = round(c_hi / obs.reported_cases; digits = 1)
+    med(x) = quantile(x, 0.5)
+    iqr(x) = quantile(x, 0.75) - quantile(x, 0.25)
+    ## Posterior-minus-prior shift in units of the parameter's prior
+    ## IQR, reusing the prior draws so nothing is respecified here.
+    shift(post, prior) =
+        round((med(post) - med(prior)) / iqr(prior); digits = 2)
+    ints_i(s) = string(
+        "30% ", round(Int, s.lo30), "–", round(Int, s.hi30),
+        ", 60% ", round(Int, s.lo60), "–", round(Int, s.hi60),
+        ", 90% ", round(Int, s.lo90), "–", round(Int, s.hi90))
+    ints_f(s, d) = string(
+        "30% ", round(s.lo30; digits = d), "–", round(s.hi30; digits = d),
+        ", 60% ", round(s.lo60; digits = d), "–", round(s.hi60; digits = d),
+        ", 90% ", round(s.lo90; digits = d), "–", round(s.hi90; digits = d))
+
+    C  = posterior_C_joint
+    Td = vec(Array(chn_joint[:T]))
+    τd = vec(Array(chn_joint[:τ]))
+    rd = vec(Array(chn_joint[:r]))
+    sC = posterior_summary(C)
+    sT = posterior_summary(Td)
+    sτ = posterior_summary(τd)
+    sr = posterior_summary(rd)
+
+    start_md       = Date(obs.as_of_date) - Day(round(Int, med(Td)))
+    start_earliest = Date(obs.as_of_date) - Day(round(Int, sT.hi90))
+    start_latest   = Date(obs.as_of_date) - Day(round(Int, sT.lo90))
+    f_lo = round(sC.lo90 / obs.reported_cases; digits = 1)
+    f_hi = round(sC.hi90 / obs.reported_cases; digits = 1)
+
+    moves = ["cumulative case load" => shift(C,  vec(Array(
+                 prior_chn[:cumulative_cases]))),
+             "time since seeding"   => shift(Td, vec(Array(prior_chn[:T]))),
+             "doubling time"        => shift(τd, vec(Array(prior_chn[:τ])))]
+    biggest = argmax(p -> abs(p.second), moves)
+
     Markdown.parse("""
-    - **Current cumulative case load:** a 90% credible interval of
-      $(c_lo)–$(c_hi) cases, combining all four data streams (both
-      reported and as-yet-unreported).
+    - **Current cumulative case load:** a median of $(round(Int, med(C)))
+      cases (intervals: $(ints_i(sC))), combining all four data streams
+      (reported and as-yet-unreported).
     - That is roughly $(f_lo)–$(f_hi)× the $(obs.reported_cases) cases
       reported to date, so most infections are not yet reported.
-    - **Time since seeding:** a 90% interval of $(t_lo)–$(t_hi) days,
-      placing the start of sustained transmission between
-      $(start_earliest) and $(start_latest).
+    - **Time since seeding:** a median of $(round(Int, med(Td))) days
+      (intervals: $(ints_i(sT))), placing the start of sustained
+      transmission around $(start_md) (90% between $(start_earliest)
+      and $(start_latest)).
+    - **Doubling time and growth rate:** a median doubling time of
+      $(round(med(τd); digits = 1)) days (intervals: $(ints_f(sτ, 1))),
+      and an implied growth rate of $(round(med(rd); digits = 3)) per
+      day (intervals: $(ints_f(sr, 3))).
+    - **Shift from priors:** in prior-IQR units (0 = unchanged from
+      prior, sign gives direction), the fit moves the cumulative case
+      load by $(moves[1].second), the time since seeding by
+      $(moves[2].second) and the doubling time by $(moves[3].second);
+      the largest move is in the $(biggest.first).
     """)
 end;
 
