@@ -335,7 +335,7 @@ observations_table #hide
 # The table below shows which building-block parameters feed each
 # observation submodel:
 #
-# | Parameter | Exports | Deaths | Cases | Export deaths<br/>(time-resolved) | First export-<br/>detection timing |
+# | Parameter | Exports | Deaths | Cases | Export deaths (time-resolved) | First export-detection timing |
 # |---|:---:|:---:|:---:|:---:|:---:|
 # | Growth $C(s) = e^{rs}$ | ● | ● | ● | ● | ● |
 # | Onset-to-death delay |  | ● |  | ● |  |
