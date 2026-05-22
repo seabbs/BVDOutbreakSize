@@ -17,6 +17,16 @@ end
     @test fg.figure isa CairoMakie.Makie.Figure
 end
 
+@testset "plot_density_overlay returns a figure-grid" begin
+    rng = MersenneTwister(14)
+    a = randn(rng, 300) .* 5 .+ 50
+    b = randn(rng, 300) .* 5 .+ 40
+    fg = plot_density_overlay("fit A" => a, "fit B" => b;
+        xlabel = "Seeding time", title = "by clock rate")
+    @test fg !== nothing
+    @test fg.figure isa CairoMakie.Makie.Figure
+end
+
 @testset "plot_posterior_predictive returns a Makie figure" begin
     rng = MersenneTwister(5)
     pp_exports = rand(rng, 0:10, 500)

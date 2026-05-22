@@ -13,6 +13,8 @@
     @test obs.daily_outbound_travellers_sd isa Real
     @test obs.genetic_tmrca_days isa Real
     @test obs.genetic_tmrca_days_sd isa Real
+    @test obs.genetic_tmrca_alt_days isa Real
+    @test obs.genetic_tmrca_alt_days_sd isa Real
 
     @test obs.exported_cases >= 0
     @test obs.exports_deaths >= 0
@@ -23,6 +25,11 @@
     @test obs.source_population > 0
     @test obs.genetic_tmrca_days > 0
     @test obs.genetic_tmrca_days_sd > 0
+    @test obs.genetic_tmrca_alt_days > 0
+    @test obs.genetic_tmrca_alt_days_sd > 0
+    ## The alternative (faster) clock dates the TMRCA more recently, so
+    ## fewer days before the cut-off than the baseline estimate.
+    @test obs.genetic_tmrca_alt_days < obs.genetic_tmrca_days
 
     @test obs.sources isa NamedTuple
     @test obs.sources.exported_cases isa String
