@@ -33,6 +33,9 @@ each push to `main` also republishes the rendered analysis and the
   survival term on the Uganda admission date. Dates supplied in
   `data/observations.toml`.
 - Death-convolution quadrature adapted to the sampled delay scale.
+- Sped up the deaths-among-exports likelihood: precompute the
+  onset-to-death CDF once and reuse it across bin edges
+  (`ExportDeathDelay`), replacing the per-node nested quadrature.
 - Removed hardcoded death and case constants that diverged from the
   observations in `data/observations.toml`.
 

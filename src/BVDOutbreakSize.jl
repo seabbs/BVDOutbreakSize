@@ -37,6 +37,7 @@ export REPORT_SCENARIOS,
        integrate, expected_deaths,
        integrate_cumulative, integrate_exports_deaths,
        expected_exports, expected_exports_deaths,
+       ExportDeathDelay, EXPORT_DELAY_GRID_POINTS,
        plot_cumulative_cases, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
@@ -381,6 +382,81 @@ function integrate_exports_deaths(cumulative, delay_dist, lo, hi, T;
     cdf_to(x) = integrate(u -> pdf(delay_dist, u), zero(x), x; alg)
     g = let cumulative = cumulative, T = T
         s -> cumulative(s) * cdf_to(T - s)
+    end
+    return integrate(g, lo, hi; alg)
+end
+
+"""
+    EXPORT_DELAY_GRID_POINTS
+
+Number of evenly spaced grid points used to precompute the onset-to-death
+CDF in [`ExportDeathDelay`](@ref).
+"""
+const EXPORT_DELAY_GRID_POINTS = 256
+
+"""
+$(TYPEDSIGNATURES)
+
+Onset-to-death delay carrying its CDF `F_d` precomputed on an evenly
+spaced grid over `[0, gmax]`, built once and reused across every outer
+node and bin edge of the deaths-among-exports convolution rather than
+re-integrating the density at each (see [`integrate_exports_deaths`](@ref)).
+`gmax` must cover the largest delay argument reached, the detection window
+`w`. Pass one in place of the raw delay distribution to select this path by
+dispatch; the distribution methods are unchanged and remain the reference.
+
+`F_d` is a cumulative trapezoid of the density, so the convolution still
+differentiates through the density alone (the AD backend lacks the Gamma
+CDF shape derivative). The density is never evaluated at `0`, whose Gamma
+shape derivative is `0·log 0 = NaN` under AD; for `f_d(0) = 0` (Gamma
+shape > 1) treating it as zero is exact.
+"""
+struct ExportDeathDelay{D, T}
+    dist::D
+    gmax::T
+    dx::T
+    F::Vector{T}
+end
+
+function ExportDeathDelay(dist, gmax::Real;
+        npts::Integer = EXPORT_DELAY_GRID_POINTS)
+    g  = float(gmax)
+    dx = g / (npts - 1)
+    Tt = typeof(pdf(dist, dx) * dx)
+    F  = Vector{Tt}(undef, npts)
+    F[1] = zero(Tt)
+    prev = zero(Tt)
+    @inbounds for i in 2:npts
+        fx   = pdf(dist, (i - 1) * dx)
+        F[i] = F[i - 1] + (prev + fx) * dx / 2
+        prev = fx
+    end
+    return ExportDeathDelay(dist, g, dx, F)
+end
+
+# Linear interpolation of the precomputed CDF: F_d(0) = 0 and flat past
+# `gmax` (all delay mass within the window has accumulated by then).
+@inline function _cdf_to(ed::ExportDeathDelay, y)
+    y <= zero(y)  && return zero(eltype(ed.F))
+    y >= ed.gmax  && return @inbounds ed.F[end]
+    pos  = y / ed.dx
+    i    = floor(Int, pos) + 1
+    frac = pos - (i - 1)
+    return @inbounds ed.F[i] + frac * (ed.F[i + 1] - ed.F[i])
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Deaths-among-exports convolution using a precomputed [`ExportDeathDelay`](@ref):
+``\\int_{lo}^{hi} C(s)\\, F_d(T - s)\\, ds`` with `F_d` interpolated off the
+grid rather than re-integrated at each node. Mathematically identical to
+the distribution method up to the grid resolution.
+"""
+function integrate_exports_deaths(cumulative, ed::ExportDeathDelay, lo, hi, T;
+        alg = CUMULATIVE_INTEGRAL_ALG)
+    g = let cumulative = cumulative, T = T, ed = ed
+        s -> cumulative(s) * _cdf_to(ed, T - s)
     end
     return integrate(g, lo, hi; alg)
 end
