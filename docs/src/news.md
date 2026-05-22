@@ -50,8 +50,9 @@ each push to `main` also republishes the rendered analysis and the
 - Surfaced results from the README and analysis landing page, added
   stable and dev docs badges.
 - Plotting and labelling fixes: surveillance dispersion on the 1/√k
-  scale, predictive histograms labelled as frequency, model diagram
-  width.
+  scale, predictive histograms labelled as frequency.
+- Replaced the model-structure diagram with a parameter-to-observation
+  table.
 - Culled promotional register in the analysis report.
 
 ## v1.0.0

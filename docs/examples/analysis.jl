@@ -330,12 +330,22 @@ observations_table #hide
 # parameter family. The *observation submodels* assemble those blocks,
 # introduce the forward integrals and the likelihoods, and tie one data
 # stream to the latent state. The *composers* combine the observation
-# submodels into the per-stream fits and the joint fit. The diagram
-# below traces that flow:
+# submodels into the per-stream fits and the joint fit.
 #
-# {{MODEL_DIAGRAM}}
+# The table below shows which building-block parameters feed each
+# observation submodel:
 #
-# Reading top to bottom:
+# | Parameter | Exports | Deaths | Cases | Export deaths (time-resolved) | First export-detection timing | Genetic seeding |
+# |---|:---:|:---:|:---:|:---:|:---:|:---:|
+# | Growth $C(s) = e^{rs}$ | ● | ● | ● | ● | ● | ● |
+# | Onset-to-death delay |  | ● |  | ● |  |  |
+# | Case-fatality ratio |  | ● |  | ● |  |  |
+# | Detection window | ● |  |  | ● | ● |  |
+# | Surveillance dispersion |  | ● | ● |  |  |  |
+# | Ascertainment | ● |  | ● | ● | ● |  |
+# | Traveller volume | ● |  |  | ● | ● |  |
+#
+# The model components, in the order they appear below:
 #
 # 1. **Building-block submodels** — one per parameter family
 #    (growth, onset-to-death delay, CFR, detection window, daily
@@ -344,7 +354,8 @@ observations_table #hide
 #    priors and returns a small NamedTuple of values. These sections
 #    introduce only the maths for their own parameters.
 # 2. **Observation submodels** — exports, deaths, cases, deaths-among-
-#    exports. Each takes the growth state as input, introduces the
+#    exports (time-resolved), and the first export-detection timing.
+#    Each takes the growth state as input, introduces the
 #    forward integral it needs and the likelihood, and ties one data
 #    stream to the latent $C(T)$.
 # 3. **Composers** — one per analysis: the four single-stream fits, a
@@ -354,6 +365,9 @@ observations_table #hide
 #    submodels. A composer conditionally includes only the likelihoods
 #    for the streams it uses, so a single-stream fit never instantiates
 #    the other observation submodels.
+#
+# Beyond the model itself:
+#
 # 4. **Inference** — prior predictive, the four No-U-Turn Sampler
 #    (NUTS) fits, posterior
 #    summaries, posterior-predictive plots.
