@@ -43,13 +43,15 @@ source = "McCabe et al. Table 1 — Ituri Province population"
 
 # Genetic TMRCA. A soft lower bound on the seeding time T, the time to
 # the most recent common ancestor of the first sequenced cases. It is a
-# lower bound because adding sequences only pushes the TMRCA older
-# (Pybus; Judge, pers. comm.). `date` is the estimated TMRCA, taken as
-# ~80 days before the reference date 2026-05-21 on which the estimate
-# was reported. `days_sd` is the SD on the location of the floor
-# (uncertainty in the estimate, in either direction), not a constraint
-# on how old T can be.
+# lower bound because adding sequences only pushes the TMRCA older, and
+# the sampled tree is geographically narrow (9 of 10 genomes from
+# Bunia), so broader sampling could move it earlier. `date` is the
+# BEAST mean TMRCA reported in the 2026-05-21 temporal-tree update.
+# `days_sd` is the SD on the location of the floor (uncertainty in the
+# estimate, in either direction), not a constraint on how old T can be;
+# it is derived from the reported 95% HPD interval (about +/- 30 days,
+# so SD ~ 15 days).
 [genetic_tmrca]
-date    = "2026-03-02"
-days_sd = 20
-source = "Maximum-likelihood phylogeny of the first eight BDBV genomes (virological2026), genetic distance divided by the 1.2e-3 substitutions/site/year clock rate of holmes2016; combination per N. Ferguson (ferguson2026). ~80 days before the reference date 2026-05-21 on which the estimate was reported, and a lower bound, since further sequences only push the TMRCA older."
+date    = "2026-03-25"
+days_sd = 15
+source = "BEAST v10.5.0 temporal tree of the first 10 BDBV genomes (virological2026, 2026-05-21 update; HKY substitution model, strict molecular clock, exponential coalescent prior). Mean TMRCA 2026-03-25, 95% HPD 2026-02-20 to 2026-04-20, at the 1.2e-3 substitutions/site/year clock rate (holmes2016, all public 2013-2016 EBOV data) matching this analysis. The faster 1.9e-3 early-epidemic rate gives a more recent mean TMRCA of 2026-04-11 (HPD 2026-03-23 to 2026-04-28). Estimate is Bunia-specific and a lower bound, since further or geographically broader sequencing only pushes the TMRCA older."

@@ -440,16 +440,19 @@ end
 
 # ##### Genetic seeding bound
 #
-# The first eight sequenced cases give a maximum-likelihood phylogeny
-# [virological2026](@cite) whose root-to-tip genetic distance, divided
-# by the $1.2\times10^{-3}$ substitutions/site/year molecular clock rate
-# estimated for the 2013–2016 West African Ebola epidemic
-# [holmes2016](@cite), places the time to the most recent common
+# A BEAST time tree of the first ten sequenced genomes
+# [virological2026](@cite) places the time to the most recent common
 # ancestor (TMRCA), the age of the oldest internal node of the tree,
-# roughly 80 days before the reference date on which the estimate was
-# reported (combination per N. Ferguson [ferguson2026](@cite)).
+# at a mean of 25 March 2026, roughly 54 days before the cut-off, with
+# a 95% HPD interval of about $\pm 30$ days.
+# The clock is fixed, as the temporal sampling range is too short to
+# estimate it, to the $1.2\times10^{-3}$ substitutions/site/year rate
+# from all public data for the 2013–2016 West African Ebola epidemic
+# [holmes2016](@cite), the same rate this analysis assumes; the faster
+# $1.9\times10^{-3}$ early-epidemic rate gives a more recent TMRCA.
 # This is a lower bound on the seeding time $T$, since the TMRCA only
-# moves older as more sequences are added.
+# moves older as more, or more geographically representative, sequences
+# are added (the sampled tree is almost entirely from Bunia).
 # We do not know exactly where the floor sits, so we treat it as an
 # uncertain threshold $B \sim \mathrm{Normal}(g, \sigma)$ and require
 # $T \ge B$, leaving $T$ free above it.
@@ -457,7 +460,7 @@ end
 #
 # ```math
 # p_\text{gen}(T) = \Pr[B \le T] = \Phi\!\left(\frac{T - g}{\sigma}\right),
-# \qquad g \approx 80\ \text{d}, \ \sigma = 20\ \text{d}. \tag{3a}
+# \qquad g \approx 54\ \text{d}, \ \sigma = 15\ \text{d}. \tag{3a}
 # ```
 
 #md # ```@raw html

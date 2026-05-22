@@ -6,6 +6,15 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
+## Unreleased
+
+### Data
+
+- Updated the genetic TMRCA seeding bound to the BEAST temporal-tree
+  estimate from the 2026-05-21 virological.org update (mean 2026-03-25,
+  95% HPD 2026-02-20 to 2026-04-20, at the 1.2e-3 EBOV clock rate this
+  analysis assumes), superseding the earlier root-to-tip estimate.
+
 ## v1.1.0
 
 ### Modelling
