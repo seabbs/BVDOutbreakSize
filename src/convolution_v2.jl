@@ -107,6 +107,9 @@ the nested-convolution cost close to the single-convolution model: the
 inner convolution is paid `npts` times per draw instead of
 `(outer nodes) × (3 streams)` times.
 
+Calling `oi(t)` linearly interpolates the curve over the half-open
+`[0, T)` and returns zero for `t <= 0` or `t >= T`.
+
 `r` is the growth rate, `incub_dist` the incubation distribution and
 `T` the elapsed time (upper grid bound). Fields:
 
@@ -139,8 +142,14 @@ function OnsetIncidence(r, incub_dist, T;
     return OnsetIncidence(r, Tt, oftype(Tt, dt), vals)
 end
 
-# Linear interpolation of the tabulated onset incidence. Zero outside
-# `[0, T]` (no onsets before the seed; the grid stops at the cut-off).
+# Linear interpolation of the tabulated onset incidence over the
+# half-open `[0, T)`: zero for `t <= 0` (no onsets before the seed) and
+# zero for `t >= T` (the grid stops at the cut-off). Returning zero
+# exactly at `t = T` is deliberate and harmless for the observation
+# integrals: a Gauss-Legendre node never lands exactly on the upper
+# limit, and the deaths/reports integrands carry `F(T - s)`, which is
+# `F(0) = 0` at `s = T` regardless. Avoids an out-of-bounds `vals[i+1]`
+# and keeps the integrand continuous for AD.
 @inline function (oi::OnsetIncidence)(t)
     (t <= zero(t) || t >= oi.T) && return zero(eltype(oi.vals))
     pos  = t / oi.dt
