@@ -6,6 +6,19 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
+## Unreleased
+
+### Modelling
+
+- Condition the reported-cases likelihood on the cumulative-case totals
+  from multiple situation-report vintages (a cumulative-at-date
+  trajectory) instead of only the latest total. The model fits the
+  between-vintage increments through the cumulative reporting intensity
+  `Λ(s) = p_drc · C(s)`, adding a growth-rate signal that was otherwise
+  prior-driven. The latent process is unchanged and a single total
+  reduces exactly to the previous likelihood. Vintages supplied in
+  `data/observations.toml` and the report snapshots.
+
 ## v1.1.0
 
 ### Modelling
