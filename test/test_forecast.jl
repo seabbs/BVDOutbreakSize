@@ -69,3 +69,30 @@ end
     fig = plot_forecast(fc)
     @test fig !== nothing
 end
+
+@testset "forecast_vs_truth compares cumulative forecast to observed" begin
+    chn = sample(_forecast_test(), Prior(), 200;
+                 chain_type = FlexiChains.VNChain, progress = false)
+    fc = forecast_reported(chn;
+        horizon = 7, daily_travellers = 1871,
+        source_population = 4_392_200,
+        obs_cases = 514, obs_deaths = 136, obs_exports = 2)
+
+    tbl = forecast_vs_truth(fc;
+        cases = 600, deaths = 150, exports = 3)
+
+    @test tbl isa DataFrame
+    ## One row per stream (cases, deaths, exports).
+    @test nrow(tbl) == 3
+    @test names(tbl) ==
+          ["Stream", "Observed", "Central estimate",
+           "Lower 90%", "Upper 90%", "Within 90% PI"]
+    @test Set(tbl[!, "Stream"]) ==
+          Set(["DRC reported cases", "DRC deaths", "Uganda exports"])
+
+    ## Coverage flag agrees with the reported interval endpoints.
+    for row in eachrow(tbl)
+        covered = row["Lower 90%"] <= row.Observed <= row["Upper 90%"]
+        @test row["Within 90% PI"] == (covered ? "yes" : "no")
+    end
+end

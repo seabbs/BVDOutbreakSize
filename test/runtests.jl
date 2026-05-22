@@ -10,7 +10,8 @@ using BVDOutbreakSize: REPORT_SCENARIOS,
                        plot_prior_predictive,
                        plot_posterior_predictive, plot_pair,
                        plot_start_date_pair, plot_estimate_comparison,
-                       forecast_reported, forecast_table, plot_forecast
+                       forecast_reported, forecast_table, plot_forecast,
+                       forecast_vs_truth
 using ADTypes: AutoMooncake
 using DataFrames: DataFrame, nrow
 using Distributions: Normal

@@ -43,7 +43,8 @@ export REPORT_SCENARIOS,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
-       forecast_reported, forecast_table, plot_forecast
+       forecast_reported, forecast_table, plot_forecast,
+       forecast_vs_truth
 
 """
     REPORT_SCENARIOS
@@ -542,6 +543,8 @@ const _PRETTY_COLS = Dict(
     "central_estimate"   => "Central estimate",
     "reported_cases"     => "Reported cases",
     "narrowest_interval" => "Narrowest interval",
+    "observed"           => "Observed",
+    "within_90"          => "Within 90% PI",
     "lower_90" => "Lower 90%", "lower_60" => "Lower 60%",
     "lower_30" => "Lower 30%", "upper_30" => "Upper 30%",
     "upper_60" => "Upper 60%", "upper_90" => "Upper 90%",
@@ -1237,6 +1240,37 @@ function forecast_table(fc::DataFrame; digits::Integer = 0)
         push!(rows, _row(label, "cumulative by T+7", fc[!, cum]))
         push!(rows, _row(label, "new this week",     fc[!, new]))
     end
+    return _prettify(DataFrame(rows))
+end
+
+"""
+    forecast_vs_truth(fc::DataFrame; cases, deaths, exports, digits = 0)
+
+Validate a [`forecast_reported`](@ref) projection against the counts
+that were later observed. `cases`, `deaths` and `exports` are the
+observed cumulative DRC reported cases, DRC deaths and Uganda exports at
+the forecast target date. Returns a `DataFrame` with one row per stream
+giving the observed count, the forecast central (median) estimate, the
+90% predictive-interval endpoints, and whether the observed count falls
+inside that interval. Use it to forecast from an earlier data snapshot
+and check the now-known truth against the projection.
+"""
+function forecast_vs_truth(fc::DataFrame;
+        cases::Real, deaths::Real, exports::Real, digits::Integer = 0)
+    _row(label, draws, obs) = begin
+        s  = posterior_summary(draws)
+        lo = round(s.lo90; digits)
+        hi = round(s.hi90; digits)
+        (stream = label, observed = round(obs; digits),
+         central_estimate = round(quantile(draws, 0.5); digits),
+         lower_90 = lo, upper_90 = hi,
+         within_90 = lo <= obs <= hi ? "yes" : "no")
+    end
+    rows = [
+        _row("DRC reported cases", fc[!, :cases_cum],   cases),
+        _row("DRC deaths",         fc[!, :deaths_cum],  deaths),
+        _row("Uganda exports",     fc[!, :exports_cum], exports),
+    ]
     return _prettify(DataFrame(rows))
 end
 
