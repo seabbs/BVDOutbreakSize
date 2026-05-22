@@ -13,10 +13,9 @@ using Turing: Turing, @model, sample, Prior, to_submodel, logjoint
 end
 
 @testset "genetic_seeding adds the soft lower-bound log density" begin
-    ## g = 80 days is the molecular-clock TMRCA, taken ~80 days before the
-    ## reference date 2026-05-21 on which the estimate was reported.
-    ## sd is the SD on the floor's location, not a bound on how old T can
-    ## be.
+    ## g is the molecular-clock TMRCA in days before the cut-off; sd is
+    ## the SD on the floor's location, not a bound on how old T can be.
+    ## Synthetic values here just exercise the submodel mechanics.
     g, sd = 80.0, 20.0
     at(T) = logjoint(_genetic_seeding(T, g; tmrca_days_sd = sd), (;))
 
