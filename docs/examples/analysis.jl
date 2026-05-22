@@ -451,19 +451,24 @@ end
 # [virological2026](@cite) places the TMRCA, the age of the oldest
 # internal node of the tree, at a mean of 25 March 2026, with a 95% HPD
 # interval of about $\pm 30$ days.
-# The clock is fixed, as the temporal sampling range is too short to
-# estimate it, to the $1.2\times10^{-3}$ substitutions/site/year rate
-# from all public data for the 2013–2016 West African Ebola epidemic
-# [holmes2016](@cite), the same rate this analysis assumes; the faster
-# $1.9\times10^{-3}$ early-epidemic rate gives a more recent TMRCA.
-# This is a lower bound on the seeding time $T$, since the TMRCA only
-# moves older as more, or more geographically representative, sequences
-# are added (the sampled tree is almost entirely from Bunia).
+# The temporal sampling range is too short to estimate the clock, so it
+# is fixed. The source analysis considers two literature rates for the
+# 2013–2016 West African Ebola epidemic [holmes2016](@cite): a
+# $1.2\times10^{-3}$ substitutions/site/year rate across all public
+# data, and a faster $1.9\times10^{-3}$ early-epidemic rate that dates
+# the TMRCA more recently. We use the $1.2\times10^{-3}$ rate in the
+# main analysis and the $1.9\times10^{-3}$ rate in the
+# [clock-rate sensitivity](#Clock-rate-sensitivity).
+# This is a lower bound on the seeding time $T$: adding sequences, or
+# more geographically representative ones, can only push the TMRCA
+# earlier, never later (the sampled tree is almost entirely from Bunia).
 # Combining the genetic TMRCA with the other data streams as a seeding
 # bound follows a suggestion of N. Ferguson [ferguson2026](@cite).
-# We do not know exactly where the floor sits, so we treat it as an
-# uncertain threshold $B \sim \mathrm{Normal}(g, \sigma)$ and require
-# $T \ge B$, leaving $T$ free above it.
+# We parameterise the bound as an uncertain threshold
+# $B \sim \mathrm{Normal}(g, \sigma)$, where
+# $g = t_{\mathrm{cut}} - t_{\mathrm{TMRCA}}$ is the data cut-off date
+# minus the reported TMRCA date (so it tracks the cut-off rather than a
+# fixed offset), and require $T \ge B$, leaving $T$ free above it.
 # Marginalising over $B$ gives a soft one-sided likelihood,
 #
 # ```math
@@ -1966,14 +1971,14 @@ delay_sensitivity_fig #hide
 
 # ### Clock-rate sensitivity
 #
-# The genetic seeding bound uses the BEAST TMRCA at the
-# $1.2\times10^{-3}$ substitutions/site/year clock rate this analysis
-# assumes. The same temporal tree under the faster $1.9\times10^{-3}$
-# early-epidemic rate gives a TMRCA about three weeks more recent
-# [virological2026](@cite); the authors report both without favouring
-# either. We refit the joint model under that alternative bound and
-# compare the impact on the outbreak size $C(T)$, the seeding time $T$
-# and the growth rate $r$.
+# The main analysis fixes the molecular clock to the
+# $1.2\times10^{-3}$ substitutions/site/year rate (see the genetic
+# seeding bound above). The source analysis also reports a faster
+# $1.9\times10^{-3}$ early-epidemic rate, without favouring either
+# [virological2026](@cite); under it the TMRCA is dated more recently.
+# We refit the joint model under that alternative bound and compare the
+# impact on the outbreak size $C(T)$, the seeding time $T$ and the
+# growth rate $r$.
 
 #md # ```@raw html
 #md # <details><summary>Refit the joint model under the 1.9e-3 clock</summary>
