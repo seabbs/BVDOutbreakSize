@@ -335,15 +335,15 @@ observations_table #hide
 # The table below shows which building-block parameters feed each
 # observation submodel:
 #
-# | Parameter | Exports | Deaths | Cases | Export deaths (time-resolved) | First export-detection timing |
-# |---|:---:|:---:|:---:|:---:|:---:|
-# | Growth $C(s) = e^{rs}$ | ● | ● | ● | ● | ● |
-# | Onset-to-death delay |  | ● |  | ● |  |
-# | Case-fatality ratio |  | ● |  | ● |  |
-# | Detection window | ● |  |  | ● | ● |
-# | Surveillance dispersion |  | ● | ● |  |  |
-# | Ascertainment | ● |  | ● | ● | ● |
-# | Traveller volume | ● |  |  | ● | ● |
+# | Parameter | Exports | Deaths | Cases | Export deaths (time-resolved) | First export-detection timing | Genetic seeding |
+# |---|:---:|:---:|:---:|:---:|:---:|:---:|
+# | Growth $C(s) = e^{rs}$ | ● | ● | ● | ● | ● | ● |
+# | Onset-to-death delay |  | ● |  | ● |  |  |
+# | Case-fatality ratio |  | ● |  | ● |  |  |
+# | Detection window | ● |  |  | ● | ● |  |
+# | Surveillance dispersion |  | ● | ● |  |  |  |
+# | Ascertainment | ● |  | ● | ● | ● |  |
+# | Traveller volume | ● |  |  | ● | ● |  |
 #
 # The model components, in the order they appear below:
 #
