@@ -231,7 +231,7 @@ using DataFrames: DataFrame
 import CSV
 using Random
 using Markdown
-using Dates: Date, Day
+using Dates: Date, Day, value
 using BVDOutbreakSize
 using BVDOutbreakSize: integrate_cumulative, integrate_exports_deaths,
                        expected_deaths
@@ -1647,9 +1647,8 @@ diagnostics_table( #hide
 # outbreak, and planning for beds, contacts and vaccine needs depends
 # on the true total. The numbers below are our current best estimate of
 # that total, computed from the joint posterior and refreshed on every
-# build. For each headline number we give the median, a narrow 50%
-# credible interval and the wider 90% interval; the full 30/60/90%
-# intervals are in the tables below.
+# build. For each headline number we give the equal-tailed 30%, 60% and
+# 90% credible intervals; the same intervals appear in the tables below.
 
 #md # ```@raw html
 #md # <details><summary>Compute the headline ranges</summary>
@@ -1680,7 +1679,6 @@ summary_ranges = let
     sτ = posterior_summary(τd)
     sr = posterior_summary(rd)
 
-    start_md       = Date(obs.as_of_date) - Day(round(Int, med(Td)))
     start_earliest = Date(obs.as_of_date) - Day(round(Int, sT.hi90))
     start_latest   = Date(obs.as_of_date) - Day(round(Int, sT.lo90))
     f_lo = round(sC.lo90 / obs.reported_cases; digits = 1)
@@ -1693,24 +1691,25 @@ summary_ranges = let
     biggest = argmax(p -> abs(p.second), moves)
 
     Markdown.parse("""
-    - **Current cumulative case load:** a median of $(round(Int, med(C)))
-      cases (intervals: $(ints_i(sC))), combining all four data streams
-      (reported and as-yet-unreported).
+    - **Current cumulative case load:** we estimate $(ints_i(sC)) cases,
+      combining all four data streams (reported and as-yet-unreported).
     - That is roughly $(f_lo)–$(f_hi)× the $(obs.reported_cases) cases
-      reported to date, so most infections are not yet reported.
-    - **Time since seeding:** a median of $(round(Int, med(Td))) days
-      (intervals: $(ints_i(sT))), placing the start of sustained
-      transmission around $(start_md) (90% between $(start_earliest)
-      and $(start_latest)).
-    - **Doubling time and growth rate:** a median doubling time of
-      $(round(med(τd); digits = 1)) days (intervals: $(ints_f(sτ, 1))),
-      and an implied growth rate of $(round(med(rd); digits = 3)) per
-      day (intervals: $(ints_f(sr, 3))).
-    - **Shift from priors:** in prior-IQR units (0 = unchanged from
-      prior, sign gives direction), the fit moves the cumulative case
-      load by $(moves[1].second), the time since seeding by
-      $(moves[2].second) and the doubling time by $(moves[3].second);
-      the largest move is in the $(biggest.first).
+      reported to date, so most infections are not yet reported. This
+      multiplier is one over the DRC reporting fraction; see
+      [what the reporting fraction means](#Joint-model-estimates).
+    - **Time since seeding:** we estimate $(ints_i(sT)) days, placing the
+      start of sustained transmission between $(start_earliest) and
+      $(start_latest).
+    - **Doubling time and growth rate:** we estimate a doubling time of
+      $(ints_f(sτ, 1)) days, and an implied growth rate of
+      $(ints_f(sr, 3)) per day.
+    - **Shift from priors:** how far the data has moved each estimate
+      from its prior, measured in prior interquartile ranges (IQRs) — a
+      value of 1 means the posterior median sits one prior IQR from the
+      prior median, 0 means unchanged, and the sign gives the direction.
+      The fit moves the cumulative case load by $(moves[1].second), the
+      time since seeding by $(moves[2].second) and the doubling time by
+      $(moves[3].second); the largest move is in the $(biggest.first).
     """)
 end;
 
@@ -1833,6 +1832,15 @@ posterior_pair_fig = plot_pair(chn_joint,
 
 posterior_pair_fig #hide
 
+# The DRC reporting fraction $p_{\text{DRC}}$ is the share of true cases
+# that reach the reported suspected-case count. The reported total
+# therefore scales up to the cumulative case load by about
+# $1/p_{\text{DRC}}$, which is the multiplier quoted in the
+# [summary](@ref "Summary"): a reporting fraction near $0.25$ implies a
+# roughly fourfold gap between reported and true cases. The pair plot
+# above shows its posterior against the prior, so how far below one the
+# fraction sits is what sets that scaling.
+#
 # A posterior predictive check draws replicated observations from the
 # fitted joint model and compares them to the observed counts. If the
 # fit is reasonable the observed value (red line) sits inside the bulk
@@ -1951,6 +1959,88 @@ forecast_fig = plot_forecast(forecast);
 #md # ```
 
 forecast_fig #hide
+
+# ### Forecast validation against later data
+#
+# The one-week-ahead forecast above projects from the current fit, so it
+# cannot yet be checked. We can instead validate the same machinery
+# retrospectively: take our joint fit to the original McCabe et al.
+# report's data, project each posterior draw forward to the current data
+# cut-off, and compare the predicted cumulative counts against the counts
+# observed since.
+
+#md # ```@raw html
+#md # <details><summary>Fit the joint model to the original report's data and forecast it forward</summary>
+#md # ```
+
+obs_report = load_observations(
+    joinpath(pkgdir(BVDOutbreakSize), "data", "report-snapshot.toml"));
+
+chn_joint_report = nuts_sample(
+    bvd_joint(obs_report.exported_cases, obs_report.total_deaths,
+              obs_report.reported_cases, obs_report.export_deaths_daily;
+              first_export_detection_delta =
+                  obs_report.first_export_detection_delta));
+posterior_C_joint_report =
+    vec(Array(chn_joint_report[:cumulative_cases]));
+
+validation_horizon =
+    value(Date(obs.as_of_date) - Date(obs_report.as_of_date))
+
+forecast_validation = forecast_reported(chn_joint_report;
+    horizon           = validation_horizon,
+    daily_travellers  = ITURI_DAILY_TRAVEL,
+    source_population = ITURI_POPULATION,
+    obs_cases         = obs_report.reported_cases,
+    obs_deaths        = obs_report.total_deaths,
+    obs_exports       = obs_report.exported_cases);
+
+forecast_validation_table = forecast_vs_truth(forecast_validation;
+    cases   = obs.reported_cases,
+    deaths  = obs.total_deaths,
+    exports = obs.exported_cases);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+#md # ```@eval
+#md # using BVDOutbreakSize, Markdown
+#md # using Dates: Date, value
+#md # rep = load_observations(joinpath(pkgdir(BVDOutbreakSize), "data",
+#md #     "report-snapshot.toml")).as_of_date
+#md # cur = load_observations().as_of_date
+#md # h = value(Date(cur) - Date(rep))
+#md # Markdown.parse("Projecting the original-report fit $(h) days " *
+#md #     "forward to the current ($(cur)) data, against the counts " *
+#md #     "observed by then:")
+#md # ```
+
+forecast_validation_table #hide
+
+# The top row shows the cumulative forecast per stream and the bottom row
+# the new counts over the horizon, mirroring the one-week-ahead forecast.
+# Each panel shades the 90% predictive interval and draws the
+# later-observed count as a dashed rule, so coverage can be read off
+# directly.
+
+#md # ```@raw html
+#md # <details><summary>Forecast-validation plot</summary>
+#md # ```
+
+forecast_validation_fig = plot_forecast_vs_truth(forecast_validation;
+    cases            = obs.reported_cases,
+    deaths           = obs.total_deaths,
+    exports          = obs.exported_cases,
+    baseline_cases   = obs_report.reported_cases,
+    baseline_deaths  = obs_report.total_deaths,
+    baseline_exports = obs_report.exported_cases);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+forecast_validation_fig #hide
 
 # ### Delay sensitivity
 #
@@ -2280,19 +2370,11 @@ cumulative_density_fig #hide
 #md # <details><summary>Fit our model to each report version's data, and run the Method 2 reproductions</summary>
 #md # ```
 
-obs_report = load_observations(
-    joinpath(pkgdir(BVDOutbreakSize), "data", "report-snapshot.toml"));
+## `obs_report` and `chn_joint_report` (the 18 May report's data) are
+## loaded and fitted earlier, in the forecast-validation section.
 obs_report_20may = load_observations(
     joinpath(pkgdir(BVDOutbreakSize), "data",
              "report-snapshot-20may.toml"));
-
-chn_joint_report = nuts_sample(
-    bvd_joint(obs_report.exported_cases, obs_report.total_deaths,
-              obs_report.reported_cases, obs_report.export_deaths_daily;
-              first_export_detection_delta =
-                  obs_report.first_export_detection_delta));
-posterior_C_joint_report =
-    vec(Array(chn_joint_report[:cumulative_cases]));
 
 chn_joint_report_20may = nuts_sample(
     bvd_joint(obs_report_20may.exported_cases,
@@ -2539,6 +2621,8 @@ CSV.write(joinpath(output_dir, "cumulative_cases_by_stream.csv"),
           streams_C_table)
 CSV.write(joinpath(output_dir, "imperial_comparison.csv"), main_comparison)
 CSV.write(joinpath(output_dir, "scenario_coverage.csv"), coverage_table)
+CSV.write(joinpath(output_dir, "forecast_validation.csv"),
+          forecast_validation_table)
 
 ## Copy the input data so the release records what produced these
 ## results.

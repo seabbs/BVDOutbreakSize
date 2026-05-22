@@ -32,6 +32,10 @@ each push to `main` also republishes the rendered analysis and the
   (`ExportDeathDelay`), replacing the per-node nested quadrature.
 - Removed hardcoded death and case constants that diverged from the
   observations in `data/observations.toml`.
+- Added a forecast validation: fit the joint model to the original
+  report's data, project it forward to the current cut-off, and compare
+  the predicted cumulative and new counts per stream against the counts
+  observed since, as a table and a 2×3 coverage plot.
 
 ### Data
 
@@ -58,7 +62,12 @@ each push to `main` also republishes the rendered analysis and the
 - Surfaced results from the README and analysis landing page, added
   stable and dev docs badges.
 - Plotting and labelling fixes: surveillance dispersion on the 1/√k
-  scale, predictive histograms labelled as frequency.
+  scale, predictive histograms labelled as frequency, and coarser
+  (four-weekly) start-date axis ticks so the labels stay readable.
+- Reworked the headline summary to report the credible intervals as
+  sentences rather than leading with a median, defined the prior-IQR
+  shift, and explained the reported-case scaling in terms of the DRC
+  reporting fraction with a link to the pair plot.
 - Replaced the model-structure diagram with a parameter-to-observation
   table.
 - Culled promotional register in the analysis report.
