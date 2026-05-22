@@ -11,7 +11,6 @@ using Dates: Date, date2epochdays, epochdays2date
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using Turing
-using Turing: filldist
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions
@@ -50,6 +49,7 @@ export REPORT_SCENARIOS,
        forecast_vs_truth, plot_forecast_vs_truth,
        safe_nbinomial,
        discretise_delay, renewal_infections, convolve_delay,
+       weekly_knot_days, interpolate_knots,
        rt_walk_model, generation_interval_model, delay_pmf_model,
        renewal_joint
 

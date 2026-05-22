@@ -43,15 +43,33 @@ with $g$ the generation-interval PMF (indexed from lag $1$, so an infectee
 is always infected strictly after its infector) and $I_0$ the seeding
 infections on day $1$.
 
-The reproduction number evolves as a Gaussian random walk on the log
-scale, sampled non-centred to avoid the random-walk funnel,
+The reproduction number is parameterised as a **weekly piecewise-linear**
+function on the log scale, matching the owner's Epuyén hantavirus analysis.
+Knots on $\log R$ sit at weekly spacing across the outbreak, with a knot
+pinned to each end of the grid (day $1$ and day $n$), and follow a weekly
+Gaussian random walk,
 
 $$
-\log R_1 = \log R_0,
+\log R^{(1)} \sim \mathcal N(\log R_0,\ 1),
 \qquad
-\log R_t = \log R_{t-1} + \sigma_{\mathrm{rw}}\, z_{t-1},
-\quad z_{t-1} \sim \mathcal N(0, 1).
+\log R^{(b)} \sim \mathcal N\!\bigl(\log R^{(b-1)},\ \sigma_{\mathrm{rw}}\bigr),
+\quad
+\sigma_{\mathrm{rw}} \sim \mathcal N^+(0,\ 0.5).
 $$
+
+The daily log-R is the linear interpolation between adjacent knots, so the
+trajectory bends only at the weekly knots and is otherwise straight, and
+$R_t = \exp(\log R_t)$.
+
+This regularises toward roughly constant transmission and cuts the latent
+$R_t$ dimension by about seven-fold versus a free daily walk (from $\sim n$
+daily values to $\lceil (n-1)/7 \rceil + 1$ weekly knots). With only four
+aggregate counts and one soft bound the data cannot inform a free $R_t$
+every day; restricting the bends to weekly knots and tying neighbouring
+knots with a tight ($\sigma_{\mathrm{rw}} \sim \mathcal N^+(0, 0.5)$)
+innovation prior pins the trajectory toward a smooth, near-constant curve
+unless the data genuinely demand otherwise. At $n = 90$ this takes the
+joint parameter count from $101$ (daily walk) to $25$.
 
 ### From infections to observations
 
@@ -87,8 +105,9 @@ probability, here a function of the grid length $n$.
 
 ### Priors and delays
 
-- $\log R_0 \sim \mathcal N(\log 2, 0.5)$, $\sigma_{\mathrm{rw}} \sim
-  \mathcal N^+(0, 0.1)$, innovations $z \sim \mathcal N(0, 1)$.
+- First weekly knot $\log R^{(1)} \sim \mathcal N(\log 2, 1)$; weekly walk
+  innovation $\sigma_{\mathrm{rw}} \sim \mathcal N^+(0, 0.5)$; knots placed
+  every $7$ days with one pinned to each end of the grid.
 - $I_0 \sim \mathcal N^+(1, 1)$ (single zoonotic seed).
 - Generation interval: Gamma, mean $12$ d, SD $6$ d, fixed (a handful of
   aggregate counts cannot identify it).
@@ -148,9 +167,9 @@ before the Poisson/NegBinomial likelihoods, mirroring `expected_exports`.
 
 1. compiles and draws from the prior (sensible counts for all four
    streams);
-2. yields a finite, nonzero Mooncake gradient of the 101-parameter joint
-   log density;
-3. completes a short NUTS run (100 iterations, 1 chain) in ~17 s without
+2. yields a finite, nonzero Mooncake gradient of the 25-parameter joint
+   log density (down from $101$ under the earlier daily walk);
+3. completes a short NUTS run (100 iterations, 1 chain) in ~22 s without
    erroring.
 
 ## Expected runtime vs current
@@ -158,25 +177,29 @@ before the Poisson/NegBinomial likelihoods, mirroring `expected_exports`.
 The current joint fit runs in roughly 6 minutes.
 The renewal model replaces the per-call quadrature with $O(n^2)$ renewal
 plus $O(n \cdot L)$ convolutions, and the parameter dimension grows from a
-dozen to $\sim n$ because of the daily $R_t$ walk (101 parameters at
-$n = 90$).
-The 100-iteration smoke test took 17 s, dominated by the first-call
+dozen to a dozen-plus the weekly $R_t$ knots ($25$ parameters at $n = 90$,
+versus $101$ under the earlier daily walk).
+The 100-iteration smoke test took ~22 s, dominated by the first-call
 gradient compilation; per-gradient cost after warmup is small.
 A rough extrapolation puts a 4-chain $\times$ 1000-sample fit in the
 single-digit-to-low-tens-of-minutes range, i.e. comparable to or somewhat
-slower than the current model, with the cost set mainly by the larger
-parameter space and the NUTS trajectory length the $R_t$ walk needs.
+slower than the current model, with the cost set mainly by the parameter
+space and the NUTS trajectory length the $R_t$ knots need.
 This needs confirming with a full fit before any production switch.
 
 ## Identifiability risks
 
-- **The daily $R_t$ walk is badly over-parameterised for the data.** Four
-  aggregate counts and one soft bound cannot inform $\sim n$ daily
-  reproduction numbers; the $R_t$ posterior will track its prior almost
-  everywhere and the walk SD $\sigma_{\mathrm{rw}}$ will be weakly
-  identified. The headline $C(T)$ may be reasonably constrained while the
-  trajectory shape is essentially prior. A coarser $R_t$ (a few segments,
-  or a tight prior) is likely more honest than a daily walk here.
+- **The weekly $R_t$ knots are still only weakly informed by the data.**
+  Four aggregate counts and one soft bound carry little information about
+  the shape of transmission over time, so the weekly knots and the walk SD
+  $\sigma_{\mathrm{rw}}$ will lean on their priors and the trajectory will
+  stay close to a smooth near-constant curve. The weekly piecewise-linear
+  form (replacing the earlier daily walk) is the regularisation that makes
+  this acceptable: it cuts the $R_t$ dimension about seven-fold and the
+  tight innovation prior pins neighbouring knots together. The headline
+  $C(T)$ should be reasonably constrained even though the trajectory shape
+  is largely prior. A still coarser $R_t$ (fortnightly, or a single
+  segment) could be used if even the weekly knots prove unidentified.
 - **Grid length $n$ stands in for the outbreak age $T$** and is currently
   fixed. To estimate the age, $n$ (or a continuous start offset) must
   become a parameter, which is awkward on a fixed integer grid; this is the
@@ -205,15 +228,16 @@ the exponential-growth assumption drives the current numbers.
 - The prototype is additive: `src/renewal.jl` is `include`d by the module
   and exports its own names, leaving the exponential-growth model and all
   existing tests untouched (full suite still passes).
-- To productionise: make the outbreak age a parameter; decide on the $R_t$
-  resolution; replace the fixed incubation/report/detection delays with
-  documented priors; add posterior-summary, plotting and forecast paths
-  analogous to the current ones; and add the time-resolved likelihoods
-  (issue #52) that the daily grid now makes natural.
-- The biggest open question is whether the extra latent flexibility earns
-  its keep given the data: with four aggregate counts the daily $R_t$ walk
-  is unlikely to be identified, so a reduced-flexibility $R_t$ may be the
-  sensible production form.
+- To productionise: make the outbreak age a parameter; confirm the weekly
+  $R_t$ resolution against a full fit (and coarsen further if needed);
+  replace the fixed incubation/report/detection delays with documented
+  priors; add posterior-summary, plotting and forecast paths analogous to
+  the current ones; and add the time-resolved likelihoods (issue #52) that
+  the daily grid now makes natural.
+- The open question is whether even the weekly knots earn their keep given
+  the data: with four aggregate counts the trajectory shape is largely
+  prior, so the weekly piecewise-linear form is the minimum flexibility
+  that still admits a non-constant $R_t$ when the data demand it.
 
 ## Recommendation
 
@@ -221,7 +245,10 @@ The architecture is technically viable end to end under Mooncake, and the
 CensoredDistributions blocker has a clean, proven fallback.
 It is worth pursuing as the route to time-resolved data (issue #52) and to
 relaxing the constant-growth assumption.
-But for the present aggregate-only data the full daily $R_t$ walk is
-over-parameterised; a production version should use a coarser $R_t$ and
-make the outbreak age an explicit parameter before it can replace the
-current model.
+The weekly piecewise-linear $R_t$ (mirroring the hantavirus analysis)
+addresses the over-parameterisation of the earlier daily walk, cutting the
+latent $R_t$ dimension about seven-fold and regularising toward smooth,
+near-constant transmission.
+A production version should still make the outbreak age an explicit
+parameter and confirm the weekly resolution against a full fit before it
+can replace the current model.

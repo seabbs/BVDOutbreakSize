@@ -139,29 +139,77 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Log-scale Gaussian random walk for the daily reproduction number over `n`
-days. The initial log-R has a Normal prior centred at `log(R0_mean)`; each
-subsequent day adds a Normal(0, σ) step, with σ given a half-Normal prior.
-Sampled non-centred (standard-normal innovations scaled by σ) to avoid the
-random-walk funnel. Returns `(; Rt, log_R0, sigma_rw)` with `Rt` the
-length-`n` reproduction-number trajectory.
+Day positions of the weekly log-R knots over an `n`-day grid. Knot 1 sits
+on day 1 and the last knot on day `n`, with intermediate knots every
+`week` days, so a knot is always pinned to each end of the grid. Returns an
+integer vector of day indices of length `cld(n - 1, week) + 1`.
+"""
+function weekly_knot_days(n::Integer; week::Integer = 7)
+    n <= 1 && return [1]
+    days = collect(1:week:n)
+    days[end] == n || push!(days, n)
+    return days
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Linearly interpolate weekly log-R knot values `log_R_knots` (placed on the
+day indices `knot_days`) onto the full daily grid `1:n`, returning the
+length-`n` daily log-R vector. Piecewise-linear on the log scale: each day
+is a convex combination of its bracketing knots, so the daily series bends
+only at the weekly knots and is otherwise straight. Type-stable and
+AD-transparent (the output element type follows the knot values).
+"""
+function interpolate_knots(log_R_knots::AbstractVector,
+        knot_days::AbstractVector{<:Integer}, n::Integer)
+    Tp = eltype(log_R_knots)
+    out = Vector{Tp}(undef, n)
+    nb = length(knot_days)
+    @inbounds for t in 1:n
+        ## Bracketing knots b and b+1 with t in [knot_days[b], knot_days[b+1]].
+        b = 1
+        while b < nb - 1 && t > knot_days[b + 1]
+            b += 1
+        end
+        d0 = knot_days[b]
+        d1 = knot_days[b + 1]
+        frac = d1 == d0 ? zero(Tp) : Tp(t - d0) / Tp(d1 - d0)
+        out[t] = log_R_knots[b] + frac * (log_R_knots[b + 1] - log_R_knots[b])
+    end
+    return out
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Weekly piecewise-linear log-scale reproduction number over `n` days. Knots
+on log R sit at weekly spacing (see [`weekly_knot_days`](@ref)) and follow a
+weekly Gaussian random walk, `log_R[1] ~ Normal(log(R0_mean), 1)` then
+`log_R[b] ~ Normal(log_R[b-1], σ_rw)`, with `σ_rw` a tight half-Normal
+(matching the hantavirus analysis). Daily log-R is the linear interpolation
+between knots (see [`interpolate_knots`](@ref)); `Rt = exp.(log_Rt)`.
+
+This regularises toward roughly constant transmission and cuts the latent
+R_t dimension by about `week`-fold versus a daily walk, so a handful of
+aggregate counts are not pinning a free value every day. Returns
+`(; Rt, log_R, knot_days, sigma_rw)`.
 """
 @model function rt_walk_model(n::Integer;
-        log_r0_prior = Normal(log(2.0), 0.5),
-        sigma_prior  = truncated(Normal(0, 0.1); lower = 0))
-    log_R0   ~ log_r0_prior
+        week::Integer = 7,
+        log_r0_prior = Normal(log(2.0), 1.0),
+        sigma_prior  = truncated(Normal(0, 0.5); lower = 0))
+    knot_days = weekly_knot_days(n; week)
+    nb = length(knot_days)
     sigma_rw ~ sigma_prior
-    ## Non-centred innovations: standard-normal steps scaled by σ. Sampling
-    ## the offsets keeps the random walk away from the funnel geometry that
-    ## the centred form would give NUTS.
-    z ~ filldist(Normal(0, 1), n - 1)
-    log_Rt = Vector{typeof(log_R0)}(undef, n)
-    log_Rt[1] = log_R0
-    for t in 2:n
-        log_Rt[t] = log_Rt[t - 1] + sigma_rw * z[t - 1]
+    log_R = Vector{Real}(undef, nb)
+    log_R[1] ~ log_r0_prior
+    for b in 2:nb
+        log_R[b] ~ Normal(log_R[b - 1], sigma_rw)
     end
+    log_Rt = interpolate_knots(log_R, knot_days, n)
     Rt = exp.(log_Rt)
-    return (; Rt, log_R0, sigma_rw)
+    return (; Rt, log_R, knot_days, sigma_rw)
 end
 
 """

@@ -31,6 +31,43 @@ end
     @test y0 == x
 end
 
+@testset "weekly_knot_days pins both ends at weekly spacing" begin
+    days = BVDOutbreakSize.weekly_knot_days(90; week = 7)
+    @test days[1] == 1
+    @test days[end] == 90            # last knot pinned to the grid end
+    @test issorted(days)
+    @test all(diff(days)[1:(end - 1)] .== 7)
+    ## Far fewer knots than days: the ~7x dimension cut.
+    @test length(days) < 90 / 5
+    ## A grid that lands exactly on a weekly multiple needs no extra knot.
+    @test BVDOutbreakSize.weekly_knot_days(15; week = 7) == [1, 8, 15]
+end
+
+@testset "interpolate_knots is piecewise-linear and hits the knots" begin
+    knots = [0.0, 2.0, -1.0]
+    knot_days = [1, 5, 9]
+    daily = BVDOutbreakSize.interpolate_knots(knots, knot_days, 9)
+    @test length(daily) == 9
+    ## Exact at the knot days.
+    @test daily[1] == 0.0
+    @test daily[5] == 2.0
+    @test daily[9] == -1.0
+    ## Midpoint of the first segment is the average of its two knots.
+    @test daily[3] ≈ 1.0
+    ## Linear within a segment: constant first difference.
+    seg1 = diff(daily[1:5])
+    @test all(≈(seg1[1]), seg1)
+end
+
+@testset "rt_walk_model returns a weekly-knot daily Rt" begin
+    m = BVDOutbreakSize.rt_walk_model(90; week = 7)
+    st = m()
+    @test length(st.Rt) == 90
+    @test all(>(0), st.Rt)
+    @test length(st.log_R) == length(st.knot_days)
+    @test st.knot_days == BVDOutbreakSize.weekly_knot_days(90; week = 7)
+end
+
 @testset "renewal_joint prior-predictive draw is finite" begin
     gen = BVDOutbreakSize.renewal_joint(
         60, missing, missing, missing, missing)
