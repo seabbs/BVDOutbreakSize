@@ -54,10 +54,8 @@ each push to `main` also republishes the rendered analysis and the
   width.
 - Culled promotional register in the analysis report.
 - Softened the language explaining why our numbers may differ from the
-  McCabe et al. report. The data is now framed as one factor that can
-  move the estimate rather than a fixed source of divergence, since our
-  snapshot agrees with one report version while differing from the
-  other.
+  McCabe et al. report, clarifying that data differences are a possibility
+  rather than a fixed rule.
 
 ## v1.0.0
 
