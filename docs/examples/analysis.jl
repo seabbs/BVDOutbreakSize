@@ -224,7 +224,7 @@ using DataFrames: DataFrame
 import CSV
 using Random
 using Markdown
-using Dates: Date, Day
+using Dates: Date, Day, value
 using BVDOutbreakSize
 using BVDOutbreakSize: integrate_cumulative, integrate_exports_deaths,
                        expected_deaths
@@ -2295,6 +2295,61 @@ imperial_summary #hide
 
 imperial_summary_20may #hide
 
+# ### Forecast validation against later data
+#
+# The one-week-ahead forecast above projects from the current fit, so it
+# cannot yet be checked. We can instead validate the same machinery
+# retrospectively: take our joint fit to the original McCabe et al.
+# snapshot (16 May, `report-snapshot.toml`), project each posterior draw
+# forward to the current data cut-off, and compare the predicted
+# cumulative counts against the counts that have since been observed.
+# This is a genuine out-of-sample check — the model never saw the later
+# data — of whether the no-change projection and its uncertainty are
+# calibrated over the few days between the snapshots.
+#
+# The horizon is the gap between the two cut-offs. With only a handful
+# of days and a single observed total per stream this is a weak check,
+# not a scoring exercise: it asks whether the now-known counts fall
+# inside the projection's 90% predictive interval.
+
+#md # ```@raw html
+#md # <details><summary>Forecast from the 16 May snapshot and compare to current data</summary>
+#md # ```
+
+validation_horizon =
+    value(Date(obs.as_of_date) - Date(obs_report.as_of_date))
+
+forecast_validation = forecast_reported(chn_joint_report;
+    horizon           = validation_horizon,
+    daily_travellers  = ITURI_DAILY_TRAVEL,
+    source_population = ITURI_POPULATION,
+    obs_cases         = obs_report.reported_cases,
+    obs_deaths        = obs_report.total_deaths,
+    obs_exports       = obs_report.exported_cases);
+
+forecast_validation_table = forecast_vs_truth(forecast_validation;
+    cases   = obs.reported_cases,
+    deaths  = obs.total_deaths,
+    exports = obs.exported_cases);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+#md # ```@eval
+#md # using BVDOutbreakSize, Markdown
+#md # using Dates: Date, value
+#md # rep = load_observations(joinpath(pkgdir(BVDOutbreakSize), "data",
+#md #     "report-snapshot.toml")).as_of_date
+#md # cur = load_observations().as_of_date
+#md # h = value(Date(cur) - Date(rep))
+#md # Markdown.parse("Projecting the 16 May snapshot fit $(h) days " *
+#md #     "forward to the $(cur) cut-off, against the counts observed " *
+#md #     "by then:")
+#md # ```
+
+forecast_validation_table #hide
+
 # ## Saving results
 #
 # The tables above are written to an `output/` directory at the repo
@@ -2323,6 +2378,8 @@ CSV.write(joinpath(output_dir, "cumulative_cases_by_stream.csv"),
           streams_C_table)
 CSV.write(joinpath(output_dir, "imperial_comparison.csv"), main_comparison)
 CSV.write(joinpath(output_dir, "scenario_coverage.csv"), coverage_table)
+CSV.write(joinpath(output_dir, "forecast_validation.csv"),
+          forecast_validation_table)
 
 ## Copy the input data so the release records what produced these
 ## results.
