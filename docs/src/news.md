@@ -6,24 +6,14 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
-## Unreleased
-
-### Data
-
-- Updated the genetic TMRCA seeding bound to the BEAST temporal-tree
-  estimate from the 2026-05-21 virological.org update (mean 2026-03-25,
-  95% HPD 2026-02-20 to 2026-04-20, at the 1.2e-3 EBOV clock rate this
-  analysis assumes), superseding the earlier root-to-tip estimate.
-
 ## v1.1.0
 
 ### Modelling
 
 - Bound the seeding time `T` from below with a soft prior on the
-  genetic time to the most recent common ancestor (TMRCA). Inspired by
-  an estimate from Neil Ferguson, using the first eight BDBV genomes
-  reported on
-  [virological.org](https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032).
+  genetic time to the most recent common ancestor (TMRCA), following a
+  suggestion from Neil Ferguson to combine the genetic signal with the
+  other data streams as a seeding bound.
 - Switched the export deaths to a daily (time-resolved binned) Poisson
   process: a continuous survival weight for the no-death stretch before
   the first dated death, then a per-day Poisson from that day to the
@@ -43,6 +33,11 @@ each push to `main` also republishes the rendered analysis and the
 
 - Updated to the McCabe et al. 20 May 2026 report, comparing both
   report versions.
+- Sourced the genetic TMRCA seeding bound from the BEAST temporal-tree
+  estimate in the 2026-05-21
+  [virological.org](https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032)
+  update (mean 2026-03-25, 95% HPD 2026-02-20 to 2026-04-20, at the
+  1.2e-3 EBOV clock rate this analysis assumes).
 
 ### Infrastructure
 
