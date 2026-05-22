@@ -1145,6 +1145,13 @@ end
 # window $w$ and daily traveller volume sampled by the exports
 # likelihood are reused by the deaths-among-exports likelihood so the
 # two share person-time.
+#
+# We write single-stream composers for the four count-based streams
+# only.
+# The export-detection-timing and genetic seeding terms constrain the
+# outbreak start $T$ rather than the size directly and are weakly
+# identified in isolation, so we do not fit them on their own; the
+# joint composer still conditions on both.
 
 # ##### Exports-only fit — Method 1 analogue
 
@@ -1959,6 +1966,10 @@ delay_sensitivity_fig #hide
 # The table below puts the posteriors over $C(T)$ side by side — the
 # four single-stream fits and the joint — to show what each stream buys
 # on its own and what the joint combination adds.
+# The single-stream fits cover the four count-based streams only; the
+# joint additionally conditions on the export-detection-timing and
+# genetic seeding terms, which constrain $T$ rather than the size and
+# so are not fit in isolation.
 
 #md # ```@raw html
 #md # <details><summary>Per-stream C_T table</summary>
