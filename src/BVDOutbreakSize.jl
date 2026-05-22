@@ -38,7 +38,7 @@ export REPORT_SCENARIOS,
        integrate_cumulative, integrate_exports_deaths,
        expected_exports, expected_exports_deaths,
        ExportDeathDelay, EXPORT_DELAY_GRID_POINTS,
-       plot_cumulative_cases, plot_prior_predictive,
+       plot_cumulative_cases, plot_density_overlay, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
        plot_cfr_prior,
@@ -137,6 +137,11 @@ Fields returned:
   `genetic_tmrca` block is present.
 - `genetic_tmrca_days_sd::Union{Real, Missing}` — SD (days) on the
   location of that floor; `missing` when absent.
+- `genetic_tmrca_alt_days::Union{Real, Missing}` — TMRCA (days before
+  `as_of_date`) under the alternative clock rate, for the clock-rate
+  sensitivity; `missing` when no `alt_date` is present.
+- `genetic_tmrca_alt_days_sd::Union{Real, Missing}` — SD (days) on the
+  alternative-clock floor; `missing` when absent.
 - `sources::NamedTuple` — citation per field, with keys
   `:exported_cases`, `:exports_deaths`, `:total_deaths`,
   `:reported_cases`, `:daily_outbound_travellers`,
@@ -201,6 +206,12 @@ function load_observations(
             _gap(raw["genetic_tmrca"]["date"]) : missing,
         genetic_tmrca_days_sd        = has_gen ?
             float(raw["genetic_tmrca"]["days_sd"]) : missing,
+        genetic_tmrca_alt_days       =
+            has_gen && haskey(raw["genetic_tmrca"], "alt_date") ?
+            _gap(raw["genetic_tmrca"]["alt_date"]) : missing,
+        genetic_tmrca_alt_days_sd    =
+            has_gen && haskey(raw["genetic_tmrca"], "alt_days_sd") ?
+            float(raw["genetic_tmrca"]["alt_days_sd"]) : missing,
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
@@ -756,6 +767,38 @@ function plot_cumulative_cases(
     return fg
 end
 
+"""
+$(TYPEDSIGNATURES)
+
+Overlaid posterior densities of an arbitrary scalar quantity from one
+or more fits, built through AlgebraOfGraphics. Pass each fit as
+`"label" => draws`; `xlabel` and `title` set the axis text.
+"""
+function plot_density_overlay(
+        streams::Pair{String, <:AbstractVector}...;
+        xlabel::AbstractString = "Value",
+        title::AbstractString = "Posterior density")
+    df = @chain DataFrame(stream = String[], value = Float64[]) begin
+        let df = _
+            for (label, draws) in streams
+                for x in draws
+                    push!(df, (label, float(x)))
+                end
+            end
+            df
+        end
+    end
+
+    spec = AoG.data(df) *
+           AoG.mapping(:value => xlabel, color = :stream => "Fit") *
+           AoG.AlgebraOfGraphics.density() *
+           AoG.visual(linewidth = 2)
+    return AoG.draw(spec;
+        axis  = (; ylabel = "Posterior density", title = title),
+        figure = (; size = (760, 420)),
+    )
+end
+
 _panel_pos(pos::Integer) = (1, pos)
 _panel_pos(pos::Tuple)   = pos
 
@@ -1038,6 +1081,11 @@ function plot_start_date_pair(chn;
     )
     density!(ax, start_days; color = (:steelblue, 0.5),
              strokecolor = :steelblue, strokewidth = 2)
+    ## Fortnightly date ticks across the posterior range, so the start
+    ## date is readable rather than relying on the default locator.
+    lo = floor(Int, minimum(start_days))
+    hi = ceil(Int, maximum(start_days))
+    ax.xticks = collect(lo:14:hi)
     ax.xtickformat = vals ->
         [string(epochdays2date(round(Int, v))) for v in vals]
 

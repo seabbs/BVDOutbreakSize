@@ -11,10 +11,9 @@ each push to `main` also republishes the rendered analysis and the
 ### Modelling
 
 - Bound the seeding time `T` from below with a soft prior on the
-  genetic time to the most recent common ancestor (TMRCA). Inspired by
-  an estimate from Neil Ferguson, using the first eight BDBV genomes
-  reported on
-  [virological.org](https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032).
+  genetic time to the most recent common ancestor (TMRCA), following a
+  suggestion from Neil Ferguson to combine the genetic signal with the
+  other data streams as a seeding bound.
 - Switched the export deaths to a daily (time-resolved binned) Poisson
   process: a continuous survival weight for the no-death stretch before
   the first dated death, then a per-day Poisson from that day to the
@@ -24,6 +23,10 @@ each push to `main` also republishes the rendered analysis and the
   survival term on the Uganda admission date. Dates supplied in
   `data/observations.toml`.
 - Death-convolution quadrature adapted to the sampled delay scale.
+- Added a clock-rate sensitivity: refit the joint model under the
+  faster 1.9e-3 early-epidemic TMRCA estimate and compare the impact on
+  outbreak size, seeding time and growth rate against the 1.2e-3
+  baseline.
 - Sped up the deaths-among-exports likelihood: precompute the
   onset-to-death CDF once and reuse it across bin edges
   (`ExportDeathDelay`), replacing the per-node nested quadrature.
@@ -34,6 +37,11 @@ each push to `main` also republishes the rendered analysis and the
 
 - Updated to the McCabe et al. 20 May 2026 report, comparing both
   report versions.
+- Sourced the genetic TMRCA seeding bound from the BEAST temporal-tree
+  estimate in the 2026-05-21
+  [virological.org](https://virological.org/t/initial-genomes-from-may-2026-bundibugyo-virus-disease-outbreak-in-the-democratic-republic-of-the-congo-and-uganda/1032)
+  update (mean 2026-03-25, 95% HPD 2026-02-20 to 2026-04-20, at the
+  1.2e-3 EBOV clock rate this analysis assumes).
 
 ### Infrastructure
 
@@ -50,8 +58,9 @@ each push to `main` also republishes the rendered analysis and the
 - Surfaced results from the README and analysis landing page, added
   stable and dev docs badges.
 - Plotting and labelling fixes: surveillance dispersion on the 1/√k
-  scale, predictive histograms labelled as frequency, model diagram
-  width.
+  scale, predictive histograms labelled as frequency.
+- Replaced the model-structure diagram with a parameter-to-observation
+  table.
 - Culled promotional register in the analysis report.
 
 ## v1.0.0

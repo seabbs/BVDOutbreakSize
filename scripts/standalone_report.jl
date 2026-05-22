@@ -2,8 +2,8 @@
 # page.
 #
 # The Vitepress build statically pre-renders the full analysis content
-# (tables, math and the model diagram as inline SVG, images as base64
-# data URIs) into the page HTML. This script lifts that content out of
+# (tables, math, images as base64 data URIs) into the page HTML. This
+# script lifts that content out of
 # the multi-file Vitepress site, inlines the stylesheet and the Inter
 # web fonts, and drops the SPA JavaScript so the result is one HTML
 # file that opens offline. It is published as a release asset by the
