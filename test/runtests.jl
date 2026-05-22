@@ -14,7 +14,8 @@ using BVDOutbreakSize: REPORT_SCENARIOS,
                        forecast_vs_truth, plot_forecast_vs_truth
 using ADTypes: AutoMooncake
 using DataFrames: DataFrame, nrow
-using Distributions: Normal
+using Distributions: Normal, Gamma
+import Distributions
 using Random: MersenneTwister
 using Turing: Turing, @model, sample, Prior
 import FlexiChains
@@ -42,3 +43,4 @@ include("test_exports_deaths.jl")
 include("test_integrate.jl")
 include("test_exports_death_timing.jl")
 include("test_exports_delay_grid.jl")
+include("test_renewal.jl")

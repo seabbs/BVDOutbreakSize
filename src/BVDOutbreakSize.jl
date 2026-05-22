@@ -11,11 +11,14 @@ using Dates: Date, date2epochdays, epochdays2date
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using Turing
+using Turing: filldist
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions
 using Distributions: Distribution, Gamma, ccdf, pdf, Poisson,
-                     NegativeBinomial
+                     NegativeBinomial, Beta, Normal, LogNormal, truncated,
+                     cdf, MvNormal
+using StatsFuns: logit, logistic, normlogcdf
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
@@ -44,7 +47,11 @@ export REPORT_SCENARIOS,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
-       forecast_vs_truth, plot_forecast_vs_truth
+       forecast_vs_truth, plot_forecast_vs_truth,
+       safe_nbinomial,
+       discretise_delay, renewal_infections, convolve_delay,
+       rt_walk_model, generation_interval_model, delay_pmf_model,
+       renewal_joint
 
 """
     REPORT_SCENARIOS
@@ -1394,5 +1401,24 @@ function plot_forecast_vs_truth(fc::DataFrame;
     end
     return fig
 end
+
+"""
+$(TYPEDSIGNATURES)
+
+NegativeBinomial with mean `μ` and dispersion `k`, with NaN / Inf-safe
+clamping on the success probability so extreme NUTS proposals during warmup
+do not trip the distribution domain check. Used by the deaths and cases
+likelihoods.
+"""
+function safe_nbinomial(k, μ)
+    p_raw = k / (k + max(μ, eps(typeof(μ))))
+    p = isfinite(p_raw) ?
+        clamp(p_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
+        eps(typeof(k))
+    return NegativeBinomial(k, p)
+end
+
+## Discrete-time renewal architecture (issue #81).
+include("renewal.jl")
 
 end # module
