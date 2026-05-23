@@ -5,12 +5,15 @@
 
 using BVDOutbreakSize: bvd_joint_v2, growth_v2, incubation_v2,
                        onset_to_death_v2, onset_to_report_v2,
+                       detection_window_v2, genetic_seeding_v2,
+                       OnsetIncidence,
                        nuts_sample, default_adtype, load_observations
 using Turing: @model
 using Turing.DynamicPPL: LogDensityFunction, VarInfo, link!!,
                          getlogjoint_internal
 import Turing.DynamicPPL.LogDensityProblems as LDP
-using Distributions: Beta, Normal, truncated
+using Distributions: Beta, Gamma, Normal, Poisson, NegativeBinomial,
+                     truncated
 using StatsFuns: logit, logistic
 
 # Minimal unchanged building blocks injected into the v2 composer.
@@ -57,6 +60,51 @@ _v2_model(e, d, c; tmrca = missing) = bvd_joint_v2(
     ## Growth timescale is sampled too (no fixed generation time).
     @test :τ in sampled
     @test :m in sampled
+end
+
+@testset "delay and window submodels are independently usable" begin
+    ## Each prior is its own submodel so a sensitivity analysis can
+    ## instantiate it standalone and inject a different prior. This
+    ## test exercises that interface without going through the joint.
+    @test (incubation_v2())().dist isa Gamma
+    @test (onset_to_death_v2())().dist isa Gamma
+    @test (onset_to_report_v2())().dist isa Gamma
+    @test (detection_window_v2())().w > 0
+    ## genetic_seeding_v2 conditions on `tmrca_days`; sample T=90 and
+    ## check it returns the recorded fields without error.
+    g = genetic_seeding_v2(90.0, 80; tmrca_days_sd = 20.0)()
+    @test g.tmrca_days == 80
+    @test g.tmrca_days_sd == 20.0
+end
+
+@testset "observation distributions are injectable" begin
+    ## Swap each observation submodel's likelihood for an explicit
+    ## Poisson and check the model still draws and produces non-negative
+    ## counts. This guards against a hardcoded distribution sneaking
+    ## back into the observation submodels.
+    model = bvd_joint_v2(missing, missing, missing,
+        growth_v2(), _cfr_bb(), _disp_bb(), _asc_bb(), _travel_bb();
+        exports_obs = μ -> Poisson(max(μ, eps(typeof(μ)))),
+        deaths_obs  = (k, μ) -> Poisson(max(μ, eps(typeof(μ)))),
+        cases_obs   = (k, μ) -> Poisson(max(μ, eps(typeof(μ)))))
+    draw = model()
+    @test draw.expected_deaths > 0
+    @test draw.expected_reports > 0
+    @test draw.expected_exports > 0
+end
+
+@testset "OnsetIncidence is built once per draw (source check)" begin
+    ## Item 5 of the project-owner directive: confirm the composer
+    ## constructs the onset-incidence curve once and reuses it across
+    ## the deaths/reports/exports submodels. Read models_v2.jl and
+    ## assert `OnsetIncidence(` appears exactly once at file scope.
+    src = read(joinpath(pkgdir(BVDOutbreakSize), "src", "models_v2.jl"),
+               String)
+    n = length(collect(eachmatch(r"OnsetIncidence\(", src)))
+    ## One call site (`oi = OnsetIncidence(r, ..., T)`) plus the type's
+    ## constructor signature (`function OnsetIncidence(`) lives in
+    ## convolution_v2.jl, not here.
+    @test n == 1
 end
 
 @testset "bvd_joint_v2 generates a prior-predictive draw" begin

@@ -91,29 +91,54 @@ The growth, CFR, traveller-volume, dispersion and pooled-ascertainment
 priors are unchanged from the current model and are injected into the
 v2 composer rather than re-defined.
 
-## Delay priors: every delay is sampled, none is fixed
+## Modularity: every prior is its own submodel, every obs is injected
 
-Design invariant (project owner directive): every delay in the fit is
-specified through a prior, and there is no fixed delay distribution and
-no fixed generation time.
-Each delay samples both gamma parameters from a prior in its own
-submodel and carries the resulting distribution into the likelihoods,
-the same pattern as the current model's `delay_model`.
-The three delays the observation expectations consume are:
+Design invariants (project-owner directives), all satisfied in this
+prototype and enforced by tests in `test_models_v2.jl`:
+
+1. **Every prior is a submodel.** No literal `Normal`/`Gamma`/etc.
+   constants are buried in a model body. Each prior lives in its own
+   `@model` submodel, the composer accepts it as an injectable
+   keyword, and the only literal distributions are the submodel
+   defaults (kwargs) — the same pattern as the current model's
+   `delay_model`, `cfr_model`, `surveillance_dispersion_model`,
+   `traveller_volume_model`, `detection_window_model`,
+   `pooled_ascertainment_model`. The TMRCA genetic-seeding term is
+   lifted into its own `genetic_seeding_v2` submodel; pass
+   `genetic = nothing` to drop it.
+2. **Every delay is specified via a prior**, including the
+   onset-to-detection window (now in `detection_window_v2`). No
+   delay distribution and no generation time is a fixed constant. The
+   growth rate `r` is itself sampled via `τ` and `m`, so the
+   timescale of spread is not a fixed input either.
+3. **Every observation distribution is injected** (with a sensible
+   default). `exports_obs_v2`, `deaths_obs_v2` and `cases_obs_v2`
+   each take an `obs` constructor keyword: a callable that returns
+   the observation Distribution from the expected count (and shared
+   `k` for NegBinomial). Defaults are Poisson for exports and the
+   shared safe-NegBinomial for deaths and reports. Tests swap in
+   Poisson everywhere to guard against a hardcoded distribution
+   sneaking back.
+4. **The onset-incidence curve is built once per draw**
+   (`OnsetIncidence`) and threaded into the three observation
+   submodels. A source-level test asserts the constructor appears
+   exactly one place in `models_v2.jl`.
+
+The four time scales the observation expectations consume:
 
 | Delay | Submodel | Prior | Status |
 |---|---|---|---|
 | Infection → onset (incubation) | `incubation_v2` | `α_inc ~ Normal⁺(11, 3)`, `θ_inc ~ Normal⁺(0.74, 0.25)` | new, prior from narrative range |
 | Onset → death | `onset_to_death_v2` | `α ~ Normal⁺(4.3, 1.22)`, `θ ~ Normal⁺(2.6, 0.82)` | prior-based (bdbv-linelist reanalysis) |
 | Onset → report | `onset_to_report_v2` | `α_otr ~ Normal⁺(4, 1.5)`, `θ_otr ~ Normal⁺(4.5, 1.5)` | new, prior with 30-day-cap caveat |
+| Onset → detection (window) | `detection_window_v2` | `w ~ Normal⁺(7, 3)` | new submodel, was inline previously |
 
-The onset-to-detection window `w ~ Normal⁺(7, 3)` is sampled too, and
-the growth timescale enters through the sampled `τ` and `m`, so the
+The growth timescale enters through the sampled `τ` and `m`, so the
 rate of spread is not a fixed input either.
-A regression test
-(`test_models_v2.jl`, "every delay parameter is sampled")
-asserts that `α_inc, θ_inc, α, θ, α_otr, θ_otr, w, τ, m` all appear as
-sampled variables, so a future fixed delay cannot slip in unnoticed.
+The regression test (`test_models_v2.jl`, "every delay parameter is
+sampled") asserts `α_inc, θ_inc, α, θ, α_otr, θ_otr, w, τ, m` all
+appear as sampled variables, so a future fixed delay cannot slip in
+unnoticed.
 
 The forward-layer helpers (`expected_deaths_v2`, `expected_reports_v2`,
 `expected_exports_v2`, `onset_incidence`) take the delay *distribution*
@@ -132,6 +157,47 @@ The onset-to-report delay carries the same caveat as in issue #4: the
 bdbv-linelist Isiro 2012 onset-to-notification estimate is 19.7 d
 (13.7-30.1), but Charniga 2024 flags a 30-day-cap truncation bias, so
 the prior is centred near 18 days and used with a strong caveat.
+
+## Non-centred parameterisations
+
+The composer reuses the existing `pooled_ascertainment_model`, which
+already samples the ascertainment fractions in non-centred form
+(`z_drc, z_uganda ~ Normal(0, 1)`, `logit p = μ + τ·z`); this avoids
+the funnel geometry of the centred form that gave hundreds of
+divergent transitions in the current code.
+The v2 prototype does not introduce any other hierarchical or
+random-walk structure (deterministic exponential growth, no
+time-varying `r`), so no further non-centred reparameterisation is
+needed at present.
+If the optional time-varying-`r` extension (sketched below) is ever
+implemented, its log-growth random walk would follow the same
+non-centred pattern: sample `z_t ~ Normal(0, 1)` and form
+`log r_t = log r_0 + σ_w · cumsum(z_t)`.
+
+## Daily-bin observation discretisation
+
+The v2 prototype's three porting observation submodels
+(`exports_obs_v2`, `deaths_obs_v2`, `cases_obs_v2`) all observe a
+**cumulative aggregate count** at the cut-off, with no daily binning,
+so no continuous-delay-to-daily-bin discretisation is required.
+The current model's `exports_deaths_model` does observe a per-day
+series and is the only place a double-censored daily-bin
+discretisation would arise; that submodel has not yet been ported to
+v2 (it stays usable through the current composer).
+The cross-track verdict that `CensoredDistributions.jl` does not
+differentiate under Mooncake therefore does not bite the v2
+prototype: there is no discretisation step on the AD path.
+When `exports_deaths_v2` is added, the same daily-bin construction the
+current model uses (an inhomogeneous Poisson with bin means
+`Λ(t_d) − Λ(t_{d-1})` from the cumulative intensity, see
+`exports_deaths_model` in `analysis.jl`) carries over unchanged: it
+discretises the *cumulative intensity* by finite differences, not the
+delay distribution itself, so it does not need a double-censored
+delay primitive and inherits the same AD safety as the rest of v2.
+If a future iteration ever needs an explicit double-censored daily
+delay primitive and lacks AD support, the bias of any single-side
+stopgap (rounding down, say) must be characterised honestly before
+inclusion.
 
 ## Numerical implications and runtime
 

@@ -50,6 +50,7 @@ export REPORT_SCENARIOS,
        ONSET_GRID_POINTS, expected_onsets_v2, expected_exports_v2,
        expected_deaths_v2, expected_reports_v2,
        growth_v2, incubation_v2, onset_to_death_v2, onset_to_report_v2,
+       detection_window_v2, genetic_seeding_v2,
        exports_obs_v2, deaths_obs_v2, cases_obs_v2, bvd_joint_v2
 
 """
