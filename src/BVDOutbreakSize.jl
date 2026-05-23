@@ -1047,11 +1047,20 @@ function plot_start_date_pair(chn;
     cutoff_days = date2epochdays(Date(as_of_date))
     start_days  = cutoff_days .- T_draws
 
+    ## Fortnightly ticks anchored on the cutoff date keep the date axis
+    ## legible rather than crowding it with auto-placed labels.
+    tick_lo = floor(Int, minimum(start_days))
+    tick_hi = ceil(Int,  maximum(start_days))
+    date_xticks = collect(cutoff_days:-14:tick_lo)
+    isempty(date_xticks) || (date_xticks = reverse(date_xticks))
+    date_xticks = filter(t -> tick_lo <= t <= tick_hi, date_xticks)
+
     fig = Figure(; size = (1100, 460))
     ax = Axis(fig[1, 1];
         xlabel = "Outbreak start date",
         ylabel = "Posterior density",
         title  = "Implied start of sustained transmission",
+        xticks = date_xticks,
         xticklabelrotation = π / 6,
     )
     density!(ax, start_days; color = (:steelblue, 0.5),
