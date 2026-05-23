@@ -250,17 +250,20 @@ Random.seed!(20260518)
 #
 # ### Data
 #
-# The analysis uses a handful of aggregate counts collated from
-# situation reports and news coverage: the suspected cases and
-# suspected deaths reported in the DRC, the cases (and any deaths)
-# detected among travellers to Uganda, and the daily cross-border
-# traveller volume and source-area population from the McCabe et al.
-# report [mccabe2026](@cite). All are point-in-time totals as of the
-# data cut-off, not time series, and the suspected counts are
-# unconfirmed. The table below lists each figure with its source. The
-# source population is treated as fixed (census data); the daily
-# outbound traveller volume is given a normal prior centred at the
-# McCabe et al. figure with an SD covering point-of-entry variation.
+# The analysis uses a handful of aggregate counts. The DRC suspected
+# cases and suspected deaths and the Uganda export-case counts and
+# deaths come from WHO AFRO Weekly External Situation Report 01, data
+# as of 18 May 2026 [who_afro_sitrep01_2026](@cite); the first-export
+# hospital-admission date and the dated death among the exports come
+# from WHO Disease Outbreak News DON602 [who_don_2026_602](@cite).
+# The daily cross-border traveller volume and source-area population
+# are taken from the McCabe et al. report [mccabe2026](@cite). All are
+# point-in-time totals as of the data cut-off, not time series, and
+# the suspected counts are unconfirmed. The table below lists each
+# figure with its source. The source population is treated as fixed
+# (census data); the daily outbound traveller volume is given a normal
+# prior centred at the McCabe et al. figure with an SD covering point-
+# of-entry variation.
 
 #md # ```@raw html
 #md # <details><summary>Loading observations and building the data table</summary>
