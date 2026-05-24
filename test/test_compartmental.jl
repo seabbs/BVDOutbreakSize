@@ -77,17 +77,19 @@ end
               (maximum(abs.(I_ode)) + eps())
     @test rel_err_I < 0.5
 
-    ## Cumulative onsets are the running sum of the daily $E \to I$ flux
-    ## under each scheme. We check the magnitudes are in the same ball-
-    ## park (better than a factor of 2) rather than tight agreement,
-    ## since the two forward maps are genuinely different operators.
+    ## Cumulative onsets are the running sum of the daily E -> I flux
+    ## under each scheme. The ODE-side equivalent is the count of
+    ## individuals who have left E (i.e. I + R + D), since each onset
+    ## moves a person from E into the I -> {R, D} downstream chain. We
+    ## check the magnitudes are in the same ballpark (better than a
+    ## factor of 2) rather than tight agreement, since the two forward
+    ## maps are genuinely different operators.
     cum_onsets_stepper = cumsum(full.onsets)
-    cum_E = sol[rn.E]
     cum_I = sol[rn.I]
     cum_R = sol[rn.R]
     cum_D = sol[rn.D]
-    cum_ode = (cum_E .+ cum_I .+ cum_R .+ cum_D)[2:end] .-
-              (cum_E[1] + cum_I[1] + cum_R[1] + cum_D[1])
+    cum_ode = (cum_I .+ cum_R .+ cum_D)[2:end] .-
+              (cum_I[1] + cum_R[1] + cum_D[1])
     ratio = cum_onsets_stepper[end] / (cum_ode[end] + eps())
     @test 0.5 < ratio < 2.0
 end

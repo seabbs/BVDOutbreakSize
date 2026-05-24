@@ -57,13 +57,15 @@ This is not a reason against the compartmental architecture — its value is the
 
 ## From compartments to onsets
 
-The seam to the observation streams is **onsets**, defined as the daily $E \to I$ flux:
+The seam to the observation streams is **onsets**, defined as the daily count of $E \to I$ transitions emitted by the stepper:
 $$
-\mathrm{onset}_t \equiv \sigma\, E_{t}.
+\mathrm{onset}_t \;\equiv\; \Delta_t^{EI} \;=\; \bigl(1 - e^{-\sigma}\bigr)\, E_{t}.
 $$
 
-This is computed once per draw and reused across all four observation streams.
-Cumulative cases is the running sum of onsets (equivalent to $N - S(t)$ in the negligible-depletion limit).
+The continuous-rate quantity $\sigma E_t$ is the instantaneous flux; the implementation uses the exact transition count $(1 - e^{-\sigma}) E_t$ produced by the exponentialised-rate step.
+At BVD-scale per-day rates ($\sigma \approx 1/6$) the two differ by roughly $6\%$.
+This discrete count is computed once per draw and reused across all four observation streams.
+Cumulative cases is the running sum of these daily onsets (equivalent to $I + R + D$ at time $t$ in the negligible-depletion limit, since each onset moves a person out of $E$ into the $I \to \{R, D\}$ downstream chain).
 
 ## How the four streams plus TMRCA map in
 
