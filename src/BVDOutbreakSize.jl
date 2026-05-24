@@ -23,7 +23,7 @@ import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
-using CairoMakie: Figure, Axis, hist!, density!, vlines!,
+using CairoMakie: Figure, Axis, hist!, density!, vlines!, vspan!,
                   lines!, scatter!
 
 export REPORT_SCENARIOS,
@@ -40,12 +40,13 @@ export REPORT_SCENARIOS,
        integrate_cumulative, integrate_exports_deaths,
        expected_exports, expected_exports_deaths,
        ExportDeathDelay, EXPORT_DELAY_GRID_POINTS,
-       plot_cumulative_cases, plot_prior_predictive,
+       plot_cumulative_cases, plot_density_overlay, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
+       forecast_vs_truth, plot_forecast_vs_truth,
        infection_incidence, onset_incidence, OnsetIncidence,
        ONSET_GRID_POINTS,
        expected_onsets_staged, expected_exports_onset_staged,
@@ -143,6 +144,11 @@ Fields returned:
   `genetic_tmrca` block is present.
 - `genetic_tmrca_days_sd::Union{Real, Missing}` — SD (days) on the
   location of that floor; `missing` when absent.
+- `genetic_tmrca_alt_days::Union{Real, Missing}` — TMRCA (days before
+  `as_of_date`) under the alternative clock rate, for the clock-rate
+  sensitivity; `missing` when no `alt_date` is present.
+- `genetic_tmrca_alt_days_sd::Union{Real, Missing}` — SD (days) on the
+  alternative-clock floor; `missing` when absent.
 - `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
   :reported_cases, :daily_outbound_travellers,
   :daily_outbound_travellers_sd, :source_population, :genetic_tmrca),
@@ -187,6 +193,12 @@ function load_observations(
             _gap(raw["genetic_tmrca"]["date"]) : missing,
         genetic_tmrca_days_sd        = has_gen ?
             float(raw["genetic_tmrca"]["days_sd"]) : missing,
+        genetic_tmrca_alt_days       =
+            has_gen && haskey(raw["genetic_tmrca"], "alt_date") ?
+            _gap(raw["genetic_tmrca"]["alt_date"]) : missing,
+        genetic_tmrca_alt_days_sd    =
+            has_gen && haskey(raw["genetic_tmrca"], "alt_days_sd") ?
+            float(raw["genetic_tmrca"]["alt_days_sd"]) : missing,
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
@@ -553,6 +565,8 @@ const _PRETTY_COLS = Dict(
     "central_estimate"   => "Central estimate",
     "reported_cases"     => "Reported cases",
     "narrowest_interval" => "Narrowest interval",
+    "observed"           => "Observed",
+    "within_90"          => "Within 90% PI",
     "lower_90" => "Lower 90%", "lower_60" => "Lower 60%",
     "lower_30" => "Lower 30%", "upper_30" => "Upper 30%",
     "upper_60" => "Upper 60%", "upper_90" => "Upper 90%",
@@ -737,6 +751,38 @@ function plot_cumulative_cases(
     isempty(scenario_xs) || vlines!(fg.figure.content[1], scenario_xs;
             color = (:grey, 0.4), linestyle = :dash)
     return fg
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Overlaid posterior densities of an arbitrary scalar quantity from one
+or more fits, built through AlgebraOfGraphics. Pass each fit as
+`"label" => draws`; `xlabel` and `title` set the axis text.
+"""
+function plot_density_overlay(
+        streams::Pair{String, <:AbstractVector}...;
+        xlabel::AbstractString = "Value",
+        title::AbstractString = "Posterior density")
+    df = @chain DataFrame(stream = String[], value = Float64[]) begin
+        let df = _
+            for (label, draws) in streams
+                for x in draws
+                    push!(df, (label, float(x)))
+                end
+            end
+            df
+        end
+    end
+
+    spec = AoG.data(df) *
+           AoG.mapping(:value => xlabel, color = :stream => "Fit") *
+           AoG.AlgebraOfGraphics.density() *
+           AoG.visual(linewidth = 2)
+    return AoG.draw(spec;
+        axis  = (; ylabel = "Posterior density", title = title),
+        figure = (; size = (760, 420)),
+    )
 end
 
 _panel_pos(pos::Integer) = (1, pos)
@@ -1021,6 +1067,12 @@ function plot_start_date_pair(chn;
     )
     density!(ax, start_days; color = (:steelblue, 0.5),
              strokecolor = :steelblue, strokewidth = 2)
+    ## Date ticks every four weeks across the posterior range, so the
+    ## start date stays readable rather than relying on the default
+    ## locator or crowding the axis as the range widens.
+    lo = floor(Int, minimum(start_days))
+    hi = ceil(Int, maximum(start_days))
+    ax.xticks = collect(lo:28:hi)
     ax.xtickformat = vals ->
         [string(epochdays2date(round(Int, v))) for v in vals]
 
@@ -1252,6 +1304,39 @@ function forecast_table(fc::DataFrame; digits::Integer = 0)
 end
 
 """
+    forecast_vs_truth(fc::DataFrame; cases, deaths, exports, digits = 0)
+
+Validate a [`forecast_reported`](@ref) projection against the counts
+that were later observed. `cases`, `deaths` and `exports` are the
+observed cumulative DRC reported cases, DRC deaths and Uganda exports at
+the forecast target date. Returns a `DataFrame` with one row per stream
+giving the observed count, the equal-tailed 30/60/90% predictive
+intervals (the same endpoints as the other summary tables), and whether
+the observed count falls inside the 90% interval. Use it to forecast
+from an earlier data snapshot and check the now-known truth against the
+projection.
+"""
+function forecast_vs_truth(fc::DataFrame;
+        cases::Real, deaths::Real, exports::Real, digits::Integer = 0)
+    _row(label, draws, obs) = begin
+        s  = posterior_summary(draws)
+        lo = round(s.lo90; digits)
+        hi = round(s.hi90; digits)
+        (stream = label, observed = round(obs; digits),
+         lower_90 = lo, lower_60 = round(s.lo60; digits),
+         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+         upper_60 = round(s.hi60; digits), upper_90 = hi,
+         within_90 = lo <= obs <= hi ? "yes" : "no")
+    end
+    rows = [
+        _row("DRC reported cases", fc[!, :cases_cum],   cases),
+        _row("DRC deaths",         fc[!, :deaths_cum],  deaths),
+        _row("Uganda exports",     fc[!, :exports_cum], exports),
+    ]
+    return _prettify(DataFrame(rows))
+end
+
+"""
     plot_forecast(fc::DataFrame)
 
 Three-panel histogram of the new-this-week forecast counts (cases,
@@ -1270,6 +1355,53 @@ function plot_forecast(fc::DataFrame)
             title = "One week ahead", limits = ((0, upper), nothing))
         hist!(ax, v; bins = range(0, upper; length = 30),
               color = (colour, 0.7))
+    end
+    return fig
+end
+
+"""
+    plot_forecast_vs_truth(fc::DataFrame; cases, deaths, exports,
+                           baseline_cases = 0, baseline_deaths = 0,
+                           baseline_exports = 0)
+
+Validation figure for a [`forecast_reported`](@ref) projection, laid out
+as a 2×3 grid. The top row shows the cumulative forecast distribution per
+stream (DRC reported cases, DRC deaths, Uganda exports); the bottom row
+shows the new counts forecast over the horizon, mirroring the
+one-week-ahead forecast. Each panel is a histogram with the 90%
+predictive interval shaded and the later-observed count drawn as a dashed
+black rule. `cases`, `deaths` and `exports` are the observed cumulative
+counts; `baseline_*` are the counts at the forecast origin, so the
+observed new count is the cumulative truth minus the baseline.
+"""
+function plot_forecast_vs_truth(fc::DataFrame;
+        cases::Real, deaths::Real, exports::Real,
+        baseline_cases::Real = 0, baseline_deaths::Real = 0,
+        baseline_exports::Real = 0)
+    fig = Figure(; size = (1100, 680))
+    function panel!(row, col, v, obs, title, colour)
+        lo    = quantile(v, 0.05)
+        hi    = quantile(v, 0.95)
+        upper = max(1.0, quantile(v, 0.995), obs * 1.05)
+        ax = Axis(fig[row, col];
+            xlabel = title, ylabel = "Predictive frequency",
+            limits = ((0, upper), nothing))
+        vspan!(ax, lo, hi; color = (colour, 0.15))
+        hist!(ax, v; bins = range(0, upper; length = 30),
+              color = (colour, 0.7))
+        vlines!(ax, [obs]; color = :black, linestyle = :dash, linewidth = 2)
+    end
+    streams = (
+        (:cases_cum,   :cases_new,   "reported cases (DRC)", :steelblue,
+         float(cases),   float(cases)   - float(baseline_cases)),
+        (:deaths_cum,  :deaths_new,  "deaths (DRC)",         :firebrick,
+         float(deaths),  float(deaths)  - float(baseline_deaths)),
+        (:exports_cum, :exports_new, "exports (Uganda)",     :seagreen,
+         float(exports), float(exports) - float(baseline_exports)))
+    for (j, (ccol, ncol, name, colour, obs_cum, obs_new)) in
+            enumerate(streams)
+        panel!(1, j, fc[!, ccol], obs_cum, "Cumulative $name", colour)
+        panel!(2, j, fc[!, ncol], max(obs_new, 0.0), "New $name", colour)
     end
     return fig
 end

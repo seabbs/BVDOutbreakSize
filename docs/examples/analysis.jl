@@ -165,6 +165,13 @@
 #   model with the community-only delay (the $n = 5$ cases who died
 #   without admission, weak evidence of a shorter delay) to show how
 #   much the outbreak-size estimate leans on the delay assumption.
+# - *Genetic seeding bound depends on a fixed clock rate.* The time to
+#   the most recent common ancestor (TMRCA) is dated under an external
+#   Ebola clock rate; the sampled tree is also almost entirely from
+#   Bunia. The [clock-rate sensitivity](#Clock-rate-sensitivity) section
+#   refits the joint model under the faster early-epidemic rate to show
+#   how much the timing, growth-rate and outbreak-size estimates are
+#   impacted.
 # - *Detection window is weakly motivated.* $w$ lumps incubation and
 #   onset-to-detection together — both poorly characterised for BVD —
 #   so the quantity itself is loosely defined. Its prior is even less
@@ -224,7 +231,7 @@ using DataFrames: DataFrame
 import CSV
 using Random
 using Markdown
-using Dates: Date, Day
+using Dates: Date, Day, value
 using BVDOutbreakSize
 using BVDOutbreakSize: integrate_cumulative, integrate_exports_deaths,
                        expected_deaths
@@ -243,17 +250,20 @@ Random.seed!(20260518)
 #
 # ### Data
 #
-# The analysis uses a handful of aggregate counts collated from
-# situation reports and news coverage: the suspected cases and
-# suspected deaths reported in the DRC, the cases (and any deaths)
-# detected among travellers to Uganda, and the daily cross-border
-# traveller volume and source-area population from the McCabe et al.
-# report [mccabe2026](@cite). All are point-in-time totals as of the
-# data cut-off, not time series, and the suspected counts are
-# unconfirmed. The table below lists each figure with its source. The
-# source population is treated as fixed (census data); the daily
-# outbound traveller volume is given a normal prior centred at the
-# McCabe et al. figure with an SD covering point-of-entry variation.
+# The analysis uses a handful of aggregate counts. The DRC suspected
+# cases and suspected deaths and the Uganda export-case counts and
+# deaths come from WHO AFRO Weekly External Situation Report 01, data
+# as of 18 May 2026 [who_afro_sitrep01_2026](@cite); the first-export
+# hospital-admission date and the dated death among the exports come
+# from WHO Disease Outbreak News DON602 [who_don_2026_602](@cite).
+# The daily cross-border traveller volume and source-area population
+# are taken from the McCabe et al. report [mccabe2026](@cite). All are
+# point-in-time totals as of the data cut-off, not time series, and
+# the suspected counts are unconfirmed. The table below lists each
+# figure with its source. The source population is treated as fixed
+# (census data); the daily outbound traveller volume is given a normal
+# prior centred at the McCabe et al. figure with an SD covering point-
+# of-entry variation.
 
 #md # ```@raw html
 #md # <details><summary>Loading observations and building the data table</summary>
@@ -330,12 +340,22 @@ observations_table #hide
 # parameter family. The *observation submodels* assemble those blocks,
 # introduce the forward integrals and the likelihoods, and tie one data
 # stream to the latent state. The *composers* combine the observation
-# submodels into the per-stream fits and the joint fit. The diagram
-# below traces that flow:
+# submodels into the per-stream fits and the joint fit.
 #
-# {{MODEL_DIAGRAM}}
+# The table below shows which building-block parameters feed each
+# observation submodel:
 #
-# Reading top to bottom:
+# | Parameter | Exports | Deaths | Cases | Export deaths (time-resolved) | First export-detection timing | Genetic seeding |
+# |---|:---:|:---:|:---:|:---:|:---:|:---:|
+# | Growth $C(s) = e^{rs}$ | ● | ● | ● | ● | ● | ● |
+# | Onset-to-death delay |  | ● |  | ● |  |  |
+# | Case-fatality ratio |  | ● |  | ● |  |  |
+# | Detection window | ● |  |  | ● | ● |  |
+# | Surveillance dispersion |  | ● | ● |  |  |  |
+# | Ascertainment | ● |  | ● | ● | ● |  |
+# | Traveller volume | ● |  |  | ● | ● |  |
+#
+# The model components, in the order they appear below:
 #
 # 1. **Building-block submodels** — one per parameter family
 #    (growth, onset-to-death delay, CFR, detection window, daily
@@ -344,7 +364,8 @@ observations_table #hide
 #    priors and returns a small NamedTuple of values. These sections
 #    introduce only the maths for their own parameters.
 # 2. **Observation submodels** — exports, deaths, cases, deaths-among-
-#    exports. Each takes the growth state as input, introduces the
+#    exports (time-resolved), and the first export-detection timing.
+#    Each takes the growth state as input, introduces the
 #    forward integral it needs and the likelihood, and ties one data
 #    stream to the latent $C(T)$.
 # 3. **Composers** — one per analysis: the four single-stream fits, a
@@ -354,6 +375,9 @@ observations_table #hide
 #    submodels. A composer conditionally includes only the likelihoods
 #    for the streams it uses, so a single-stream fit never instantiates
 #    the other observation submodels.
+#
+# Beyond the model itself:
+#
 # 4. **Inference** — prior predictive, the four No-U-Turn Sampler
 #    (NUTS) fits, posterior
 #    summaries, posterior-predictive plots.
@@ -440,24 +464,33 @@ end
 
 # ##### Genetic seeding bound
 #
-# The first eight sequenced cases give a maximum-likelihood phylogeny
-# [virological2026](@cite) whose root-to-tip genetic distance, divided
-# by the $1.2\times10^{-3}$ substitutions/site/year molecular clock rate
-# estimated for the 2013–2016 West African Ebola epidemic
-# [holmes2016](@cite), places the time to the most recent common
-# ancestor (TMRCA), the age of the oldest internal node of the tree,
-# roughly 80 days before the reference date on which the estimate was
-# reported (combination per N. Ferguson [ferguson2026](@cite)).
-# This is a lower bound on the seeding time $T$, since the TMRCA only
-# moves older as more sequences are added.
-# We do not know exactly where the floor sits, so we treat it as an
-# uncertain threshold $B \sim \mathrm{Normal}(g, \sigma)$ and require
-# $T \ge B$, leaving $T$ free above it.
+# A BEAST time tree of the first ten sequenced genomes
+# [virological2026](@cite) places the TMRCA, the age of the oldest
+# internal node of the tree, at a mean of 25 March 2026, with a 95% HPD
+# interval of about $\pm 30$ days.
+# The temporal sampling range is too short to estimate the clock, so it
+# is fixed. The source analysis considers two literature rates for the
+# 2013–2016 West African Ebola epidemic [holmes2016](@cite): a
+# $1.2\times10^{-3}$ substitutions/site/year rate across all public
+# data, and a faster $1.9\times10^{-3}$ early-epidemic rate that dates
+# the TMRCA more recently. We use the $1.2\times10^{-3}$ rate in the
+# main analysis and the $1.9\times10^{-3}$ rate in the
+# [clock-rate sensitivity](#Clock-rate-sensitivity).
+# This is a lower bound on the seeding time $T$: adding sequences, or
+# more geographically representative ones, can only push the TMRCA
+# earlier, never later (the sampled tree is almost entirely from Bunia).
+# Combining the genetic TMRCA with the other data streams as a seeding
+# bound follows a suggestion of N. Ferguson [ferguson2026](@cite).
+# We parameterise the bound as an uncertain threshold
+# $B \sim \mathrm{Normal}(g, \sigma)$, where
+# $g = t_{\mathrm{cut}} - t_{\mathrm{TMRCA}}$ is the data cut-off date
+# minus the reported TMRCA date (so it tracks the cut-off rather than a
+# fixed offset), and require $T \ge B$, leaving $T$ free above it.
 # Marginalising over $B$ gives a soft one-sided likelihood,
 #
 # ```math
 # p_\text{gen}(T) = \Pr[B \le T] = \Phi\!\left(\frac{T - g}{\sigma}\right),
-# \qquad g \approx 80\ \text{d}, \ \sigma = 20\ \text{d}. \tag{3a}
+# \qquad \sigma = 15\ \text{d}. \tag{3a}
 # ```
 
 #md # ```@raw html
@@ -927,7 +960,7 @@ end
 #md # </details>
 #md # ```
 
-# ##### Cases — ascertainment extension#
+# ##### Cases — ascertainment extension
 # Methods 1 and 2 use exports and deaths only. Reported
 # suspected cases from the same passive-surveillance system carry
 # information about $C(T)$ once the DRC ascertainment fraction $p_{\text{DRC}}$
@@ -1145,6 +1178,13 @@ end
 # window $w$ and daily traveller volume sampled by the exports
 # likelihood are reused by the deaths-among-exports likelihood so the
 # two share person-time.
+#
+# We write single-stream composers for the four count-based streams
+# only.
+# The export-detection-timing and genetic seeding terms constrain the
+# outbreak start $T$ rather than the size directly and are weakly
+# identified in isolation, so we do not fit them on their own; the
+# joint composer still conditions on both.
 
 # ##### Exports-only fit — Method 1 analogue
 
@@ -1610,33 +1650,69 @@ diagnostics_table( #hide
 # outbreak, and planning for beds, contacts and vaccine needs depends
 # on the true total. The numbers below are our current best estimate of
 # that total, computed from the joint posterior and refreshed on every
-# build. We give 90% credible-interval ranges here; the full 30/60/90%
-# intervals are in the tables below.
+# build. For each headline number we give the equal-tailed 30%, 60% and
+# 90% credible intervals; the same intervals appear in the tables below.
 
 #md # ```@raw html
 #md # <details><summary>Compute the headline ranges</summary>
 #md # ```
 
 summary_ranges = let
-    C    = posterior_C_joint
-    c_lo = round(Int, quantile(C, 0.05))
-    c_hi = round(Int, quantile(C, 0.95))
-    Tdraws = vec(Array(chn_joint[:T]))
-    t_lo = round(Int, quantile(Tdraws, 0.05))
-    t_hi = round(Int, quantile(Tdraws, 0.95))
-    start_earliest = Date(obs.as_of_date) - Day(t_hi)
-    start_latest   = Date(obs.as_of_date) - Day(t_lo)
-    f_lo = round(c_lo / obs.reported_cases; digits = 1)
-    f_hi = round(c_hi / obs.reported_cases; digits = 1)
+    med(x) = quantile(x, 0.5)
+    iqr(x) = quantile(x, 0.75) - quantile(x, 0.25)
+    ## Posterior-minus-prior shift in units of the parameter's prior
+    ## IQR, reusing the prior draws so nothing is respecified here.
+    shift(post, prior) =
+        round((med(post) - med(prior)) / iqr(prior); digits = 2)
+    ints_i(s) = string(
+        "30% ", round(Int, s.lo30), "–", round(Int, s.hi30),
+        ", 60% ", round(Int, s.lo60), "–", round(Int, s.hi60),
+        ", 90% ", round(Int, s.lo90), "–", round(Int, s.hi90))
+    ints_f(s, d) = string(
+        "30% ", round(s.lo30; digits = d), "–", round(s.hi30; digits = d),
+        ", 60% ", round(s.lo60; digits = d), "–", round(s.hi60; digits = d),
+        ", 90% ", round(s.lo90; digits = d), "–", round(s.hi90; digits = d))
+
+    C  = posterior_C_joint
+    Td = vec(Array(chn_joint[:T]))
+    τd = vec(Array(chn_joint[:τ]))
+    rd = vec(Array(chn_joint[:r]))
+    sC = posterior_summary(C)
+    sT = posterior_summary(Td)
+    sτ = posterior_summary(τd)
+    sr = posterior_summary(rd)
+
+    start_earliest = Date(obs.as_of_date) - Day(round(Int, sT.hi90))
+    start_latest   = Date(obs.as_of_date) - Day(round(Int, sT.lo90))
+    f_lo = round(sC.lo90 / obs.reported_cases; digits = 1)
+    f_hi = round(sC.hi90 / obs.reported_cases; digits = 1)
+
+    moves = ["cumulative case load" => shift(C,  vec(Array(
+                 prior_chn[:cumulative_cases]))),
+             "time since seeding"   => shift(Td, vec(Array(prior_chn[:T]))),
+             "doubling time"        => shift(τd, vec(Array(prior_chn[:τ])))]
+    biggest = argmax(p -> abs(p.second), moves)
+
     Markdown.parse("""
-    - **Current cumulative case load:** a 90% credible interval of
-      $(c_lo)–$(c_hi) cases, combining all four data streams (both
-      reported and as-yet-unreported).
+    - **Current cumulative case load:** we estimate $(ints_i(sC)) cases,
+      combining all four data streams (reported and as-yet-unreported).
     - That is roughly $(f_lo)–$(f_hi)× the $(obs.reported_cases) cases
-      reported to date, so most infections are not yet reported.
-    - **Time since seeding:** a 90% interval of $(t_lo)–$(t_hi) days,
-      placing the start of sustained transmission between
-      $(start_earliest) and $(start_latest).
+      reported to date, so most infections are not yet reported. This
+      multiplier is one over the DRC reporting fraction; see
+      [what the reporting fraction means](#Joint-model-estimates).
+    - **Time since seeding:** we estimate $(ints_i(sT)) days, placing the
+      start of sustained transmission between $(start_earliest) and
+      $(start_latest).
+    - **Doubling time and growth rate:** we estimate a doubling time of
+      $(ints_f(sτ, 1)) days, and an implied growth rate of
+      $(ints_f(sr, 3)) per day.
+    - **Shift from priors:** how far the data has moved each estimate
+      from its prior, measured in prior interquartile ranges (IQRs) — a
+      value of 1 means the posterior median sits one prior IQR from the
+      prior median, 0 means unchanged, and the sign gives the direction.
+      The fit moves the cumulative case load by $(moves[1].second), the
+      time since seeding by $(moves[2].second) and the doubling time by
+      $(moves[3].second); the largest move is in the $(biggest.first).
     """)
 end;
 
@@ -1759,6 +1835,15 @@ posterior_pair_fig = plot_pair(chn_joint,
 
 posterior_pair_fig #hide
 
+# The DRC reporting fraction $p_{\text{DRC}}$ is the share of true cases
+# that reach the reported suspected-case count. The reported total
+# therefore scales up to the cumulative case load by about
+# $1/p_{\text{DRC}}$, which is the multiplier quoted in the
+# [summary](@ref "Summary"): a reporting fraction near $0.25$ implies a
+# roughly fourfold gap between reported and true cases. The pair plot
+# above shows its posterior against the prior, so how far below one the
+# fraction sits is what sets that scaling.
+#
 # A posterior predictive check draws replicated observations from the
 # fitted joint model and compares them to the observed counts. If the
 # fit is reasonable the observed value (red line) sits inside the bulk
@@ -1878,6 +1963,88 @@ forecast_fig = plot_forecast(forecast);
 
 forecast_fig #hide
 
+# ### Forecast validation against later data
+#
+# The one-week-ahead forecast above projects from the current fit, so it
+# cannot yet be checked. We can instead validate the same machinery
+# retrospectively: take our joint fit to the original McCabe et al.
+# report's data, project each posterior draw forward to the current data
+# cut-off, and compare the predicted cumulative counts against the counts
+# observed since.
+
+#md # ```@raw html
+#md # <details><summary>Fit the joint model to the original report's data and forecast it forward</summary>
+#md # ```
+
+obs_report = load_observations(
+    joinpath(pkgdir(BVDOutbreakSize), "data", "report-snapshot.toml"));
+
+chn_joint_report = nuts_sample(
+    bvd_joint(obs_report.exported_cases, obs_report.total_deaths,
+              obs_report.reported_cases, obs_report.export_deaths_daily;
+              first_export_detection_delta =
+                  obs_report.first_export_detection_delta));
+posterior_C_joint_report =
+    vec(Array(chn_joint_report[:cumulative_cases]));
+
+validation_horizon =
+    value(Date(obs.as_of_date) - Date(obs_report.as_of_date))
+
+forecast_validation = forecast_reported(chn_joint_report;
+    horizon           = validation_horizon,
+    daily_travellers  = ITURI_DAILY_TRAVEL,
+    source_population = ITURI_POPULATION,
+    obs_cases         = obs_report.reported_cases,
+    obs_deaths        = obs_report.total_deaths,
+    obs_exports       = obs_report.exported_cases);
+
+forecast_validation_table = forecast_vs_truth(forecast_validation;
+    cases   = obs.reported_cases,
+    deaths  = obs.total_deaths,
+    exports = obs.exported_cases);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+#md # ```@eval
+#md # using BVDOutbreakSize, Markdown
+#md # using Dates: Date, value
+#md # rep = load_observations(joinpath(pkgdir(BVDOutbreakSize), "data",
+#md #     "report-snapshot.toml")).as_of_date
+#md # cur = load_observations().as_of_date
+#md # h = value(Date(cur) - Date(rep))
+#md # Markdown.parse("Projecting the original-report fit $(h) days " *
+#md #     "forward to the current ($(cur)) data, against the counts " *
+#md #     "observed by then:")
+#md # ```
+
+forecast_validation_table #hide
+
+# The top row shows the cumulative forecast per stream and the bottom row
+# the new counts over the horizon, mirroring the one-week-ahead forecast.
+# Each panel shades the 90% predictive interval and draws the
+# later-observed count as a dashed rule, so coverage can be read off
+# directly.
+
+#md # ```@raw html
+#md # <details><summary>Forecast-validation plot</summary>
+#md # ```
+
+forecast_validation_fig = plot_forecast_vs_truth(forecast_validation;
+    cases            = obs.reported_cases,
+    deaths           = obs.total_deaths,
+    exports          = obs.exported_cases,
+    baseline_cases   = obs_report.reported_cases,
+    baseline_deaths  = obs_report.total_deaths,
+    baseline_exports = obs_report.exported_cases);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+forecast_validation_fig #hide
+
 # ### Delay sensitivity
 #
 # Refit under the community-only onset-to-death delay: the baseline and
@@ -1953,12 +2120,168 @@ delay_sensitivity_fig = plot_cumulative_cases(
 
 delay_sensitivity_fig #hide
 
+# ### Clock-rate sensitivity
+#
+# The main analysis fixes the molecular clock to the
+# $1.2\times10^{-3}$ substitutions/site/year rate (see the genetic
+# seeding bound above). The source analysis also reports a faster
+# $1.9\times10^{-3}$ early-epidemic rate, without favouring either
+# [virological2026](@cite); under it the TMRCA is dated more recently.
+# We refit the joint model under that alternative bound and compare the
+# impact on the outbreak size $C(T)$, the seeding time $T$ and the
+# growth rate $r$.
+
+#md # ```@raw html
+#md # <details><summary>Refit the joint model under the 1.9e-3 clock</summary>
+#md # ```
+
+genetic_seeding_clock19 = T -> genetic_seeding_model(T,
+    obs.genetic_tmrca_alt_days;
+    tmrca_days_sd = obs.genetic_tmrca_alt_days_sd)
+
+chn_joint_clock19 = nuts_sample(
+    bvd_joint(obs.exported_cases, obs.total_deaths,
+              obs.reported_cases, obs.export_deaths_daily;
+              first_export_detection_delta = obs.first_export_detection_delta,
+              genetic = genetic_seeding_clock19));
+
+posterior_C_clock19 = vec(Array(chn_joint_clock19[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# Fit diagnostics for the 1.9e-3 clock-rate refit.
+
+#md # ```@raw html
+#md # <details><summary>Fit diagnostics</summary>
+#md # ```
+
+diagnostics_table( #hide
+    "joint (1.9e-3 clock)" => chn_joint_clock19) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# Each quantity is shown as a side-by-side table followed by overlaid
+# posterior densities under the two clock rates.
+#
+# Outbreak size $C(T)$:
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate C_T table</summary>
+#md # ```
+
+clock_sensitivity_C_table = streams_table(
+    "joint (1.2e-3 clock)" => posterior_C_joint,
+    "joint (1.9e-3 clock)" => posterior_C_clock19);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_C_table #hide
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate C_T density plot</summary>
+#md # ```
+
+clock_sensitivity_C_fig = plot_cumulative_cases(
+    "1.2e-3 clock" => posterior_C_joint,
+    "1.9e-3 clock" => posterior_C_clock19;
+    scenarios = []);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_C_fig #hide
+
+# Seeding time $T$ (days before the cut-off); a more recent TMRCA
+# permits later seeding:
+
+T_clock12 = vec(Array(chn_joint[:T]));
+T_clock19 = vec(Array(chn_joint_clock19[:T]));
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate seeding-time table</summary>
+#md # ```
+
+clock_sensitivity_T_table = streams_table(
+    "joint (1.2e-3 clock)" => T_clock12,
+    "joint (1.9e-3 clock)" => T_clock19;
+    digits = 0);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_T_table #hide
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate seeding-time density plot</summary>
+#md # ```
+
+clock_sensitivity_T_fig = plot_density_overlay(
+    "1.2e-3 clock" => T_clock12,
+    "1.9e-3 clock" => T_clock19;
+    xlabel = "Seeding time T (days before cut-off)",
+    title = "Posterior seeding time by clock rate");
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_T_fig #hide
+
+# Growth rate $r$ (per day); later seeding implies faster growth to
+# reach the same observed counts:
+
+r_clock12 = vec(Array(chn_joint[:r]));
+r_clock19 = vec(Array(chn_joint_clock19[:r]));
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate growth-rate table</summary>
+#md # ```
+
+clock_sensitivity_r_table = streams_table(
+    "joint (1.2e-3 clock)" => r_clock12,
+    "joint (1.9e-3 clock)" => r_clock19;
+    digits = 3);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_r_table #hide
+
+#md # ```@raw html
+#md # <details><summary>Clock-rate growth-rate density plot</summary>
+#md # ```
+
+clock_sensitivity_r_fig = plot_density_overlay(
+    "1.2e-3 clock" => r_clock12,
+    "1.9e-3 clock" => r_clock19;
+    xlabel = "Growth rate r (per day)",
+    title = "Posterior growth rate by clock rate");
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+clock_sensitivity_r_fig #hide
+
 # ### How the data streams compare
 #
 # Each data stream constrains the latent outbreak size differently.
 # The table below puts the posteriors over $C(T)$ side by side — the
 # four single-stream fits and the joint — to show what each stream buys
 # on its own and what the joint combination adds.
+# The single-stream fits cover the four count-based streams only; the
+# joint additionally conditions on the export-detection-timing and
+# genetic seeding terms, which constrain $T$ rather than the size and
+# so are not fit in isolation.
 
 #md # ```@raw html
 #md # <details><summary>Per-stream C_T table</summary>
@@ -2050,19 +2373,11 @@ cumulative_density_fig #hide
 #md # <details><summary>Fit our model to each report version's data, and run the Method 2 reproductions</summary>
 #md # ```
 
-obs_report = load_observations(
-    joinpath(pkgdir(BVDOutbreakSize), "data", "report-snapshot.toml"));
+## `obs_report` and `chn_joint_report` (the 18 May report's data) are
+## loaded and fitted earlier, in the forecast-validation section.
 obs_report_20may = load_observations(
     joinpath(pkgdir(BVDOutbreakSize), "data",
              "report-snapshot-20may.toml"));
-
-chn_joint_report = nuts_sample(
-    bvd_joint(obs_report.exported_cases, obs_report.total_deaths,
-              obs_report.reported_cases, obs_report.export_deaths_daily;
-              first_export_detection_delta =
-                  obs_report.first_export_detection_delta));
-posterior_C_joint_report =
-    vec(Array(chn_joint_report[:cumulative_cases]));
 
 chn_joint_report_20may = nuts_sample(
     bvd_joint(obs_report_20may.exported_cases,
@@ -2309,6 +2624,8 @@ CSV.write(joinpath(output_dir, "cumulative_cases_by_stream.csv"),
           streams_C_table)
 CSV.write(joinpath(output_dir, "imperial_comparison.csv"), main_comparison)
 CSV.write(joinpath(output_dir, "scenario_coverage.csv"), coverage_table)
+CSV.write(joinpath(output_dir, "forecast_validation.csv"),
+          forecast_validation_table)
 
 ## Copy the input data so the release records what produced these
 ## results.

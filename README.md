@@ -178,14 +178,24 @@ where past and development versions of the analysis page can be found.
 
 ## Citation
 
-If you use or build on this project, please cite the three works
-this repository depends on:
+If you use or build on this project, please cite the works this
+repository depends on:
 
 - **This project** — Abbott, S., Brand, S., Funk, S. (2026).
   *BVDOutbreakSize: joint forward-generative Turing model for the
   2026 DRC Bundibugyo outbreak.*
   <https://github.com/epiforecasts/BVDOutbreakSize>.
   DOI: [10.5281/zenodo.20312758](https://doi.org/10.5281/zenodo.20312758).
+- **WHO situation reports** that supply the DRC suspected-case and
+  suspected-death counts and the Uganda export-case counts —
+  World Health Organization Regional Office for Africa (2026).
+  *Ebola disease caused by Bundibugyo virus outbreak, Democratic
+  Republic of the Congo and Uganda — Weekly External Situation
+  Report 01.* Data as of 18 May 2026.
+  World Health Organization (2026). *Disease Outbreak News:
+  Ebola disease caused by Bundibugyo virus — Uganda (DON602).*
+  Source of the first Uganda export hospital-admission date
+  (11 May 2026) and the fatal export death date (14 May 2026).
 - **Imperial reports** that this work re-implements and compares
   against, in both released versions —
   McCabe, R., Ebbarnezh, L., Okware, S., Fotsing, R., Koua, E.,
