@@ -1,4 +1,4 @@
-## Continuous-time explicit-convolution v2 architecture (issue #5).
+## Continuous-time explicit-convolution architecture (issue #5).
 ##
 ## The current model treats the latent state `C(s) = exp(r·s)` as
 ## cumulative *onsets* for the deaths convolution but as cumulative
@@ -22,7 +22,11 @@
 ## incidence that is itself a convolution, integrated again against a
 ## delay CDF). To keep the cost near the single-convolution model we
 ## tabulate `i_onset` once per draw on a grid (`OnsetIncidence`) and
-## reuse it across all three observation integrals.
+## reuse it across all three observation integrals; the
+## `_onset_staged` suffix on the observation expectations names that
+## reuse, distinguishing them from the package's single-convolution
+## helpers (`expected_deaths`, `expected_exports`, etc.) which take
+## the cumulative trajectory directly.
 ##
 ## The whole layer reuses the package's Gauss-Legendre `integrate`
 ## helpers and is AD-compatible with Mooncake: every quantity flows
@@ -161,27 +165,28 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Expected cumulative onsets by `T` under v2, the integral of the onset
-incidence:
+Expected cumulative onsets by `T` in the explicit-convolution model,
+the integral of the onset incidence:
 
 ```math
 C_{\\text{onset}}(T) = \\int_0^T i_{\\text{onset}}(s)\\, ds.
 ```
 
-This is the v2 analogue of the latent `C(T)` reported by the current
-model (which equals `exp(r·T)` cumulative *infections*). Onsets lag
-infections by the incubation period, so this is slightly below the
-cumulative-infection count `exp(r·T)`. Pass an [`OnsetIncidence`](@ref)
-to reuse the tabulated curve.
+This is the explicit-convolution analogue of the latent `C(T)`
+reported by the current model (which equals `exp(r·T)` cumulative
+*infections*). Onsets lag infections by the incubation period, so
+this is slightly below the cumulative-infection count `exp(r·T)`.
+Pass an [`OnsetIncidence`](@ref) to reuse the tabulated curve.
 """
-function expected_onsets_v2(oi::OnsetIncidence; alg = CUMULATIVE_INTEGRAL_ALG)
+function expected_onsets_staged(oi::OnsetIncidence;
+        alg = CUMULATIVE_INTEGRAL_ALG)
     return integrate(oi, zero(oi.T), oi.T; alg)
 end
 
 """
 $(TYPEDSIGNATURES)
 
-Expected detected exports by `T` under v2:
+Expected detected exports by `T` in the explicit-convolution model:
 
 ```math
 \\mathbb{E}[\\text{exports}] = p \\cdot q \\cdot
@@ -191,11 +196,14 @@ Expected detected exports by `T` under v2:
 with `p` the Uganda ascertainment fraction, `q` the per-capita travel
 rate and `w` the onset-to-detection window. Unlike the current model
 the window is applied to *onset* incidence, so `w` is unambiguously
-onset-to-detection rather than the incubation-plus-detection mixture of
-the current detection window. Clamped strictly positive and finite for
-the likelihood. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+onset-to-detection rather than the incubation-plus-detection mixture
+of the current detection window. The `_onset_staged` suffix marks the
+reuse of the tabulated onset curve (vs the package's
+single-convolution [`expected_exports`](@ref) which takes the
+cumulative trajectory directly). Clamped strictly positive and finite
+for the likelihood. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
 """
-function expected_exports_v2(oi::OnsetIncidence, p, q, w;
+function expected_exports_onset_staged(oi::OnsetIncidence, p, q, w;
         alg = CUMULATIVE_INTEGRAL_ALG)
     lo  = max(oi.T - w, zero(oi.T))
     raw = p * q * integrate(oi, lo, oi.T; alg)
@@ -205,8 +213,9 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Expected cumulative deaths by `T` under v2, the CFR-weighted
-convolution of onset incidence with the onset-to-death CDF `F_otd`:
+Expected cumulative deaths by `T` in the explicit-convolution model,
+the CFR-weighted convolution of onset incidence with the
+onset-to-death CDF `F_otd`:
 
 ```math
 \\mathbb{E}[\\text{deaths}] = \\mathrm{CFR} \\cdot
@@ -214,14 +223,18 @@ convolution of onset incidence with the onset-to-death CDF `F_otd`:
 ```
 
 `death_delay` is the onset-to-death distribution; CFR is now
-unambiguously the fraction of onsets that die. The CDF is supplied as a
-precomputed [`ExportDeathDelay`](@ref) so the convolution differentiates
-through the density alone (the AD backend lacks the Gamma CDF shape
-derivative) and the CDF grid is built once per draw. Clamped strictly
-positive and finite. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+unambiguously the fraction of onsets that die. The CDF is supplied
+as a precomputed [`ExportDeathDelay`](@ref) so the convolution
+differentiates through the density alone (the AD backend lacks the
+Gamma CDF shape derivative) and the CDF grid is built once per draw.
+The `_onset_staged` suffix marks the reuse of the tabulated onset
+curve (vs the package's single-convolution [`expected_deaths`](@ref)).
+Clamped strictly positive and finite. Uses
+[`CUMULATIVE_INTEGRAL_ALG`](@ref).
 """
-function expected_deaths_v2(oi::OnsetIncidence, death_delay::ExportDeathDelay,
-        CFR; alg = CUMULATIVE_INTEGRAL_ALG)
+function expected_deaths_onset_staged(oi::OnsetIncidence,
+        death_delay::ExportDeathDelay, CFR;
+        alg = CUMULATIVE_INTEGRAL_ALG)
     T = oi.T
     g = let oi = oi, death_delay = death_delay, T = T
         s -> oi(s) * _cdf_to(death_delay, T - s)
@@ -233,8 +246,9 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Expected cumulative reported cases by `T` under v2, the convolution of
-onset incidence with the onset-to-report CDF `F_otr`:
+Expected cumulative reported cases by `T` in the explicit-convolution
+model, the convolution of onset incidence with the onset-to-report
+CDF `F_otr`:
 
 ```math
 \\mathbb{E}[\\text{reports}] = p \\cdot
@@ -244,13 +258,14 @@ onset incidence with the onset-to-report CDF `F_otr`:
 with `p` the DRC ascertainment fraction. Replaces the current model's
 instantaneous `p · C(T)` reporting with a delayed report: a case is
 reported only after its onset-to-report delay has elapsed, so recent
-infections are not yet fully ascertained. `report_delay` is supplied as
-a precomputed [`ExportDeathDelay`](@ref) (any onset-to-event CDF holder)
-for AD safety and one-build-per-draw reuse. Clamped strictly positive
-and finite. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+infections are not yet fully ascertained. `report_delay` is supplied
+as a precomputed [`ExportDeathDelay`](@ref) (any onset-to-event CDF
+holder) for AD safety and one-build-per-draw reuse. Clamped strictly
+positive and finite. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
 """
-function expected_reports_v2(oi::OnsetIncidence, report_delay::ExportDeathDelay,
-        p; alg = CUMULATIVE_INTEGRAL_ALG)
+function expected_reports_onset_staged(oi::OnsetIncidence,
+        report_delay::ExportDeathDelay, p;
+        alg = CUMULATIVE_INTEGRAL_ALG)
     T = oi.T
     g = let oi = oi, report_delay = report_delay, T = T
         s -> oi(s) * _cdf_to(report_delay, T - s)

@@ -1,14 +1,16 @@
-## Smoke test for the convolution-v2 architecture (issue #5).
+## Smoke script for the explicit-convolution architecture (issue #5).
 ## Exercises: onset-incidence convolution accuracy, the joint model
 ## compiling, a prior-predictive draw, a Mooncake gradient, runtime of
 ## the nested integral vs the current single convolution, and a short
-## NUTS smoke fit. Run with: julia --project=. scripts/smoke_v2.jl
+## NUTS smoke fit. Run with:
+## julia --project=. scripts/smoke_explicit_convolution.jl
 
 using BVDOutbreakSize
-using BVDOutbreakSize: bvd_joint_v2, OnsetIncidence, onset_incidence,
-                       expected_deaths_v2, expected_deaths,
-                       expected_onsets_v2, ExportDeathDelay, nuts_sample,
-                       default_adtype
+using BVDOutbreakSize: bvd_joint_explicit_convolution, OnsetIncidence,
+                       onset_incidence,
+                       expected_deaths_onset_staged, expected_deaths,
+                       expected_onsets_staged, ExportDeathDelay,
+                       nuts_sample, default_adtype
 using Turing
 using Turing: to_submodel
 using Turing.DynamicPPL: LogDensityFunction, VarInfo, link!!,
@@ -22,8 +24,8 @@ using Printf: @printf
 
 Random.seed!(20260518)
 
-## Reuse the current model's unchanged building blocks via local copies
-## (the package v2 model takes them as injected submodels).
+## Reuse the current model's unchanged building blocks via local
+## copies (the package model takes them as injected submodels).
 @model function growth_bb()
     τ ~ LogNormal(log(14), 0.4)
     m ~ truncated(Normal(7.0, 2.5); lower = 0, upper = 13.0)
@@ -55,10 +57,10 @@ end
     return (; daily_travellers)
 end
 
-build(obs_e, obs_d, obs_c; tmrca = missing) = bvd_joint_v2(
-    obs_e, obs_d, obs_c,
-    growth_bb(), cfr_bb(), disp_bb(), asc_bb(), travel_bb();
-    tmrca_days = tmrca)
+build(obs_e, obs_d, obs_c; tmrca = missing) =
+    bvd_joint_explicit_convolution(obs_e, obs_d, obs_c,
+        growth_bb(), cfr_bb(), disp_bb(), asc_bb(), travel_bb();
+        tmrca_days = tmrca)
 
 println("== 1. Onset-incidence convolution accuracy ==")
 let r = log(2) / 14, incub = Gamma(11.0, 0.74), t = 60.0
@@ -81,16 +83,17 @@ let r = log(2) / 14, incub = Gamma(11.0, 0.74), T = 90.0
     end
     @printf "  max interpolation rel.err over grid = %.2e\n" maxerr
     @printf "  cumulative onsets C_onset(T) = %.4g  (I_T = %.4g)\n" (
-        expected_onsets_v2(oi)) exp(r * T)
+        expected_onsets_staged(oi)) exp(r * T)
 end
 
 println("== 3. Joint model compiles + prior-predictive draw ==")
 gen = build(missing, missing, missing)
 draw = gen()
 @printf "  prior-predictive returns: %s\n" string(keys(draw))
-@printf "  I_T=%.1f onsets_T=%.1f E[exp]=%.3g E[deaths]=%.3g E[rep]=%.3g\n" (
-    draw.I_T) draw.onsets_T draw.expected_exports draw.expected_deaths (
-    draw.expected_reports)
+@printf("  I_T=%.1f onsets_T=%.1f E[exp]=%.3g E[deaths]=%.3g " *
+        "E[rep]=%.3g\n",
+        draw.I_T, draw.onsets_T, draw.expected_exports,
+        draw.expected_deaths, draw.expected_reports)
 
 println("== 4. Conditioned model + log density ==")
 obs = load_observations()
@@ -114,35 +117,35 @@ val, grad = LDP.logdensity_and_gradient(ldf_ad, θ0)
 @printf "  logdensity=%.4g  grad finite=%s  ‖grad‖=%.4g\n" val (
     all(isfinite, grad)) sqrt(sum(abs2, grad))
 
-println("== 6. Runtime: nested v2 deaths vs single-convolution ==")
-let r = log(2) / 14, incub = Gamma(11.0, 0.74), death = Gamma(4.3, 2.6),
-    T = 90.0, CFR = 0.33
+println("== 6. Runtime: onset-staged deaths vs single-convolution ==")
+let r = log(2) / 14, incub = Gamma(11.0, 0.74),
+    death = Gamma(4.3, 2.6), T = 90.0, CFR = 0.33
     oi = OnsetIncidence(r, incub, T)
     dd = ExportDeathDelay(death, T)
-    expected_deaths_v2(oi, dd, CFR)              # warmup
+    expected_deaths_onset_staged(oi, dd, CFR)        # warmup
     expected_deaths(CFR, r, T, death)
     build_oi() = OnsetIncidence(r, incub, T)
     n = 2000
     t_oi = @elapsed for _ in 1:n; build_oi(); end
     oi2 = build_oi()
     dd2 = ExportDeathDelay(death, T)
-    t_v2 = @elapsed for _ in 1:n
-        expected_deaths_v2(oi2, dd2, CFR)
+    t_new = @elapsed for _ in 1:n
+        expected_deaths_onset_staged(oi2, dd2, CFR)
     end
     t_old = @elapsed for _ in 1:n
         expected_deaths(CFR, r, T, death)
     end
     @printf "  OnsetIncidence build : %7.2f µs/draw\n" 1e6 * t_oi / n
-    @printf "  v2 deaths integral   : %7.2f µs/call\n" 1e6 * t_v2 / n
-    @printf "  current deaths conv   : %7.2f µs/call\n" 1e6 * t_old / n
-    @printf "  per-draw v2 cost (build once + 3 reuse) vs current 3 convs:\n"
-    @printf "    v2  ≈ %7.2f µs   current ≈ %7.2f µs\n" (
-        1e6 * (t_oi + 3 * t_v2) / n) (1e6 * 3 * t_old / n)
+    @printf "  staged deaths int.   : %7.2f µs/call\n" 1e6 * t_new / n
+    @printf "  current deaths conv  : %7.2f µs/call\n" 1e6 * t_old / n
+    @printf "  per-draw staged cost (build once + 3 reuse) vs 3 convs:\n"
+    @printf "    staged ≈ %7.2f µs   current ≈ %7.2f µs\n" (
+        1e6 * (t_oi + 3 * t_new) / n) (1e6 * 3 * t_old / n)
 end
 
 println("== 7. Short NUTS smoke fit (50 warmup + 50 samples, 1 chain) ==")
 t_fit = @elapsed chn = nuts_sample(model; samples = 50, chains = 1,
                                    target_accept = 0.8)
-@printf "  fit ran in %.1f s; keys present: I_T=%s onsets_T=%s\n" t_fit (
-    :I_T in keys(chn)) (:onsets_T in keys(chn))
+@printf "  fit ran in %.1f s; keys present: I_T=%s onsets_T=%s\n" (
+    t_fit) (:I_T in keys(chn)) (:onsets_T in keys(chn))
 println("  DONE")

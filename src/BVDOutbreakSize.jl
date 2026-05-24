@@ -47,11 +47,14 @@ export REPORT_SCENARIOS,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
        infection_incidence, onset_incidence, OnsetIncidence,
-       ONSET_GRID_POINTS, expected_onsets_v2, expected_exports_v2,
-       expected_deaths_v2, expected_reports_v2,
-       growth_v2, incubation_v2, onset_to_death_v2, onset_to_report_v2,
-       detection_window_v2, genetic_seeding_v2,
-       exports_obs_v2, deaths_obs_v2, cases_obs_v2, bvd_joint_v2
+       ONSET_GRID_POINTS,
+       expected_onsets_staged, expected_exports_onset_staged,
+       expected_deaths_onset_staged, expected_reports_onset_staged,
+       exponential_growth_explicit, infection_to_onset_delay_model,
+       onset_to_death_delay_model, onset_to_report_delay_model,
+       onset_to_detection_window_model, genetic_seeding_bound_model,
+       exports_onset_staged_obs, deaths_onset_staged_obs,
+       cases_onset_staged_obs, bvd_joint_explicit_convolution
 
 """
     REPORT_SCENARIOS
@@ -1271,9 +1274,9 @@ function plot_forecast(fc::DataFrame)
     return fig
 end
 
-## Continuous-time explicit-convolution v2 architecture (issue #5).
+## Continuous-time explicit-convolution architecture (issue #5).
 ## Added alongside the current model without changing it.
-include("convolution_v2.jl")
-include("models_v2.jl")
+include("explicit_convolution.jl")
+include("explicit_convolution_models.jl")
 
 end # module
