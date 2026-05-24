@@ -60,6 +60,10 @@ end
     @test daily[3] ≈ 1.0
     seg1 = diff(daily[1:5])
     @test all(≈(seg1[1]), seg1)
+    ## Single-knot edge case: a one-knot grid fills the daily series
+    ## with that one value (no out-of-bounds knot lookup).
+    one_knot = interpolate_knots_ss([3.0], [1], 5)
+    @test one_knot == fill(3.0, 5)
 end
 
 @testset "state_space_joint prior-predictive draw is finite" begin

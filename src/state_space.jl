@@ -147,6 +147,11 @@ function interpolate_knots_ss(log_R_knots::AbstractVector,
     Tp = eltype(log_R_knots)
     out = Vector{Tp}(undef, n)
     nb = length(knot_days)
+    ## Single-knot grid: nothing to interpolate, fill with the one value.
+    if nb == 1
+        fill!(out, log_R_knots[1])
+        return out
+    end
     @inbounds for t in 1:n
         b = 1
         while b < nb - 1 && t > knot_days[b + 1]
