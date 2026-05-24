@@ -123,7 +123,10 @@ Fields returned:
 - `exported_cases::Int`
 - `exports_deaths::Int`
 - `total_deaths::Int`
-- `reported_cases::Int`
+- `reported_cases::Int` — DRC suspected cumulative case count.
+- `confirmed_cases::Union{Int, Missing}` — DRC laboratory-confirmed
+  cumulative case count, the lagged subset of `reported_cases` after
+  testing; `missing` when no `confirmed_cases` block is present.
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
@@ -138,10 +141,9 @@ Fields returned:
   sensitivity; `missing` when no `alt_date` is present.
 - `genetic_tmrca_alt_days_sd::Union{Real, Missing}` — SD (days) on the
   alternative-clock floor; `missing` when absent.
-- `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
-  :reported_cases, :daily_outbound_travellers,
-  :daily_outbound_travellers_sd, :source_population, :genetic_tmrca),
-  NTuple{8, String}}` — citation per field.
+- `sources::NamedTuple` — citation per loaded field, with the same keys
+  as the numeric fields above. Optional fields (`confirmed_cases`,
+  `genetic_tmrca`) carry `missing` rather than a citation when absent.
 """
 function load_observations(
         path::AbstractString = joinpath(@__DIR__, "..", "data",
@@ -171,6 +173,8 @@ function load_observations(
         exports_deaths               = Int(_val("exports_deaths")),
         total_deaths                 = Int(_val("total_deaths")),
         reported_cases               = Int(_val("reported_cases")),
+        confirmed_cases              = haskey(raw, "confirmed_cases") ?
+            Int(_val("confirmed_cases")) : missing,
         daily_outbound_travellers    = float(
             _val("daily_outbound_travellers")),
         daily_outbound_travellers_sd = float(
@@ -193,6 +197,8 @@ function load_observations(
             exports_deaths               = _src("exports_deaths"),
             total_deaths                 = _src("total_deaths"),
             reported_cases               = _src("reported_cases"),
+            confirmed_cases              = haskey(raw, "confirmed_cases") ?
+                _src("confirmed_cases") : missing,
             daily_outbound_travellers    = _src("daily_outbound_travellers"),
             daily_outbound_travellers_sd = _src("daily_outbound_travellers_sd"),
             source_population            = _src("source_population"),

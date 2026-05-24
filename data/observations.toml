@@ -29,6 +29,10 @@ source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Week
 value  = 516
 source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — DRC suspected cases"
 
+[confirmed_cases]
+value  = 33
+source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — DRC cumulative laboratory-confirmed cases. Lags the suspected count by a report-to-test delay; the joint stream uses a positivity multiplier (45% in recent INSP daily/cumulative figures) on the suspected-case expectation."
+
 [daily_outbound_travellers]
 value  = 1871
 source = "McCabe et al. Table 3 — mean daily PoE flow across seven Uganda-DRC border points, Ituri side"

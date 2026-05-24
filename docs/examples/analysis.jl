@@ -996,6 +996,112 @@ end
 #md # </details>
 #md # ```
 
+# ##### Confirmed cases — testing extension
+#
+# Reported suspected cases are the surveillance gate; a subset is sent to
+# the laboratory and only a fraction returns positive. INSP daily and
+# cumulative sitreps put recent test positivity around $45\%$, so the
+# suspected count over-states true cases and the laboratory-confirmed
+# count under-states them. We add the cumulative confirmed count as its
+# own observation stream and link it to the suspected stream through a
+# test-positivity multiplier $\pi$ acting on top of the equation (18)
+# suspected expectation, with a report-to-test delay $f_t$ shifting the
+# convolution back from the cut-off:
+#
+# ```math
+# \mu_{\text{conf}}
+#     = \pi \cdot p_{\text{DRC}} \cdot
+#       \int_0^{T} e^{r s}\, f_t(T - s)\, ds. \tag{21}
+# ```
+#
+# The integral is the same incidence-density convolution that
+# back-calculates deaths in equation (16); we reuse `expected_deaths`
+# with $\pi\, p_{\text{DRC}}$ in place of the CFR. The confirmed count is
+# negative-binomial with the dispersion $k$ shared across the
+# count-based streams,
+#
+# ```math
+# Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k), \tag{22}
+# ```
+#
+# so $\pi$ is identified jointly by the suspected/confirmed pair and
+# $p_{\text{DRC}}$ keeps its current meaning as the surveillance
+# ascertainment of true cases into the suspected stream.
+
+#md # ```@raw html
+#md # <details><summary>Submodel: test_positivity_model</summary>
+#md # ```
+
+@model function test_positivity_model(;
+        positivity_prior = Beta(4.5, 5.5))
+    positivity ~ positivity_prior
+    return (; positivity)
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# The Beta(4.5, 5.5) prior has mean $0.45$ and SD around $0.15$, covering
+# the daily and cumulative positivity figures reported in recent INSP
+# sitreps without anchoring the inference to any one daily value.
+#
+# The report-to-test delay $f_t$ is parameterised as a gamma on shape
+# $\alpha_t$ and scale $\theta_t$, with priors centred on a mean of about
+# seven days and an SD around three days. Both parameters are sampled, so
+# the convolution adapts as the laboratory turnaround is updated by
+# joint inference against the suspected and confirmed counts.
+
+#md # ```@raw html
+#md # <details><summary>Submodel: report_to_test_delay_model</summary>
+#md # ```
+
+@model function report_to_test_delay_model(;
+        alpha_prior = truncated(Normal(5.0, 2.0); lower = 0),
+        theta_prior = truncated(Normal(1.5, 0.5); lower = 0))
+    α_t ~ alpha_prior
+    θ_t ~ theta_prior
+    return (; α_t, θ_t, dist = Gamma(α_t, θ_t))
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+#md # ```@raw html
+#md # <details><summary>Submodel: confirmed_cases_model</summary>
+#md # ```
+
+@model function confirmed_cases_model(
+        confirmed_cases::Union{Missing, Integer},
+        growth_state, k::Real, p_drc::Real;
+        positivity = test_positivity_model(),
+        delay      = report_to_test_delay_model())
+
+    r = growth_state.r
+    T = growth_state.T
+
+    positivity_state ~ to_submodel(positivity, false)
+    test_delay_state ~ to_submodel(delay, false)
+
+    scale = positivity_state.positivity * p_drc
+    raw_conf            = expected_deaths(scale, r, T,
+                                          test_delay_state.dist)
+    expected_confirmed := isfinite(raw_conf) ?
+        max(raw_conf, eps(typeof(raw_conf))) :
+        eps(typeof(raw_conf))
+
+    confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
+
+    return (; positivity          = positivity_state.positivity,
+              report_to_test_dist = test_delay_state.dist,
+              expected_confirmed)
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # ##### Deaths among exports
 #
 # Uganda reports a single death among its detected exports. That count
@@ -1320,14 +1426,18 @@ end
         total_deaths::Union{Missing, Integer},
         reported_cases::Union{Missing, Integer} = missing,
         export_deaths_daily::AbstractVector = Int[];
+        confirmed_cases::Union{Missing, Integer} = missing,
         growth        = exponential_growth_model(),
         exports       = exports_model,
         deaths        = deaths_model,
         cases         = cases_model,
+        confirmed     = confirmed_cases_model,
         exports_deaths_model = exports_deaths_model,
         exports_detection_timing = exports_detection_timing_model,
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
+        positivity    = test_positivity_model(),
+        report_to_test_delay = report_to_test_delay_model(),
         genetic       = nothing,
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
@@ -1350,6 +1460,11 @@ end
         deaths(total_deaths, growth_state, k), false)
     cases_state ~ to_submodel(
         cases(reported_cases, growth_state, k, p_drc), false)
+    confirmed_state ~ to_submodel(
+        confirmed(confirmed_cases, growth_state, k, p_drc;
+            positivity = positivity,
+            delay      = report_to_test_delay),
+        false)
     exports_deaths_state ~ to_submodel(
         exports_deaths_model(export_deaths_daily, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;
@@ -1479,6 +1594,7 @@ genetic_seeding = T -> genetic_seeding_model(T, obs.genetic_tmrca_days;
 chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
               obs.reported_cases, obs.export_deaths_daily;
+              confirmed_cases = obs.confirmed_cases,
               first_export_detection_delta = obs.first_export_detection_delta,
               genetic = genetic_seeding));
 
@@ -1855,6 +1971,7 @@ posterior_pair_fig #hide
 pp_joint   = predict(
     bvd_joint(missing, missing, missing,
               fill(missing, length(obs.export_deaths_daily));
+              confirmed_cases = missing,
               pre_start_deaths = missing,
               pre_detection_exports = missing,
               first_export_detection_delta = obs.first_export_detection_delta,
@@ -2058,6 +2175,7 @@ community_delay = delay_model(;
 chn_joint_community = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
               obs.reported_cases, obs.export_deaths_daily;
+              confirmed_cases = obs.confirmed_cases,
               first_export_detection_delta = obs.first_export_detection_delta,
               genetic = genetic_seeding,
               deaths = (total_deaths, growth_state, k) ->
@@ -2139,6 +2257,7 @@ genetic_seeding_clock19 = T -> genetic_seeding_model(T,
 chn_joint_clock19 = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
               obs.reported_cases, obs.export_deaths_daily;
+              confirmed_cases = obs.confirmed_cases,
               first_export_detection_delta = obs.first_export_detection_delta,
               genetic = genetic_seeding_clock19));
 
