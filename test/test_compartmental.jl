@@ -57,22 +57,15 @@ end
         S0 = N - 1.0, E0 = 1.0, I0 = 0.0, saveat = 1.0)
     rn = bvd_seir_network()
     I_ode = sol[rn.I]
-    ## The daily stepper marches the state to integer day endpoints, so
-    ## compare against the ODE solution at the matching times. The two
-    ## forward operators agree to roughly the daily-discretisation
-    ## constant: the exponentialised-rate stepper assumes a piecewise-
-    ## constant force-of-infection across each day, whereas the ODE
-    ## resolves the within-day curvature. At BVD-scale per-day rates
-    ## (σ, γ ~ 0.15) the relative gap is bounded by a few tens of
-    ## percent in I (because I is a small absolute quantity early on
-    ## and the daily curvature concentrates there); cumulative onsets
-    ## agree much better.
-    ## The agreement is bounded by the daily-discretisation constant of
-    ## an exponentialised-rate stepper: each flow is treated as a
-    ## constant-rate exponential clock over the day, so cross-compartment
-    ## within-day curvature is dropped. At BVD-scale per-day rates the
-    ## relative gap is at most a few tens of percent, set as a wide
-    ## sanity bound here rather than a tight quantitative match.
+    ## The daily stepper marches the state to integer day endpoints and
+    ## compares against the ODE solution at the matching times. The two
+    ## forward operators agree only to within the daily-discretisation
+    ## constant of an exponentialised-rate stepper: each flow is treated
+    ## as a constant-rate exponential clock over the day, so within-day
+    ## cross-compartment curvature is dropped. At BVD-scale per-day
+    ## rates (σ, γ ~ 0.15) the relative gap is bounded by a few tens of
+    ## percent in I — set as a wide sanity bound here rather than a
+    ## tight quantitative match.
     rel_err_I = maximum(abs.(full.I .- I_ode[2:end])) /
               (maximum(abs.(I_ode)) + eps())
     @test rel_err_I < 0.5
