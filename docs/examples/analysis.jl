@@ -1460,11 +1460,13 @@ end
         deaths(total_deaths, growth_state, k), false)
     cases_state ~ to_submodel(
         cases(reported_cases, growth_state, k, p_drc), false)
-    confirmed_state ~ to_submodel(
-        confirmed(confirmed_cases, growth_state, k, p_drc;
-            positivity = positivity,
-            delay      = report_to_test_delay),
-        false)
+    if confirmed_cases !== missing
+        confirmed_state ~ to_submodel(
+            confirmed(confirmed_cases, growth_state, k, p_drc;
+                positivity = positivity,
+                delay      = report_to_test_delay),
+            false)
+    end
     exports_deaths_state ~ to_submodel(
         exports_deaths_model(export_deaths_daily, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;
