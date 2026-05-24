@@ -73,6 +73,10 @@ makedocs(;
         "Analysis"     => "analysis.md",
         "API"          => "api.md",
         "Contributing" => "contributing.md",
+        "Redesign proposals" => [
+            "State-space + particle filter" =>
+                "proposals/state-space-particle.md",
+        ],
         "News"         => "news.md",
         "References"   => "references.md",
     ],

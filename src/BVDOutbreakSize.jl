@@ -15,7 +15,9 @@ using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions
 using Distributions: Distribution, Gamma, ccdf, pdf, Poisson,
-                     NegativeBinomial
+                     NegativeBinomial, Normal, Beta, truncated
+using StatsFuns: logit, logistic, normlogcdf
+using Turing: filldist
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
@@ -44,7 +46,17 @@ export REPORT_SCENARIOS,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
-       forecast_vs_truth, plot_forecast_vs_truth
+       forecast_vs_truth, plot_forecast_vs_truth,
+       discretise_delay_ss, convolve_delay_ss,
+       nb_branching_step, safe_nbinomial_ss,
+       weekly_knot_days_ss, interpolate_knots_ss,
+       rt_walk_model_ss, generation_interval_model_ss,
+       incubation_model_ss, onset_to_death_model_ss,
+       onset_to_report_model_ss, onset_to_detect_model_ss,
+       cfr_model_ss, surveillance_dispersion_model_ss,
+       pooled_ascertainment_model_ss, traveller_volume_model_ss,
+       seed_size_model_ss, offspring_dispersion_model_ss,
+       state_space_joint
 
 """
     REPORT_SCENARIOS
@@ -1394,5 +1406,8 @@ function plot_forecast_vs_truth(fc::DataFrame;
     end
     return fig
 end
+
+## State-space stochastic infection process architecture (issue #48).
+include("state_space.jl")
 
 end # module
