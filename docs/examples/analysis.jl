@@ -1000,13 +1000,10 @@ end
 #
 # Reported suspected cases are the surveillance gate; a subset is sent to
 # the laboratory and only a fraction returns positive. INSP daily and
-# cumulative sitreps put recent test positivity around $45\%$, so the
-# suspected count over-states true cases and the laboratory-confirmed
-# count under-states them. We add the cumulative confirmed count as its
-# own observation stream and link it to the suspected stream through a
-# test-positivity multiplier $\pi$ acting on top of the equation (18)
-# suspected expectation, with a report-to-test delay $f_t$ shifting the
-# convolution back from the cut-off:
+# cumulative sitreps put per-test positivity around $45\%$. The cumulative
+# confirmed count is added as its own observation stream and linked to
+# the suspected stream through a multiplier $\pi$ and a report-to-test
+# delay $f_t$:
 #
 # ```math
 # \mu_{\text{conf}}
@@ -1021,19 +1018,42 @@ end
 # count-based streams,
 #
 # ```math
-# Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k), \tag{22}
+# Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k). \tag{22}
 # ```
 #
-# so $\pi$ is identified jointly by the suspected/confirmed pair and
-# $p_{\text{DRC}}$ keeps its current meaning as the surveillance
-# ascertainment of true cases into the suspected stream.
+# $\pi$ here is a bundled rate. Two effects collapse into it: per-test
+# positivity (the INSP figure) and the fraction of suspected cases that
+# have ever been tested by $T$. With one cumulative confirmed count we
+# cannot identify the two factors separately, so the bundled $\pi$ is
+# bounded above by the per-test rate and below by the observed
+# confirmed-to-suspected ratio (about $0.06$ at the 18 May cut-off). The
+# prior is widened to admit that range:
+#
+# ```math
+# \pi \sim \mathrm{Beta}(2,\ 4), \tag{23}
+# ```
+#
+# with mean $0.33$, SD $0.18$ and a 90% interval covering roughly $0.05$
+# to $0.66$. The report-to-test delay $f_t$ is a gamma on shape
+# $\alpha_t$ and scale $\theta_t$, with priors
+#
+# ```math
+# \alpha_t \sim \mathrm{Normal}^{+}(5,\ 2),
+# \qquad
+# \theta_t \sim \mathrm{Normal}^{+}(1.5,\ 0.5), \tag{24}
+# ```
+#
+# giving a prior mean of about seven days and SD around three days.
+# $p_{\text{DRC}}$ keeps its meaning as the surveillance ascertainment of
+# true cases into the suspected stream; $\pi$ then absorbs the
+# suspected-to-confirmed funnel.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_positivity_model</summary>
 #md # ```
 
 @model function test_positivity_model(;
-        positivity_prior = Beta(4.5, 5.5))
+        positivity_prior = Beta(2.0, 4.0))
     positivity ~ positivity_prior
     return (; positivity)
 end
@@ -1041,16 +1061,6 @@ end
 #md # ```@raw html
 #md # </details>
 #md # ```
-
-# The Beta(4.5, 5.5) prior has mean $0.45$ and SD around $0.15$, covering
-# the daily and cumulative positivity figures reported in recent INSP
-# sitreps without anchoring the inference to any one daily value.
-#
-# The report-to-test delay $f_t$ is parameterised as a gamma on shape
-# $\alpha_t$ and scale $\theta_t$, with priors centred on a mean of about
-# seven days and an SD around three days. Both parameters are sampled, so
-# the convolution adapts as the laboratory turnaround is updated by
-# joint inference against the suspected and confirmed counts.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: report_to_test_delay_model</summary>

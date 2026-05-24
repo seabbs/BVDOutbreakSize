@@ -9,6 +9,17 @@ using Turing: Turing, @model, sample, Prior, to_submodel
 using BVDOutbreakSize: expected_deaths
 import FlexiChains
 
+## Mirrors the production `safe_nbinomial` helper in analysis.jl: clamps
+## the success probability so extreme NUTS proposals during warmup do
+## not trip the distribution domain check.
+function _safe_nbinomial(k, μ)
+    p_raw = k / (k + max(μ, eps(typeof(μ))))
+    p = isfinite(p_raw) ?
+        clamp(p_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
+        eps(typeof(k))
+    return NegativeBinomial(k, p)
+end
+
 @model function _confirmed_test_growth()
     log_τ ~ Normal(log(14), 0.4)
     m     ~ truncated(Normal(7.0, 2.5); lower = 0, upper = 13.0)
@@ -21,7 +32,7 @@ import FlexiChains
 end
 
 @model function _confirmed_test_positivity(;
-        positivity_prior = Beta(4.5, 5.5))
+        positivity_prior = Beta(2.0, 4.0))
     positivity ~ positivity_prior
     return (; positivity)
 end
@@ -63,11 +74,7 @@ end
         max(raw_conf, eps(typeof(raw_conf))) :
         eps(typeof(raw_conf))
 
-    p_nb_raw = k / (k + expected_confirmed)
-    p_nb = isfinite(p_nb_raw) ?
-        clamp(p_nb_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
-        eps(typeof(k))
-    confirmed_cases ~ NegativeBinomial(k, p_nb)
+    confirmed_cases ~ _safe_nbinomial(k, expected_confirmed)
     return (; positivity = positivity_state.positivity,
               expected_confirmed)
 end
