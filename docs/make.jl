@@ -72,6 +72,10 @@ makedocs(;
         "Home"         => "index.md",
         "Analysis"     => "analysis.md",
         "API"          => "api.md",
+        "Redesign proposals" => [
+            "Compartmental (Catalyst/MTK)" =>
+                "proposals/compartmental-mtk.md",
+        ],
         "Contributing" => "contributing.md",
         "News"         => "news.md",
         "References"   => "references.md",

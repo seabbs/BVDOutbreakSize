@@ -15,8 +15,12 @@ using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions
 using Distributions: Distribution, Gamma, ccdf, pdf, Poisson,
-                     NegativeBinomial
+                     NegativeBinomial, Beta, Normal, LogNormal, truncated
+using StatsFuns: logit, logistic
 using Integrals: IntegralProblem, GaussLegendre, solve
+import Catalyst
+import ModelingToolkit
+import OrdinaryDiffEq
 import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
@@ -44,7 +48,17 @@ export REPORT_SCENARIOS,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
-       forecast_vs_truth, plot_forecast_vs_truth
+       forecast_vs_truth, plot_forecast_vs_truth,
+       bvd_seir_network, bvd_seir_ode_solve,
+       step_seir_daily, simulate_seir_daily, simulate_seir_daily_full,
+       discretise_delay_seir, convolve_delay_seir, safe_nbinomial_seir,
+       r0_model, latent_period_model, infectious_period_model, seed_model,
+       compartmental_cfr_model, compartmental_o2d_model,
+       compartmental_o2r_model, compartmental_detect_model,
+       compartmental_traveller_model, compartmental_dispersion_model,
+       compartmental_ascertainment_model,
+       seir_growth_model, deaths_onset_model, cases_onset_model,
+       exports_onset_model, bvd_compartmental_joint
 
 """
     REPORT_SCENARIOS
@@ -1394,5 +1408,14 @@ function plot_forecast_vs_truth(fc::DataFrame;
     end
     return fig
 end
+
+## --- Compartmental architecture (branch `arch-compartmental-mtk`) ------
+##
+## Catalyst.jl reaction-network spec + a daily semi-implicit Euler
+## stepper that consumes it. The stepper is the AD-friendly path used
+## inside the Turing model; the OrdinaryDiffEq solve is retained as a
+## reference forward map only (Mooncake cannot differentiate through
+## it — see `docs/src/proposals/compartmental-mtk.md`).
+include("compartmental.jl")
 
 end # module
