@@ -1,6 +1,6 @@
 # Proposal: discrete-time renewal architecture
 
-Status: prototype for review (issue #81 structure, branch `arch-renewal`).
+Status: design for review (issue #81 structure, branch `arch-renewal`).
 Author: drafted by an agent under human oversight.
 
 ## Motivation
@@ -163,7 +163,7 @@ before the Poisson/NegBinomial likelihoods, mirroring `expected_exports`.
 
 ## Demonstration
 
-`scripts/renewal_smoke.jl` and `test/test_renewal.jl` show the prototype:
+`scripts/renewal_smoke.jl` and `test/test_renewal.jl` show that the model:
 
 1. compiles and draws from the prior (sensible counts for all four
    streams);
@@ -225,15 +225,14 @@ the exponential-growth assumption drives the current numbers.
 
 ## Migration effort
 
-- The prototype is additive: `src/renewal.jl` is `include`d by the module
+- The new code is additive: `src/renewal.jl` is `include`d by the module
   and exports its own names, leaving the exponential-growth model and all
   existing tests untouched (full suite still passes).
 - To productionise: make the outbreak age a parameter; confirm the weekly
-  $R_t$ resolution against a full fit (and coarsen further if needed);
-  replace the fixed incubation/report/detection delays with documented
-  priors; add posterior-summary, plotting and forecast paths analogous to
-  the current ones; and add the time-resolved likelihoods (issue #52) that
-  the daily grid now makes natural.
+  $R_t$ resolution against a full fit (and coarsen further if needed); add
+  posterior-summary, plotting and forecast paths analogous to the current
+  ones; and add the time-resolved likelihoods (issue #52) that the daily
+  grid now makes natural.
 - The open question is whether even the weekly knots earn their keep given
   the data: with four aggregate counts the trajectory shape is largely
   prior, so the weekly piecewise-linear form is the minimum flexibility

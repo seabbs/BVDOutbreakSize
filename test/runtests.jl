@@ -14,7 +14,7 @@ using BVDOutbreakSize: REPORT_SCENARIOS,
                        forecast_vs_truth, plot_forecast_vs_truth
 using ADTypes: AutoMooncake
 using DataFrames: DataFrame, nrow
-using Distributions: Normal, Gamma
+using Distributions: Normal, Gamma, LogNormal, truncated
 import Distributions
 using Random: MersenneTwister
 using Turing: Turing, @model, sample, Prior

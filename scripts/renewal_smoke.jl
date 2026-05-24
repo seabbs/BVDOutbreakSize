@@ -1,4 +1,4 @@
-## Smoke test for the discrete-time renewal prototype (issue #81).
+## Smoke test for the discrete-time renewal architecture (issue #81).
 ##
 ## Demonstrates that `renewal_joint`:
 ##   1. compiles and draws from the prior (prior-predictive),

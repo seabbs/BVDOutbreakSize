@@ -8,6 +8,49 @@
     @test pmf[1] < pmf[2]
 end
 
+@testset "double_censored_pmf is normalised for a LogNormal primary" begin
+    pmf = BVDOutbreakSize.double_censored_pmf(LogNormal(log(7.0), 0.5), 30)
+    @test all(>=(0), pmf)
+    @test isapprox(sum(pmf), 1.0; atol = 1e-12)
+end
+
+@testset "delay_lognormal_meansd_model samples a normalised PMF" begin
+    m = BVDOutbreakSize.delay_lognormal_meansd_model(40;
+        mean_prior = truncated(Normal(7.0, 2.0); lower = 1),
+        sd_prior   = truncated(Normal(4.0, 1.5); lower = 1))
+    st = m()
+    @test st.delay_mean > 0
+    @test st.delay_sd > 0
+    @test all(>=(0), st.pmf)
+    @test isapprox(sum(st.pmf), 1.0; atol = 1e-12)
+    @test st.dist isa LogNormal     # exact double-censored PMF path
+end
+
+@testset "delay_meansd_model samples a normalised PMF from priors" begin
+    m = BVDOutbreakSize.delay_meansd_model(40;
+        mean_prior = truncated(Normal(7.0, 2.0); lower = 1),
+        sd_prior   = truncated(Normal(4.0, 1.5); lower = 1))
+    st = m()
+    @test st.delay_mean > 0          # sampled, not fixed
+    @test st.delay_sd > 0
+    @test all(>=(0), st.pmf)
+    @test isapprox(sum(st.pmf), 1.0; atol = 1e-12)
+    ## Two independent draws differ (the delay is sampled from a prior).
+    st2 = m()
+    @test (st.delay_mean, st.delay_sd) != (st2.delay_mean, st2.delay_sd)
+end
+
+@testset "generation_interval_model samples mean/SD (no fixed GT)" begin
+    m = BVDOutbreakSize.generation_interval_model(40)
+    st = m()
+    @test st.gi_mean > 0             # generation time is estimated
+    @test st.gi_sd > 0
+    @test all(>=(0), st.g)
+    @test isapprox(sum(st.g), 1.0; atol = 1e-12)
+    ## Lag 0 dropped: an infectee is infected strictly after its infector.
+    @test length(st.g) == 40
+end
+
 @testset "renewal_infections seeds and grows under R > 1" begin
     g = [0.0, 0.5, 0.3, 0.2]
     Rt = fill(2.0, 10)
@@ -66,6 +109,29 @@ end
     @test all(>(0), st.Rt)
     @test length(st.log_R) == length(st.knot_days)
     @test st.knot_days == BVDOutbreakSize.weekly_knot_days(90; week = 7)
+end
+
+@testset "onset_incidence_model stages infections → onsets" begin
+    infections = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+    m = BVDOutbreakSize.onset_incidence_model(infections;
+        incubation_nmax = 15)
+    st = m()
+    @test length(st.onsets) == length(infections)
+    @test all(>=(0), st.onsets)
+    @test st.incubation_mean > 0
+    @test st.incubation_sd > 0
+    @test isapprox(sum(st.incubation_pmf), 1.0; atol = 1e-12)
+end
+
+@testset "deaths_obs_model wires CFR × onset⊛onset-to-death" begin
+    onsets = collect(1.0:10.0)
+    m = BVDOutbreakSize.deaths_obs_model(missing, onsets, 5.0;
+        delay_nmax = 30)
+    st = m()
+    @test st.expected_deaths_T >= 0
+    @test isfinite(st.expected_deaths_T)
+    @test length(st.deaths_daily) == length(onsets)
+    @test 0 < st.CFR < 1
 end
 
 @testset "renewal_joint prior-predictive draw is finite" begin

@@ -11,7 +11,8 @@ using Dates: Date, date2epochdays, epochdays2date
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using Turing
-using Turing.DynamicPPL: InitFromPrior
+using Turing: filldist
+using Turing.DynamicPPL: InitFromPrior, @addlogprob!
 import FlexiChains
 using DocStringExtensions
 using Distributions: Distribution, Gamma, ccdf, pdf, Poisson,
@@ -19,6 +20,7 @@ using Distributions: Distribution, Gamma, ccdf, pdf, Poisson,
                      cdf, MvNormal
 using StatsFuns: logit, logistic, normlogcdf
 using Integrals: IntegralProblem, GaussLegendre, solve
+using CensoredDistributions: double_interval_censored
 import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
@@ -48,9 +50,17 @@ export REPORT_SCENARIOS,
        forecast_reported, forecast_table, plot_forecast,
        forecast_vs_truth, plot_forecast_vs_truth,
        safe_nbinomial,
-       discretise_delay, renewal_infections, convolve_delay,
+       discretise_delay, double_censored_pmf,
+       renewal_infections, convolve_delay,
        weekly_knot_days, interpolate_knots,
        rt_walk_model, generation_interval_model, delay_pmf_model,
+       delay_meansd_model, delay_lognormal_meansd_model,
+       seed_model, cfr_renewal_model,
+       surveillance_dispersion_renewal, pooled_ascertainment_renewal,
+       traveller_volume_renewal,
+       renewal_process_model, onset_incidence_model,
+       deaths_obs_model, reports_obs_model, exports_obs_model,
+       exports_deaths_obs_model, tmrca_bound_model,
        renewal_joint
 
 """

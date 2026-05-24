@@ -74,6 +74,9 @@ makedocs(;
         "API"          => "api.md",
         "Contributing" => "contributing.md",
         "News"         => "news.md",
+        "Redesign proposals" => [
+            "Discrete renewal" => "proposals/discrete-renewal.md",
+        ],
         "References"   => "references.md",
     ],
     format   = DocumenterVitepress.MarkdownVitepress(;
