@@ -473,7 +473,8 @@ kwargs to override.
         seed        = seed_model(),
         cfr         = compartmental_cfr_model(),
         m_prior     = truncated(Normal(7.0, 2.5);
-                                 lower = 0.0, upper = 13.0))
+                                 lower = 0.0, upper = 13.0),
+        n_days_max::Integer = 300)
     r0_state         ~ to_submodel(r0, false)
     latent_state     ~ to_submodel(latent, false)
     infectious_state ~ to_submodel(infectious, false)
@@ -501,7 +502,12 @@ kwargs to override.
 
     m ~ m_prior
     T_real = m * τ
-    n = max(1, ceil(Int, T_real))
+    # Cap the simulation grid so an extreme NUTS warmup proposal with a
+    # tiny `r` (huge `τ`) cannot blow the AD tape. `n_days_max` is large
+    # enough for realistic outbreak ages (default 300 days) and acts as
+    # a safety rail; proposals that would exceed it carry a fixed-length
+    # grid rather than allocating something Mooncake cannot replay.
+    n = max(1, min(n_days_max, ceil(Int, T_real)))
 
     sim = simulate_seir_daily(n;
         β = β, σ = σ, γ = γ, CFR = CFR, N = N,
