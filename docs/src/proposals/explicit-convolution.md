@@ -1,5 +1,10 @@
 # Explicit-convolution architecture
 
+**Status.** Design proposal — not yet merged into the live model. The
+implementation lives alongside the current code (in
+[PR #104](https://github.com/epiforecasts/BVDOutbreakSize/pull/104),
+draft) so the existing analysis page keeps working unchanged.
+
 Design proposal for the model redesign tracked in
 [issue #5](https://github.com/epiforecasts/BVDOutbreakSize/issues/5).
 This is the lowest-risk redesign option: it keeps the deterministic
