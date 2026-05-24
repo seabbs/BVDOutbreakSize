@@ -1,0 +1,36 @@
+# Sampler glue: the package-default AD type and the NUTS driver used
+# to fit every Turing model.
+
+"""
+$(TYPEDSIGNATURES)
+
+Mooncake reverse-mode AD with default `Mooncake.Config()`. Used as
+the NUTS `adtype` keyword.
+"""
+default_adtype() = AutoMooncake(; config = Mooncake.Config())
+
+"""
+$(TYPEDSIGNATURES)
+
+NUTS on `model`, parallel chains via `MCMCThreads`. Chains
+initialise from the prior to keep the sampler away from the
+boundary of constrained variables.
+"""
+function nuts_sample(model;
+        samples::Integer    = 1_000,
+        chains::Integer     = 4,
+        target_accept::Real = 0.95,
+        seed::Integer       = 20260518,
+        progress::Bool      = false,
+        adtype              = default_adtype())
+    rng = MersenneTwister(seed)
+    return sample(
+        rng,
+        model,
+        NUTS(target_accept; adtype),
+        MCMCThreads(),
+        samples, chains;
+        initial_params = fill(InitFromPrior(), chains),
+        progress       = progress,
+    )
+end
