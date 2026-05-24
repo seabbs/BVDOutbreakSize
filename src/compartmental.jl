@@ -73,13 +73,14 @@ function bvd_seir_ode_solve(T::Real;
         S0::Real, E0::Real, I0::Real, R0::Real = zero(N),
         D0::Real = zero(N), saveat::Real = one(T))
     rn = bvd_seir_network()
-    u0  = [rn.S => float(S0), rn.E => float(E0),
-           rn.I => float(I0), rn.R => float(R0),
-           rn.D => float(D0)]
-    pv  = [rn.β => float(β), rn.σ => float(σ),
-           rn.γ => float(γ), rn.CFR => float(CFR),
-           rn.N => float(N)]
-    prob = OrdinaryDiffEq.ODEProblem(rn, [u0; pv], (zero(T), float(T)))
+    u0map = [rn.S => float(S0), rn.E => float(E0),
+             rn.I => float(I0), rn.R => float(R0),
+             rn.D => float(D0)]
+    pmap  = [rn.β => float(β), rn.σ => float(σ),
+             rn.γ => float(γ), rn.CFR => float(CFR),
+             rn.N => float(N)]
+    prob = OrdinaryDiffEq.ODEProblem(rn, u0map,
+                                     (zero(T), float(T)), pmap)
     return OrdinaryDiffEq.solve(prob, OrdinaryDiffEq.Tsit5();
                                 saveat = saveat)
 end

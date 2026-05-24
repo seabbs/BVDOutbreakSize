@@ -11,8 +11,8 @@
 ## test suite — that uses lighter wiring in `test/test_compartmental.jl`.
 
 using BVDOutbreakSize
-using Random: MersenneTwister, seed!
-using Distributions: Gamma
+using Random: seed!
+using Statistics: median
 
 seed!(20260524)
 
