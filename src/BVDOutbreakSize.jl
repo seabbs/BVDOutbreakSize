@@ -10,7 +10,7 @@ using Random: MersenneTwister
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using ChainRulesCore: ChainRulesCore, NoTangent
-using SpecialFunctions: gamma_inc, digamma
+using SpecialFunctions: gamma_inc, digamma, loggamma
 import SpecialFunctions
 using Turing
 using Turing.DynamicPPL: InitFromPrior
@@ -124,6 +124,9 @@ situation report (19 May 2026). Used by the ascertainment extension
 beyond Imperial Methods 1 and 2.
 """
 const REPORTED_CASES = 500
+
+# Include reverse rules for the gamma CDF
+include("gamma_cdf.jl")
 
 """
 $(TYPEDSIGNATURES)
@@ -292,61 +295,6 @@ function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
     end
     return CFR * integrate(g, zero(T), T; alg)
 end
-
-## Wrapper around `cdf(Gamma(α, θ), x)` exposed as a 3-arg scalar
-## primitive so we can attach a Mooncake-compatible reverse-mode rule.
-##
-## SpecialFunctions.jl's `gamma_inc(a, x)` ChainRule defines only the
-## `x`-partial; the shape (`a`) partial is `@not_implemented`. Mooncake
-## inherits that gap and returns `NaN` for any α-gradient flowing
-## through `cdf(::Gamma, ::Real)`. The two AD-system workarounds
-## (propagating ForwardDiff `Dual` numbers through the implementation;
-## relying on a built-in `a`-partial) both fail because
-## `SpecialFunctions._gamma_inc` is dispatched only on concrete
-## `Float64`/`Float32`/`BigFloat`, so duals never reach it and no
-## reverse-mode rule exists.
-##
-## Instead we attach our own analytic rrule:
-##
-## * `∂F/∂x  = pdf(Gamma(α, θ), x)`
-## * `∂F/∂θ  = -(x/θ) · pdf(Gamma(α, θ), x)`
-## * `∂F/∂α  = -ψ(α)·P(α, y) + (1/Γ(α)) · ∫₀^y t^{α-1} e^{-t} log t dt`,
-##   with `y = x/θ` and `P` the regularized lower incomplete gamma.
-##
-## The `α`-integral is evaluated by the package-wide Gauss-Legendre
-## scheme, so the cost per gradient is one extra ~32-point quadrature.
-## Mooncake picks the rule up via `@from_rrule`. Stan and JAX hand-code
-## the same gradient as a primitive in their AD libraries (Moore 1982,
-## *Algorithm AS 187*); this is the Julia version.
-_gamma_cdf(α, θ, x) = cdf(Gamma(α, θ), x)
-
-function _gamma_cdf_partials(α, θ, x)
-    R = float(promote_type(typeof(α), typeof(θ), typeof(x)))
-    y = x / θ
-    y <= zero(y) && return zero(R), zero(R), zero(R)
-    f      = pdf(Gamma(α, θ), x)
-    df_dx  = f
-    df_dθ  = -y * f
-    P      = first(gamma_inc(α, y))
-    integrand = t -> t > zero(t) ?
-        t^(α - 1) * exp(-t) * log(t) : zero(t)
-    I      = integrate(integrand, zero(y), y;
-                       alg = GAMMA_CDF_ADJ_INTEGRAL_ALG)::Float64
-    df_dα  = -digamma(α) * P + I / SpecialFunctions.gamma(α)
-    return df_dα, df_dθ, df_dx
-end
-
-function ChainRulesCore.rrule(::typeof(_gamma_cdf),
-        α::Real, θ::Real, x::Real)
-    y = _gamma_cdf(α, θ, x)
-    dα, dθ, dx = _gamma_cdf_partials(α, θ, x)
-    function _gamma_cdf_pullback(ȳ)
-        return (NoTangent(), dα' * ȳ, dθ' * ȳ, dx' * ȳ)
-    end
-    return y, _gamma_cdf_pullback
-end
-
-Mooncake.@from_rrule Mooncake.DefaultCtx Tuple{typeof(_gamma_cdf), Float64, Float64, Float64}
 
 """
 $(TYPEDSIGNATURES)
