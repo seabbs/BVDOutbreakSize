@@ -69,12 +69,15 @@ makedocs(;
     warnonly = [:missing_docs, :linkcheck, :citations],
     plugins  = [bib],
     pages    = [
-        "Home"         => "index.md",
-        "Analysis"     => "analysis.md",
-        "API"          => "api.md",
-        "Contributing" => "contributing.md",
-        "News"         => "news.md",
-        "References"   => "references.md",
+        "Home"                => "index.md",
+        "Analysis"            => "analysis.md",
+        "API"                 => "api.md",
+        "Redesign proposals"  => [
+            "Stochastic latent" => "proposals/stochastic-latent.md",
+        ],
+        "Contributing"        => "contributing.md",
+        "News"                => "news.md",
+        "References"          => "references.md",
     ],
     format   = DocumenterVitepress.MarkdownVitepress(;
         repo      = "github.com/epiforecasts/BVDOutbreakSize",

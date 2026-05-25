@@ -2596,6 +2596,271 @@ imperial_summary #hide
 
 imperial_summary_20may #hide
 
+# ## Alternative architecture: stochastic latent infection process
+#
+# Section [Limitations](#Limitations) flagged the main model's reliance
+# on a deterministic latent state and a single constant growth rate.
+# As a candidate redesign we have prototyped a *stochastic latent
+# infection process* on the same data: a log-Gaussian / linear-noise
+# (LNA) random walk on log-incidence with exponential-growth drift, so
+# the implied infection rate `i(s)` stays positive and the cumulative
+# trajectory built by trapezoid integration is monotone by construction.
+# Observations stage as **infections → onset → deaths / reports /
+# detection**: the onset cumulative
+# $C_o(t) = \int_0^t i(s)\, F_\text{inc}(t-s)\, ds$ is computed once
+# from the latent infections and a sampled Gamma incubation delay, and
+# the existing observation submodels consume that in place of the
+# deterministic $C(s) = \exp(r s)$. Every delay (incubation,
+# onset-to-death, detection window, onset-bound SD) is sampled from a
+# prior, as in the main model.
+#
+# Full motivation, model maths, AD findings and the migration
+# assessment are in the proposal page; see
+# [Stochastic latent](proposals/stochastic-latent.md). Here we just
+# *run* it on the same observations the main analysis uses and put the
+# resulting posterior $C(T)$ next to the main model's, so it is clear
+# how much the architecture choice changes the headline estimate.
+#
+# !!! warning "Sensitivity only, not a preferred estimate"
+#     This section sits alongside the main model so its dependence on
+#     the exponential-growth assumption can be read off directly. The
+#     stochastic-latent posterior is a sensitivity check, not a preferred
+#     estimate; the four aggregate counts do not separately identify the
+#     process-noise scale $\sigma$ from the surveillance dispersion $k$
+#     (see the proposal page), so $\sigma$ is largely prior-driven and
+#     the trajectory shape is too. The LNA nests the main model exactly
+#     at $\sigma = 0$, so the comparison is the $\sigma \to 0$ limit
+#     plus added early-phase variance.
+#
+# **Sample budget.** The LNA model carries roughly 30 latent parameters
+# (~23 trajectory increments plus the new submodel parameters) and the
+# staged onset convolution plus the existing onset-to-death and export
+# integrals run on a piecewise trajectory per gradient evaluation, so
+# every leapfrog step is several times more expensive than the main
+# model's. To keep this section under the docs CI's time budget we use
+# **2 chains of 250 post-warmup draws** (vs $4\times1000$ in the main
+# fit), with target acceptance $0.95$. The shorter run is enough for
+# a credible interval and a side-by-side comparison; production use
+# would want the full $4\times1000$.
+
+#md # ```@raw html
+#md # <details><summary>Build and fit the stochastic-latent model</summary>
+#md # ```
+
+# We compose the new growth submodel and the staged onset pipeline
+# inline below. The growth submodel returns the same `(; τ, r, m, T,
+# C_T, cumulative, …)` NamedTuple shape the deterministic one does,
+# plus an `incidence(s)` closure for `i(s) = dC/ds`. We then convolve
+# infection incidence against the sampled Gamma incubation density to
+# get the onset trajectory, wrap that as the `growth_state` the existing
+# observation submodels expect, and reuse `exports_model`, `deaths_model`,
+# `cases_model` and `exports_deaths_model` unchanged.
+
+using BVDOutbreakSize: stochastic_growth_model, onset_timing_model,
+                       tmrca_timing_model, incubation_model,
+                       onset_cumulative
+
+@model function bvd_joint_stochastic(
+        exported_cases::Union{Missing, Integer},
+        total_deaths::Union{Missing, Integer},
+        reported_cases::Union{Missing, Integer},
+        export_deaths_daily::AbstractVector;
+        growth        = stochastic_growth_model(),
+        incubation    = incubation_model(),
+        delay         = delay_model(),
+        cfr           = cfr_model(),
+        window        = detection_window_model(),
+        traveller     = traveller_volume_model(),
+        dispersion    = surveillance_dispersion_model(),
+        ascertainment = pooled_ascertainment_model(),
+        tmrca_days::Union{Missing, Real}    = missing,
+        tmrca_days_sd::Real                 = 20.0,
+        onset_delta::Union{Missing, Real}   = missing,
+        source_population::Real             = ITURI_POPULATION,
+        pre_start_deaths::Union{Missing, Integer} = 0)
+
+    growth_state ~ to_submodel(growth, false)
+    incub_state  ~ to_submodel(incubation, false)
+
+    ## Stage 1: infections → onset. Convolve i(s) against the sampled
+    ## incubation CDF (computed as the inner integral of the density,
+    ## the package's Mooncake-safe workaround for the Gamma shape
+    ## derivative).
+    F_inc = incub_state.F
+    onset_C_T = onset_cumulative(growth_state.incidence, F_inc,
+                                 growth_state.T)
+    onset_cumulative_fn = let inc = growth_state.incidence, F = F_inc
+        s -> onset_cumulative(inc, F, s)
+    end
+
+    ## Wrap the growth state so downstream submodels see C_o(s) where
+    ## they currently see C(s). r, T, τ, m unchanged.
+    onset_state = (; growth_state.τ, growth_state.r,
+                     growth_state.m, growth_state.T,
+                     C_T = onset_C_T,
+                     cumulative = onset_cumulative_fn)
+
+    ## Single-side timing bounds (Mooncake-safe). The genetic TMRCA
+    ## bound mirrors the main `genetic_seeding_model` term; the
+    ## earliest-onset bound is the new "at-or-before" constraint that
+    ## the stochastic trajectory unlocks.
+    tmrca_state ~ to_submodel(
+        tmrca_timing_model(growth_state.T;
+            tmrca_days    = tmrca_days,
+            tmrca_days_sd = tmrca_days_sd), false)
+    onset_bound_state ~ to_submodel(
+        onset_timing_model(growth_state.T;
+            onset_delta = onset_delta), false)
+
+    dispersion_state ~ to_submodel(dispersion, false)
+    asc_state        ~ to_submodel(ascertainment, false)
+    k        = dispersion_state.k
+    p_drc    = asc_state.p_drc
+    p_uganda = asc_state.p_uganda
+
+    exports_state ~ to_submodel(
+        exports_model(exported_cases, onset_state, p_uganda;
+            source_population = source_population,
+            window            = window,
+            traveller         = traveller), false)
+    deaths_state ~ to_submodel(
+        deaths_model(total_deaths, onset_state, k;
+            delay = delay, cfr = cfr), false)
+    cases_state ~ to_submodel(
+        cases_model(reported_cases, onset_state, k, p_drc), false)
+    exports_deaths_state ~ to_submodel(
+        exports_deaths_model(export_deaths_daily, onset_state,
+            deaths_state.CFR, deaths_state.delay_dist, p_uganda;
+            pre_start_deaths = pre_start_deaths,
+            window           = exports_state.w,
+            daily_travellers = exports_state.daily_travellers,
+            source_population = source_population),
+        false)
+
+    cumulative_cases := onset_C_T
+end
+
+## Earliest onset placeholder: 24 Apr 2026 onset vs 18 May 2026 cut-off
+## ≈ 24 days. Real value belongs in data/observations.toml as a new
+## `first_onset_date` block; see the proposal.
+const STOCHASTIC_ONSET_DELTA = 24
+
+stochastic_model = bvd_joint_stochastic(
+    obs.exported_cases, obs.total_deaths, obs.reported_cases,
+    obs.export_deaths_daily;
+    tmrca_days    = obs.genetic_tmrca_days,
+    tmrca_days_sd = obs.genetic_tmrca_days_sd,
+    onset_delta   = STOCHASTIC_ONSET_DELTA);
+
+chn_stochastic = nuts_sample(stochastic_model;
+    samples = 250, chains = 2, target_accept = 0.95);
+
+posterior_C_stochastic = vec(Array(chn_stochastic[:cumulative_cases]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# **Fit diagnostics for the stochastic-latent fit.** Worst R-hat,
+# smallest bulk ESS, and divergent transitions on the shorter budget.
+
+#md # ```@raw html
+#md # <details><summary>Stochastic-latent fit diagnostics</summary>
+#md # ```
+
+stochastic_diagnostics = diagnostics_table( #hide
+    "joint (main, exponential growth)" => chn_joint, #hide
+    "joint (stochastic latent, LNA)"   => chn_stochastic) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+stochastic_diagnostics #hide
+
+# **Side-by-side posterior $C(T)$.** The stochastic-latent model fitted
+# on the same four streams and TMRCA bound, alongside the main joint.
+
+#md # ```@raw html
+#md # <details><summary>Stochastic vs main joint C_T table</summary>
+#md # ```
+
+stochastic_streams_table = streams_table(
+    "main joint (exponential growth)" => posterior_C_joint,
+    "joint (stochastic latent, LNA)"  => posterior_C_stochastic);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+stochastic_streams_table #hide
+
+# The same as overlaid posterior densities and as a point-and-interval
+# panel, both using the existing plot helpers.
+
+#md # ```@raw html
+#md # <details><summary>Stochastic vs main density and intervals</summary>
+#md # ```
+
+stochastic_density_fig = plot_cumulative_cases(
+    "main joint (exponential growth)" => posterior_C_joint,
+    "joint (stochastic latent, LNA)"  => posterior_C_stochastic;
+    scenarios = []);
+
+let
+    stochastic_summary = posterior_summary(posterior_C_stochastic)
+    main_summary       = posterior_summary(posterior_C_joint)
+    global stochastic_vs_main_fig = plot_estimate_comparison([
+        ("main joint (exponential growth)",
+            round(Int, quantile(posterior_C_joint, 0.5)),
+            round(Int, main_summary.lo90),
+            round(Int, main_summary.hi90)),
+        ("joint (stochastic latent, LNA)",
+            round(Int, quantile(posterior_C_stochastic, 0.5)),
+            round(Int, stochastic_summary.lo90),
+            round(Int, stochastic_summary.hi90)),
+    ])
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+stochastic_density_fig #hide
+
+stochastic_vs_main_fig #hide
+
+# **Caveats specific to the stochastic-latent fit.**
+#
+# - *Convergence.* On the shorter $2\times250$ budget some divergences
+#   and raised $\hat R$ values are expected, especially for the latent
+#   log-incidence increments that the four aggregate counts barely
+#   inform. Inspect `stochastic_diagnostics` above: anything appreciably
+#   above $\hat R = 1.05$ or below ESS $200$ should be read as
+#   "trajectory shape unconstrained under this budget", not a fault of
+#   the architecture.
+# - *Process noise vs surveillance dispersion.* The process-noise scale
+#   $\sigma$ and the surveillance dispersion $k$ both inflate the spread
+#   of the observed counts and are only weakly separated by the four
+#   aggregate totals. $\sigma$ is largely prior-driven; the streams pull
+#   the trajectory shape rather than $\sigma$ itself.
+# - *Earliest-onset bound is a placeholder.* The 24 Apr 2026 → 18 May
+#   2026 offset (`STOCHASTIC_ONSET_DELTA = 24`) is hardcoded here pending
+#   a `first_onset_date` entry in `data/observations.toml`; the
+#   proposal page documents the construction.
+# - *Mean-incidence approximation in the death convolution.* The
+#   deaths convolution uses the sampled *onset* incidence (one stage
+#   forward of the latent infection incidence), not the raw infection
+#   incidence; the early-phase variance is propagated through that
+#   stage. The constant log-variance LNA is still an approximation to a
+#   fuller $1/C$-scaled LNA — the natural next step. See the proposal
+#   page for the bias characterisation.
+# - *Sample budget.* The stochastic-latent fit uses a quarter of the
+#   warmup and draws of the main fit ($2\times250$ vs $4\times1000$); a
+#   full $4\times1000$-sample run is feasible but would push the docs
+#   build well past its time limit because every gradient evaluation is
+#   several times more expensive than the main model's.
+
 # ## Saving results
 #
 # The tables above are written to an `output/` directory at the repo

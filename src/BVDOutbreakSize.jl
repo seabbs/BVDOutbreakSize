@@ -14,8 +14,9 @@ using Turing
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions
-using Distributions: Distribution, Gamma, ccdf, pdf, Poisson,
-                     NegativeBinomial
+using Distributions: Distribution, Gamma, ccdf, cdf, pdf, Poisson,
+                     NegativeBinomial, Normal, LogNormal, truncated
+using Turing: @model, to_submodel, filldist, censored
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
@@ -44,7 +45,13 @@ export REPORT_SCENARIOS,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
-       forecast_vs_truth, plot_forecast_vs_truth
+       forecast_vs_truth, plot_forecast_vs_truth,
+       STOCH_GROWTH_KNOTS, lna_trajectory, lna_incidence, lna_logi,
+       onset_cumulative, onset_incidence,
+       doubling_time_model, multiplier_model, process_noise_model,
+       latent_increments_model, incubation_model,
+       stochastic_growth_model,
+       onset_timing_model, onset_sd_model, tmrca_timing_model
 
 """
     REPORT_SCENARIOS
@@ -1394,5 +1401,10 @@ function plot_forecast_vs_truth(fc::DataFrame;
     end
     return fig
 end
+
+## Stochastic latent infection process (issue #48). Additive; does not
+## change any existing behaviour.
+## See docs/src/proposals/stochastic-latent.md.
+include("stochastic_growth.jl")
 
 end # module
