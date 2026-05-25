@@ -16,15 +16,17 @@
 # Mooncake-through-quadrature can be checked after any change to
 # either path.
 #
-# Run from the repo root:
+# Run from the repo root with the test environment so BenchmarkTools
+# is available:
 #
-#     julia --project=. scripts/bench_expected_deaths.jl
+#     julia --project=test test/scripts/bench_expected_deaths.jl
 
+using BenchmarkTools: @benchmark, median
 using BVDOutbreakSize: expected_deaths
 using Distributions: Gamma
 using Mooncake: Mooncake
 
-const CFR, r, T, α, θ = 0.3, 0.05, 30.0, 4.3, 2.6
+const CFR, r, T, α, θ = 0.3, 0.05, 30.0, 0.3, 2.6
 
 # Analytic Gamma method (dispatches on ::Gamma)
 f_analytic = (CFR, r, T, α, θ) -> expected_deaths(CFR, r, T, Gamma(α, θ))
@@ -40,32 +42,25 @@ println("  integral : ", f_integral(CFR, r, T, α, θ))
 rule_a = Mooncake.build_rrule(f_analytic, CFR, r, T, α, θ)
 rule_i = Mooncake.build_rrule(f_integral, CFR, r, T, α, θ)
 
-# Warm-up
-for _ in 1:5
-    Mooncake.value_and_gradient!!(rule_a, f_analytic, CFR, r, T, α, θ)
-    Mooncake.value_and_gradient!!(rule_i, f_integral, CFR, r, T, α, θ)
-end
+# `$`-interpolation keeps BenchmarkTools from re-resolving the globals
+# each sample. `median` is preferred over `mean` because the GC tail
+# from sampling itself biases the latter upward.
+b_fwd_a = @benchmark $f_analytic($CFR, $r, $T, $α, $θ)
+b_fwd_i = @benchmark $f_integral($CFR, $r, $T, $α, $θ)
+b_ad_a  = @benchmark Mooncake.value_and_gradient!!(
+    $rule_a, $f_analytic, $CFR, $r, $T, $α, $θ)
+b_ad_i  = @benchmark Mooncake.value_and_gradient!!(
+    $rule_i, $f_integral, $CFR, $r, $T, $α, $θ)
 
-const N_FWD = 5_000
-const N_AD  = 2_000
-
-t_fwd_a = @elapsed for _ in 1:N_FWD; f_analytic(CFR, r, T, α, θ); end
-t_fwd_i = @elapsed for _ in 1:N_FWD; f_integral(CFR, r, T, α, θ); end
-t_ad_a  = @elapsed for _ in 1:N_AD
-    Mooncake.value_and_gradient!!(rule_a, f_analytic, CFR, r, T, α, θ)
-end
-t_ad_i  = @elapsed for _ in 1:N_AD
-    Mooncake.value_and_gradient!!(rule_i, f_integral, CFR, r, T, α, θ)
-end
-
-μs(t, n) = round(t / n * 1e6; digits = 2)
+# Median time in nanoseconds -> microseconds.
+μs(b) = round(median(b).time / 1e3; digits = 2)
 
 println()
-println("Per-call timings (μs):")
-println("  forward  analytic : ", μs(t_fwd_a, N_FWD))
-println("  forward  integral : ", μs(t_fwd_i, N_FWD))
-println("  AD-grad  analytic : ", μs(t_ad_a,  N_AD))
-println("  AD-grad  integral : ", μs(t_ad_i,  N_AD))
+println("Per-call timings (median, μs):")
+println("  forward  analytic : ", μs(b_fwd_a))
+println("  forward  integral : ", μs(b_fwd_i))
+println("  AD-grad  analytic : ", μs(b_ad_a))
+println("  AD-grad  integral : ", μs(b_ad_i))
 println()
 println("AD-grad ratio (analytic / integral): ",
-        round(t_ad_a / t_ad_i; digits = 3))
+        round(median(b_ad_a).time / median(b_ad_i).time; digits = 3))
