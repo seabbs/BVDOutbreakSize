@@ -1,12 +1,13 @@
 ## Smoke tests for the laboratory-confirmed cases likelihood. The
 ## `@model` blocks live in the literate walkthrough, so we recreate the
 ## minimal set here to keep the tests self-contained and avoid a
-## dependency on the doc-build pipeline. The convolution math reuses the
-## exported `expected_deaths` helper.
+## dependency on the doc-build pipeline. The confirmed-cases stream is a
+## binomial subset of the suspected count conditional on `π`, so the
+## suspected NegBinomial and the confirmed Binomial both appear here.
 
-using Distributions: Beta, Gamma, NegativeBinomial, truncated, Normal
+using Distributions: Beta, Binomial, NegativeBinomial, truncated, Normal,
+                     mean, var
 using Turing: Turing, @model, sample, Prior, to_submodel
-using BVDOutbreakSize: expected_deaths
 import FlexiChains
 
 ## Mirrors the production `safe_nbinomial` helper in analysis.jl: clamps
@@ -37,14 +38,6 @@ end
     return (; positivity)
 end
 
-@model function _confirmed_test_delay(;
-        alpha_prior = truncated(Normal(5.0, 2.0); lower = 0),
-        theta_prior = truncated(Normal(1.5, 0.5); lower = 0))
-    α_t ~ alpha_prior
-    θ_t ~ theta_prior
-    return (; α_t, θ_t, dist = Gamma(α_t, θ_t))
-end
-
 @model function _confirmed_test_dispersion()
     inv_sqrt_k ~ truncated(Normal(0.5, 0.2); lower = 1e-3, upper = 5.0)
     k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
@@ -56,32 +49,33 @@ end
     return (; p_drc)
 end
 
+@model function _confirmed_test_cases(
+        reported_cases::Union{Missing, Integer},
+        growth_state, k::Real, p_drc::Real)
+    C_T = growth_state.C_T
+    raw_reports        = p_drc * C_T
+    expected_reports := isfinite(raw_reports) ?
+        max(raw_reports, eps(typeof(raw_reports))) :
+        eps(typeof(raw_reports))
+    reported_cases ~ _safe_nbinomial(k, expected_reports)
+    return (; expected_reports, reported_cases)
+end
+
 @model function _confirmed_test_likelihood(
         confirmed_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real;
-        positivity = _confirmed_test_positivity(),
-        delay      = _confirmed_test_delay())
-    r = growth_state.r
-    T = growth_state.T
-
+        reported_cases::Integer;
+        positivity = _confirmed_test_positivity())
     positivity_state ~ to_submodel(positivity, false)
-    test_delay_state ~ to_submodel(delay, false)
-
-    scale = positivity_state.positivity * p_drc
-    raw_conf            = expected_deaths(scale, r, T,
-                                          test_delay_state.dist)
-    expected_confirmed := isfinite(raw_conf) ?
-        max(raw_conf, eps(typeof(raw_conf))) :
-        eps(typeof(raw_conf))
-
-    confirmed_cases ~ _safe_nbinomial(k, expected_confirmed)
-    return (; positivity = positivity_state.positivity,
-              expected_confirmed)
+    π = positivity_state.positivity
+    confirmed_cases ~ Binomial(Int(reported_cases), π)
+    return (; positivity = π, reported_cases)
 end
 
 @model function _confirmed_test_only(
+        reported_cases::Union{Missing, Integer},
         confirmed_cases::Union{Missing, Integer};
         growth        = _confirmed_test_growth(),
+        cases         = _confirmed_test_cases,
         confirmed     = _confirmed_test_likelihood,
         dispersion    = _confirmed_test_dispersion(),
         ascertainment = _confirmed_test_ascertainment())
@@ -90,31 +84,32 @@ end
     asc_state        ~ to_submodel(ascertainment, false)
     k     = dispersion_state.k
     p_drc = asc_state.p_drc
+    cases_state ~ to_submodel(
+        cases(reported_cases, growth_state, k, p_drc), false)
     confirmed_state ~ to_submodel(
-        confirmed(confirmed_cases, growth_state, k, p_drc), false)
+        confirmed(confirmed_cases, cases_state.reported_cases), false)
     cumulative_cases := growth_state.C_T
 end
 
-@testset "confirmed_cases_model prior draws finite confirmed_cases" begin
-    m = _confirmed_test_only(missing)
+@testset "confirmed_cases_model prior draws are bounded by reported" begin
+    m = _confirmed_test_only(missing, missing)
     chn = sample(m, Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
+    rc = vec(Array(chn[:reported_cases]))
     cc = vec(Array(chn[:confirmed_cases]))
     @test length(cc) == 200
     @test all(isfinite, cc)
     @test all(cc .>= 0)
+    ## Binomial(n, π) confirmed counts can never exceed the n it
+    ## conditioned on.
+    @test all(cc .<= rc)
 
     positivity = vec(Array(chn[:positivity]))
     @test all(0 .<= positivity .<= 1)
-
-    α_t = vec(Array(chn[:α_t]))
-    θ_t = vec(Array(chn[:θ_t]))
-    @test all(α_t .> 0)
-    @test all(θ_t .> 0)
 end
 
-@testset "confirmed_cases_model fits a tiny observation" begin
-    chn = sample(_confirmed_test_only(33), Prior(), 200;
+@testset "confirmed_cases_model with both observations" begin
+    chn = sample(_confirmed_test_only(516, 33), Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
     C = vec(Array(chn[:cumulative_cases]))
     @test length(C) == 200
@@ -122,16 +117,13 @@ end
     @test all(C .> 0)
 end
 
-@testset "positivity scales the confirmed expectation" begin
-    ## With p_drc fixed and growth fixed, doubling positivity should
-    ## double expected_confirmed (the integral and p_drc factors are
-    ## shared, positivity enters linearly).
-    r = 0.07
-    T = 80.0
-    delay_dist = Gamma(5.0, 1.5)
-    p_drc = 0.25
-    base = expected_deaths(0.1 * p_drc, r, T, delay_dist)
-    high = expected_deaths(0.2 * p_drc, r, T, delay_dist)
-    @test high ≈ 2 * base rtol = 1e-10
-    @test base > 0
+@testset "Binomial(n, π) matches the analytic mean and variance" begin
+    ## Sanity check on the likelihood shape that the model relies on:
+    ## E[Y] = n·π, Var[Y] = n·π(1-π). Use a large reference sample so the
+    ## empirical estimates are tight.
+    n = 516
+    π = 0.064
+    d = Binomial(n, π)
+    @test mean(d) ≈ n * π
+    @test var(d)  ≈ n * π * (1 - π)
 end

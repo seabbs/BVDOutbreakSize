@@ -989,7 +989,7 @@ end
 
     reported_cases ~ safe_nbinomial(k, expected_reports)
 
-    return (; p_drc, expected_reports)
+    return (; p_drc, expected_reports, reported_cases)
 end
 
 #md # ```@raw html
@@ -999,54 +999,34 @@ end
 # ##### Confirmed cases — testing extension
 #
 # Reported suspected cases are the surveillance gate; a subset is sent to
-# the laboratory and only a fraction returns positive. INSP daily and
-# cumulative sitreps put per-test positivity around $45\%$. The cumulative
-# confirmed count is added as its own observation stream and linked to
-# the suspected stream through a multiplier $\pi$ and a report-to-test
-# delay $f_t$:
+# the laboratory and only a fraction returns positive. We model the
+# laboratory-confirmed count as a binomial subset of the reported
+# (suspected) count, with $\pi$ the suspected-to-confirmed rate that
+# combines per-test positivity and the fraction of suspected ever tested
+# by the cut-off:
 #
 # ```math
-# \mu_{\text{conf}}
-#     = \pi \cdot p_{\text{DRC}} \cdot
-#       \int_0^{T} e^{r s}\, f_t(T - s)\, ds. \tag{21}
+# Y_{\text{conf}} \mid Y_{\text{sus}} \sim
+#     \mathrm{Binomial}(Y_{\text{sus}},\ \pi). \tag{21}
 # ```
 #
-# The integral is the same incidence-density convolution that
-# back-calculates deaths in equation (16); we reuse `expected_deaths`
-# with $\pi\, p_{\text{DRC}}$ in place of the CFR. The confirmed count is
-# negative-binomial with the dispersion $k$ shared across the
-# count-based streams,
+# Conditioning directly on $Y_{\text{sus}}$ reads $\pi$ off the observed
+# confirmed-to-suspected ratio (about $0.06$ at the 18 May cut-off)
+# without passing it through a growth-rate-and-delay correction, which
+# would be prior-dominated given a single cumulative count per stream.
+# When the suspected count is missing (prior- or posterior-predictive
+# checks) the cases submodel samples a latent $Y_{\text{sus}}$ from the
+# equation (18) NegBinomial and the binomial uses that draw.
+#
+# The prior on $\pi$ covers the INSP per-test positivity figure (about
+# $45\%$) and the lower bundled rates implied by limited testing coverage:
 #
 # ```math
-# Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k). \tag{22}
-# ```
-#
-# $\pi$ here is a bundled rate. Two effects collapse into it: per-test
-# positivity (the INSP figure) and the fraction of suspected cases that
-# have ever been tested by $T$. With one cumulative confirmed count we
-# cannot identify the two factors separately, so the bundled $\pi$ is
-# bounded above by the per-test rate and below by the observed
-# confirmed-to-suspected ratio (about $0.06$ at the 18 May cut-off). The
-# prior is widened to admit that range:
-#
-# ```math
-# \pi \sim \mathrm{Beta}(2,\ 4), \tag{23}
+# \pi \sim \mathrm{Beta}(2,\ 4), \tag{22}
 # ```
 #
 # with mean $0.33$, SD $0.18$ and a 90% interval covering roughly $0.05$
-# to $0.66$. The report-to-test delay $f_t$ is a gamma on shape
-# $\alpha_t$ and scale $\theta_t$, with priors
-#
-# ```math
-# \alpha_t \sim \mathrm{Normal}^{+}(5,\ 2),
-# \qquad
-# \theta_t \sim \mathrm{Normal}^{+}(1.5,\ 0.5), \tag{24}
-# ```
-#
-# giving a prior mean of about seven days and SD around three days.
-# $p_{\text{DRC}}$ keeps its meaning as the surveillance ascertainment of
-# true cases into the suspected stream; $\pi$ then absorbs the
-# suspected-to-confirmed funnel.
+# to $0.66$.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_positivity_model</summary>
@@ -1063,49 +1043,20 @@ end
 #md # ```
 
 #md # ```@raw html
-#md # <details><summary>Submodel: report_to_test_delay_model</summary>
-#md # ```
-
-@model function report_to_test_delay_model(;
-        alpha_prior = truncated(Normal(5.0, 2.0); lower = 0),
-        theta_prior = truncated(Normal(1.5, 0.5); lower = 0))
-    α_t ~ alpha_prior
-    θ_t ~ theta_prior
-    return (; α_t, θ_t, dist = Gamma(α_t, θ_t))
-end
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-#md # ```@raw html
 #md # <details><summary>Submodel: confirmed_cases_model</summary>
 #md # ```
 
 @model function confirmed_cases_model(
         confirmed_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real;
-        positivity = test_positivity_model(),
-        delay      = report_to_test_delay_model())
-
-    r = growth_state.r
-    T = growth_state.T
+        reported_cases::Integer;
+        positivity = test_positivity_model())
 
     positivity_state ~ to_submodel(positivity, false)
-    test_delay_state ~ to_submodel(delay, false)
+    π = positivity_state.positivity
 
-    scale = positivity_state.positivity * p_drc
-    raw_conf            = expected_deaths(scale, r, T,
-                                          test_delay_state.dist)
-    expected_confirmed := isfinite(raw_conf) ?
-        max(raw_conf, eps(typeof(raw_conf))) :
-        eps(typeof(raw_conf))
+    confirmed_cases ~ Binomial(Int(reported_cases), π)
 
-    confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
-
-    return (; positivity          = positivity_state.positivity,
-              report_to_test_dist = test_delay_state.dist,
-              expected_confirmed)
+    return (; positivity = π, reported_cases)
 end
 
 #md # ```@raw html
@@ -1447,7 +1398,6 @@ end
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
         positivity    = test_positivity_model(),
-        report_to_test_delay = report_to_test_delay_model(),
         genetic       = nothing,
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
@@ -1472,9 +1422,8 @@ end
         cases(reported_cases, growth_state, k, p_drc), false)
     if confirmed_cases !== missing
         confirmed_state ~ to_submodel(
-            confirmed(confirmed_cases, growth_state, k, p_drc;
-                positivity = positivity,
-                delay      = report_to_test_delay),
+            confirmed(confirmed_cases, cases_state.reported_cases;
+                positivity = positivity),
             false)
     end
     exports_deaths_state ~ to_submodel(
