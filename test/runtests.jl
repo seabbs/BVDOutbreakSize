@@ -13,7 +13,6 @@ using BVDOutbreakSize: REPORT_SCENARIOS, expected_deaths,
                        predict_no_onward_deaths, plot_no_onward_deaths
 using ADTypes: AutoMooncake
 import CairoMakie
-using ChainRulesTestUtils: test_rrule
 using DataFrames: DataFrame, nrow
 using Distributions: Beta, Gamma, NegativeBinomial, Normal, Poisson
 using Distributions: pdf, truncated
