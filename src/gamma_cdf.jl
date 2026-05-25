@@ -41,7 +41,7 @@ its small-`x` branch; the Julia formulation here is the direct port
 from EpiAware/CensoredDistributions PR #250.
 
 Convergence is absolute for all `z > 0` but the iteration count grows
-with `z/α`. [Stress tested](@__REPO_ROOT_URL__/test/scripts/bench_gamma_cdf_partial.jl)
+with `z/α`. Stress tested (see `test/bench/bench_gamma_cdf_partial.jl`)
 across `α ∈ [0.001, 100] × z ∈ [0.01, 200]`: worst case 316 iterations
 at the deep-tail end of that grid; `maxiter = 10_000` is comfortable
 headroom for any NUTS warmup excursion.
