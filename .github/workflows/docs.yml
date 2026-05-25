@@ -23,16 +23,6 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v6
-      - name: Install TeX toolchain for the model diagram
-        # The analysis page renders a TikZ model-structure diagram to
-        # SVG via TikzPictures (lualatex + dvisvgm + the pgf
-        # graphdrawing layered layout).
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            texlive-luatex texlive-latex-recommended \
-            texlive-latex-extra texlive-pictures \
-            texlive-fonts-recommended dvisvgm
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1'
@@ -46,12 +36,69 @@ jobs:
       - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Comment PR with docs preview
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr_number = context.issue.number;
+            const repo_owner = context.repo.owner;
+            const repo_name = context.repo.repo;
+
+            let base_url;
+            try {
+              const pages = await github.rest.repos.getPages({
+                owner: repo_owner,
+                repo: repo_name
+              });
+              base_url = pages.data.html_url.replace(/\/$/, '');
+            } catch (e) {
+              base_url = `https://${repo_owner}.github.io/${repo_name}`;
+            }
+
+            const docs_url = `${base_url}/previews/PR${pr_number}/`;
+
+            const comment_body = `
+            📖 **Documentation preview** is ready!
+
+            View the docs for this PR at: ${docs_url}
+
+            *This preview will be updated automatically when you push new commits.*
+            `;
+
+            const comments = await github.rest.issues.listComments({
+              owner: repo_owner,
+              repo: repo_name,
+              issue_number: pr_number
+            });
+
+            const bot_comment = comments.data.find(comment =>
+              comment.user.login === 'github-actions[bot]' &&
+              comment.body.includes('Documentation preview')
+            );
+
+            if (bot_comment) {
+              await github.rest.issues.updateComment({
+                owner: repo_owner,
+                repo: repo_name,
+                comment_id: bot_comment.id,
+                body: comment_body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: repo_owner,
+                repo: repo_name,
+                issue_number: pr_number,
+                body: comment_body
+              });
+            }
       # The docs build runs the analysis literate, which writes the
       # model outputs to `output/` at the repo root. We publish that
       # same run's outputs as a release rather than fitting the model
       # a second time.
       - name: Check results outputs
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           set -euo pipefail
           if [ ! -d output ] || [ -z "$(ls -A output)" ]; then
@@ -59,10 +106,20 @@ jobs:
             exit 1
           fi
           ls -l output
+      # Lift the rendered analysis page out of the multi-file Vitepress
+      # site into one self-contained HTML file (CSS and fonts inlined,
+      # SPA JavaScript dropped) for sharing and download.
+      - name: Build self-contained report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          julia --project=docs scripts/standalone_report.jl \
+            docs/build output/analysis.html
+          ls -l output/analysis.html
       # Bundle the rendered site produced by the same docs build
       # (docs/build/) so each release is a self-contained snapshot.
       - name: Zip rendered site into release bundle
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           set -euo pipefail
           if [ ! -d docs/build ]; then
@@ -71,22 +128,31 @@ jobs:
           fi
           (cd docs/build && zip -r "$GITHUB_WORKSPACE/output/site.zip" .)
           ls -l output/site.zip
+      # On a version tag (e.g. v1.2.0) the output bundle is named after
+      # the tag, so a major code release has a matching, permanent
+      # output release. On main it stays a rolling per-build release.
+      - name: Resolve short commit SHA
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
       - name: Publish results release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: results-${{ github.run_number }}
-          name: "Results (build ${{ github.run_number }})"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && format('results-{0}', github.ref_name) || format('results-{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Results {0} ({1})', github.ref_name, env.SHORT_SHA) || format('Results build {0} ({1})', github.run_number, env.SHORT_SHA) }}
           body: |
-            Model outputs and input data, regenerated by the docs
-            build at ${{ github.sha }} (the same run that renders the
-            analysis — the model is not fitted a second time).
+            Model outputs and input data for commit ${{ github.sha }}.
 
             Bundles the posterior summary tables, thinned posterior
-            draws, a copy of the input `observations.toml`, and a
-            `site.zip` snapshot of the rendered report site.
+            draws, a copy of the input `observations.toml`, a
+            `site.zip` snapshot of the rendered report site, and
+            `analysis.html` — a self-contained single-file copy of the
+            report that opens offline.
 
             Rendered analysis:
             https://epiforecasts.io/BVDOutbreakSize/dev/analysis
+
+            Self-contained report (always latest build):
+            https://github.com/epiforecasts/BVDOutbreakSize/releases/latest/download/analysis.html
           files: output/*
           make_latest: 'true'

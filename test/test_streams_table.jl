@@ -10,11 +10,13 @@
 
     @test df isa DataFrame
     @test names(df) ==
-          ["stream", "lo90", "lo60", "lo30", "hi30", "hi60", "hi90"]
+          ["Stream", "Lower 90%", "Lower 60%", "Lower 30%",
+           "Upper 30%", "Upper 60%", "Upper 90%"]
     @test nrow(df) == 2
-    @test df.stream == ["fit A", "fit B"]
+    @test df[!, "Stream"] == ["fit A", "fit B"]
 
     for r in eachrow(df)
-        @test r.lo90 <= r.lo60 <= r.lo30 <= r.hi30 <= r.hi60 <= r.hi90
+        @test r["Lower 90%"] <= r["Lower 60%"] <= r["Lower 30%"] <=
+              r["Upper 30%"] <= r["Upper 60%"] <= r["Upper 90%"]
     end
 end

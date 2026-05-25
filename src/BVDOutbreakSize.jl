@@ -1,12 +1,13 @@
 module BVDOutbreakSize
 
-using Statistics: quantile
+using Statistics: quantile, mean, std
 using Printf: @sprintf
 using TOML
 using DataFrames: DataFrame
 using DataFramesMeta
 using Chain: @chain
 using Random: MersenneTwister
+using Dates: Date, date2epochdays, epochdays2date
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using ChainRulesCore: ChainRulesCore, NoTangent
@@ -14,22 +15,21 @@ using SpecialFunctions: gamma_inc, digamma, loggamma
 import SpecialFunctions
 using Turing
 using Turing.DynamicPPL: InitFromPrior
-using MCMCChains: Chains
-import MCMCChains
 import FlexiChains
 using DocStringExtensions
-using Distributions: Gamma, cdf, ccdf, mgf, pdf, Poisson, NegativeBinomial
+using Distributions: Distribution, Gamma, cdf, ccdf, mgf, pdf, Poisson, NegativeBinomial
 using Integrals: IntegralProblem, GaussLegendre, QuadGKJL, solve
 import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
-using CairoMakie: Figure, Axis, hist!, density!, vlines!
+using CairoMakie: Figure, Axis, hist!, density!, vlines!, vspan!,
+                  lines!, scatter!
 
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
        ITURI_DAILY_TRAVEL_SD,
-       EXPORTED_CASES, EXPORTS_DEATHS, TOTAL_DEATHS, REPORTED_CASES,
+       EXPORTED_CASES, EXPORTS_DEATHS,
        load_observations,
        summary_table, posterior_summary,
        fit_diagnostics, diagnostics_table,
@@ -38,17 +38,21 @@ export REPORT_SCENARIOS,
        DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
        integrate, expected_deaths,
        integrate_cumulative, integrate_exports_deaths,
-       plot_cumulative_cases, plot_prior_predictive,
+       expected_exports, expected_exports_deaths,
+       ExportDeathDelay, EXPORT_DELAY_GRID_POINTS,
+       plot_cumulative_cases, plot_density_overlay, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
-       plot_pair,
+       plot_pair, plot_start_date_pair, plot_estimate_comparison,
+       plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
-       forecast_reported, forecast_table, plot_forecast
+       forecast_reported, forecast_table, plot_forecast,
+       forecast_vs_truth, plot_forecast_vs_truth
 
 """
     REPORT_SCENARIOS
 
 Published point estimates of cumulative cases `C_T` from McCabe et
-al. (Imperial College London, 18 May 2026), as `(label, value)`
+al. (Imperial College London, 20 May 2026 update), as `(label, value)`
 tuples in the order they appear in Tables 1 and 2.
 """
 const REPORT_SCENARIOS = [
@@ -58,15 +62,15 @@ const REPORT_SCENARIOS = [
     ("Method 1 +N. Kivu, w=10",  617),
     ("Method 1 +N. Kivu, w=15",  412),
     ("Method 1 +N. Kivu, w=20",  309),
-    ("Method 2 τ=14 d, CFR 24%", 626),
-    ("Method 2 τ=14 d, CFR 30%", 501),
-    ("Method 2 τ=14 d, CFR 40%", 376),
-    ("Method 2 τ= 7 d, CFR 24%", 1008),
-    ("Method 2 τ= 7 d, CFR 30%", 807),
-    ("Method 2 τ= 7 d, CFR 40%", 605),
-    ("Method 2 τ=21 d, CFR 24%", 531),
-    ("Method 2 τ=21 d, CFR 30%", 425),
-    ("Method 2 τ=21 d, CFR 40%", 319),
+    ("Method 2 τ=14 d, CFR 26%", 860),
+    ("Method 2 τ=14 d, CFR 33%", 678),
+    ("Method 2 τ=14 d, CFR 40%", 559),
+    ("Method 2 τ= 7 d, CFR 26%", 1386),
+    ("Method 2 τ= 7 d, CFR 33%", 1092),
+    ("Method 2 τ= 7 d, CFR 40%", 901),
+    ("Method 2 τ=21 d, CFR 26%", 730),
+    ("Method 2 τ=21 d, CFR 33%", 575),
+    ("Method 2 τ=21 d, CFR 40%", 474),
 ]
 
 """
@@ -107,24 +111,6 @@ Deaths recorded in Uganda among the exported BVD cases.
 """
 const EXPORTS_DEATHS = 1
 
-"""
-    TOTAL_DEATHS
-
-Suspected BVD deaths reported in DRC, taken from the most recent
-Guardian situation report (19 May 2026). Imperial's 18 May 2026
-report uses the earlier 16 May 2026 snapshot of 88 deaths.
-"""
-const TOTAL_DEATHS = 130
-
-"""
-    REPORTED_CASES
-
-Suspected BVD cases reported in DRC, taken from the Guardian
-situation report (19 May 2026). Used by the ascertainment extension
-beyond Imperial Methods 1 and 2.
-"""
-const REPORTED_CASES = 500
-
 # Include reverse rules for the gamma CDF
 include("gamma_cdf.jl")
 
@@ -146,10 +132,21 @@ Fields returned:
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
+- `genetic_tmrca_days::Union{Real, Missing}` — estimated time to the
+  most recent common ancestor (TMRCA) in days before `as_of_date`, a
+  soft lower bound on the seeding time `T`; `missing` when no
+  `genetic_tmrca` block is present.
+- `genetic_tmrca_days_sd::Union{Real, Missing}` — SD (days) on the
+  location of that floor; `missing` when absent.
+- `genetic_tmrca_alt_days::Union{Real, Missing}` — TMRCA (days before
+  `as_of_date`) under the alternative clock rate, for the clock-rate
+  sensitivity; `missing` when no `alt_date` is present.
+- `genetic_tmrca_alt_days_sd::Union{Real, Missing}` — SD (days) on the
+  alternative-clock floor; `missing` when absent.
 - `sources::NamedTuple{(:exported_cases, :exports_deaths, :total_deaths,
   :reported_cases, :daily_outbound_travellers,
-  :daily_outbound_travellers_sd, :source_population),
-  NTuple{7, String}}` — citation per field.
+  :daily_outbound_travellers_sd, :source_population, :genetic_tmrca),
+  NTuple{8, String}}` — citation per field.
 """
 function load_observations(
         path::AbstractString = joinpath(@__DIR__, "..", "data",
@@ -157,8 +154,24 @@ function load_observations(
     raw = TOML.parsefile(path)
     _val(k) = raw[k]["value"]
     _src(k) = String(raw[k]["source"])
+    as_of = String(raw["as_of_date"])
+    _gap(d) = date2epochdays(Date(as_of)) - date2epochdays(Date(String(d)))
+    ## Days between a recorded event date and the cut-off, used as the
+    ## elapsed-time offset for the timing terms. A scalar date gives a
+    ## `missing` offset when absent (so its term is a no-op).
+    _delta(k) = haskey(raw, k) ? _gap(_val(k)) : missing
+    ## Daily export-death series, earliest dated death (index 1) to the
+    ## cut-off day (offset 0, kept); empty when no dates are present.
+    export_deaths_daily = if haskey(raw, "export_death_dates")
+        offs = Int[_gap(d) for d in _val("export_death_dates")]
+        isempty(offs) ? Int[] :
+            Int[count(==(δ), offs) for δ in maximum(offs):-1:0]
+    else
+        Int[]
+    end
+    has_gen = haskey(raw, "genetic_tmrca")
     return (;
-        as_of_date                   = String(raw["as_of_date"]),
+        as_of_date                   = as_of,
         exported_cases               = Int(_val("exported_cases")),
         exports_deaths               = Int(_val("exports_deaths")),
         total_deaths                 = Int(_val("total_deaths")),
@@ -168,6 +181,18 @@ function load_observations(
         daily_outbound_travellers_sd = float(
             _val("daily_outbound_travellers_sd")),
         source_population            = Int(_val("source_population")),
+        export_deaths_daily          = export_deaths_daily,
+        first_export_detection_delta = _delta("first_export_detection_date"),
+        genetic_tmrca_days           = has_gen ?
+            _gap(raw["genetic_tmrca"]["date"]) : missing,
+        genetic_tmrca_days_sd        = has_gen ?
+            float(raw["genetic_tmrca"]["days_sd"]) : missing,
+        genetic_tmrca_alt_days       =
+            has_gen && haskey(raw["genetic_tmrca"], "alt_date") ?
+            _gap(raw["genetic_tmrca"]["alt_date"]) : missing,
+        genetic_tmrca_alt_days_sd    =
+            has_gen && haskey(raw["genetic_tmrca"], "alt_days_sd") ?
+            float(raw["genetic_tmrca"]["alt_days_sd"]) : missing,
         sources = (;
             exported_cases               = _src("exported_cases"),
             exports_deaths               = _src("exports_deaths"),
@@ -176,6 +201,8 @@ function load_observations(
             daily_outbound_travellers    = _src("daily_outbound_travellers"),
             daily_outbound_travellers_sd = _src("daily_outbound_travellers_sd"),
             source_population            = _src("source_population"),
+            genetic_tmrca                = has_gen ?
+                String(raw["genetic_tmrca"]["source"]) : missing,
         ),
     )
 end
@@ -198,7 +225,7 @@ boundary of constrained variables.
 function nuts_sample(model;
         samples::Integer    = 1_000,
         chains::Integer     = 4,
-        target_accept::Real = 0.9,
+        target_accept::Real = 0.95,
         seed::Integer       = 20260518,
         progress::Bool      = false,
         adtype              = default_adtype())
@@ -271,6 +298,64 @@ function integrate(f, lo, hi; alg = CUMULATIVE_INTEGRAL_ALG)
     return halfwidth * solve(prob, alg).u
 end
 
+# Change of variables clustering the reference nodes towards `hi`. With
+# `d = hi - s` measured back from the upper limit and `v = (u + 1) / 2`,
+# the map `d = span · vᵖ` sends the dense end of the reference grid to
+# `s = hi` and stretches the sparse end out to `s = lo`. The Jacobian
+# `dd/du = span · p · vᵖ⁻¹ / 2` is folded into the integrand so a single
+# fixed `solve` covers the whole domain.
+_clustered_kernel(u, p) = begin
+    v = (u + one(u)) / 2
+    d = p.span * v^p.expo
+    return p.f(p.hi - d) * (p.span * p.expo * v^(p.expo - one(p.expo)) / 2)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Integrate a scalar function `f` over `[lo, hi]` by Gauss-Legendre
+quadrature with the nodes clustered towards `hi`, resolving features of
+size `scale` near that limit. Use for onset-to-death convolutions, whose
+integrand mass piles up against the cut-off `hi` over a window set by the
+sampled delay scale: the uniform [`integrate`](@ref) spread across a wide
+`[lo, hi]` would resolve that peak too coarsely. The whole domain is
+still covered (no truncation), so a delay wider than `[lo, hi]` is
+integrated exactly; when `scale ≥ hi - lo` the map reduces to the uniform
+method. Returns zero when `hi <= lo`. The default scheme is
+[`DEATH_INTEGRAL_ALG`](@ref).
+"""
+function integrate(f, lo, hi, scale; alg = DEATH_INTEGRAL_ALG)
+    hi <= lo && return zero(hi - lo)
+    span = hi - lo
+    # `expo` places ~half the nodes within `scale` of `hi`; `expo = 1`
+    # (uniform) once the feature is as wide as the domain. Fall back to
+    # the uniform rule for a degenerate scale so a non-finite delay
+    # moment cannot produce a `NaN` exponent on an AD proposal.
+    (isfinite(scale) && scale > zero(scale)) ||
+        return integrate(f, lo, hi; alg)
+    expo = max(one(span), log(span / scale) / log(oftype(span, 2)))
+    prob = IntegralProblem(_clustered_kernel, (-1.0, 1.0),
+                           (; f, hi, span, expo))
+    return solve(prob, alg).u
+end
+
+"""
+    DELAY_SUPPORT_K
+
+Number of standard deviations beyond the mean used as the clustering
+scale for a delay distribution in the onset-to-death convolution
+integrals. `mean + DELAY_SUPPORT_K · std` is the width near the cut-off
+over which the clustered [`integrate`](@ref) packs roughly half its
+nodes, so the quadrature tracks the delay's scale as it is sampled.
+"""
+const DELAY_SUPPORT_K = 10
+
+# Clustering scale for a delay distribution, `mean + K·std`: the width of
+# the window near the cut-off where the convolution integrand has mass.
+# Scales with the sampled `std`, so gradients flow through it on the
+# AD-supported parameter path used by the clustered `integrate`.
+_delay_scale(dist) = mean(dist) + DELAY_SUPPORT_K * std(dist)
+
 """
 $(TYPEDSIGNATURES)
 
@@ -283,17 +368,20 @@ exponential growth at rate `r`:
 ```
 
 with `f` the `delay_dist` onset-to-death density. The integrand returns
-zero past `T` so the convolution support is respected. Uses
-[`DEATH_INTEGRAL_ALG`](@ref).
+zero past `T` so the convolution support is respected. Integrated with
+the clustered [`integrate`](@ref) so the quadrature nodes pack near `T`,
+where `f(T − s)` has mass, over a window set by the delay scale (see
+[`DELAY_SUPPORT_K`](@ref)). Uses [`DEATH_INTEGRAL_ALG`](@ref).
 """
 function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
+    scale = _delay_scale(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> begin
             d = T - s
             d <= 0 ? zero(r) : exp(r * s) * pdf(delay_dist, d)
         end
     end
-    return CFR * integrate(g, zero(T), T; alg)
+    return CFR * integrate(g, zero(T), T, scale; alg)
 end
 
 """
@@ -350,6 +438,133 @@ function integrate_exports_deaths(cumulative, delay_dist, lo, hi, T;
     return integrate(g, lo, hi; alg)
 end
 
+"""
+    EXPORT_DELAY_GRID_POINTS
+
+Number of evenly spaced grid points used to precompute the onset-to-death
+CDF in [`ExportDeathDelay`](@ref).
+"""
+const EXPORT_DELAY_GRID_POINTS = 256
+
+"""
+$(TYPEDSIGNATURES)
+
+Onset-to-death delay carrying its CDF `F_d` precomputed on an evenly
+spaced grid over `[0, gmax]`, built once and reused across every outer
+node and bin edge of the deaths-among-exports convolution rather than
+re-integrating the density at each (see [`integrate_exports_deaths`](@ref)).
+`gmax` must cover the largest delay argument reached, the detection window
+`w`. Pass one in place of the raw delay distribution to select this path by
+dispatch; the distribution methods are unchanged and remain the reference.
+
+`F_d` is a cumulative trapezoid of the density, so the convolution still
+differentiates through the density alone (the AD backend lacks the Gamma
+CDF shape derivative). The density is never evaluated at `0`, whose Gamma
+shape derivative is `0·log 0 = NaN` under AD; for `f_d(0) = 0` (Gamma
+shape > 1) treating it as zero is exact.
+"""
+struct ExportDeathDelay{D, T}
+    dist::D
+    gmax::T
+    dx::T
+    F::Vector{T}
+end
+
+function ExportDeathDelay(dist, gmax::Real;
+        npts::Integer = EXPORT_DELAY_GRID_POINTS)
+    g  = float(gmax)
+    dx = g / (npts - 1)
+    Tt = typeof(pdf(dist, dx) * dx)
+    F  = Vector{Tt}(undef, npts)
+    F[1] = zero(Tt)
+    prev = zero(Tt)
+    @inbounds for i in 2:npts
+        fx   = pdf(dist, (i - 1) * dx)
+        F[i] = F[i - 1] + (prev + fx) * dx / 2
+        prev = fx
+    end
+    return ExportDeathDelay(dist, g, dx, F)
+end
+
+# Linear interpolation of the precomputed CDF: F_d(0) = 0 and flat past
+# `gmax` (all delay mass within the window has accumulated by then).
+@inline function _cdf_to(ed::ExportDeathDelay, y)
+    y <= zero(y)  && return zero(eltype(ed.F))
+    y >= ed.gmax  && return @inbounds ed.F[end]
+    pos  = y / ed.dx
+    i    = floor(Int, pos) + 1
+    frac = pos - (i - 1)
+    return @inbounds ed.F[i] + frac * (ed.F[i + 1] - ed.F[i])
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Deaths-among-exports convolution using a precomputed [`ExportDeathDelay`](@ref):
+``\\int_{lo}^{hi} C(s)\\, F_d(T - s)\\, ds`` with `F_d` interpolated off the
+grid rather than re-integrated at each node. Mathematically identical to
+the distribution method up to the grid resolution.
+"""
+function integrate_exports_deaths(cumulative, ed::ExportDeathDelay, lo, hi, T;
+        alg = CUMULATIVE_INTEGRAL_ALG)
+    g = let cumulative = cumulative, T = T, ed = ed
+        s -> cumulative(s) * _cdf_to(ed, T - s)
+    end
+    return integrate(g, lo, hi; alg)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative detected exports by elapsed time `t`, clamped to be
+strictly positive and finite:
+
+```math
+\\mathbb{E}[\\text{exports}(t)] = p \\cdot q \\cdot
+    \\int_{t-w}^{t} C(s)\\, ds,
+```
+
+with `cumulative` the trajectory ``C(s)``, `p` the detection
+probability, `q` the per-capita travel rate, and `window` the detection
+window ``w``. Backs both the exports count likelihood (evaluated at
+`t = T`) and the first-export-detection survival term (evaluated at an
+earlier `t`). Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function expected_exports(cumulative, p, q, t, window;
+        alg = CUMULATIVE_INTEGRAL_ALG)
+    window_start = max(t - window, zero(t))
+    integral = integrate_cumulative(cumulative, window_start, t; alg)
+    raw = p * q * integral
+    return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Expected cumulative deaths among detected exports by elapsed time `t`,
+clamped to be strictly positive and finite:
+
+```math
+\\mathbb{E}[D_{\\text{uganda}}(t)] = \\mathrm{CFR} \\cdot
+    p \\cdot q \\cdot
+    \\int_{t-w}^{t} C(s)\\, F_d(t - s)\\, ds,
+```
+
+with `cumulative` the trajectory ``C(s)``, `delay_dist` the onset-to-death
+distribution (CDF ``F_d``), `p` the detection probability, `q` the
+per-capita travel rate, and `window` the detection window ``w``. Backs
+the binned-Poisson export-death likelihood, evaluated at the daily bin
+edges. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+"""
+function expected_exports_deaths(cumulative, delay_dist, CFR, p, q,
+        t, window; alg = CUMULATIVE_INTEGRAL_ALG)
+    window_start = max(t - window, zero(t))
+    integral = integrate_exports_deaths(
+        cumulative, delay_dist, window_start, t, t; alg)
+    raw = CFR * p * q * integral
+    return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
+end
+
 _draws(chn, name::Symbol) = vec(Array(chn[name]))
 
 """
@@ -369,19 +584,41 @@ function posterior_summary(xs)
     )
 end
 
+## Human-readable headers for the displayed summary tables. Internal
+## column keys stay machine-friendly; this maps them to nice labels at
+## the point each table is returned.
+const _PRETTY_COLS = Dict(
+    "quantity"           => "Quantity",
+    "stream"             => "Stream",
+    "scenario"           => "Scenario",
+    "central_estimate"   => "Central estimate",
+    "reported_cases"     => "Reported cases",
+    "narrowest_interval" => "Narrowest interval",
+    "observed"           => "Observed",
+    "within_90"          => "Within 90% PI",
+    "lower_90" => "Lower 90%", "lower_60" => "Lower 60%",
+    "lower_30" => "Lower 30%", "upper_30" => "Upper 30%",
+    "upper_60" => "Upper 60%", "upper_90" => "Upper 90%",
+)
+
+_prettify(df::DataFrame) =
+    rename(df, [n => get(_PRETTY_COLS, n, n) for n in names(df)])
+
 """
 $(TYPEDSIGNATURES)
 
-`DataFrame` with one row per posterior parameter and columns
-`:quantity, :lo90, :lo60, :lo30, :hi30, :hi60, :hi90` giving
-equal-tailed 30%, 60% and 90% credible intervals.
+`DataFrame` with one row per posterior parameter and the columns
+`Quantity, Lower 90%, Lower 60%, Lower 30%, Upper 30%, Upper 60%,
+Upper 90%` giving the lower and upper endpoints of the equal-tailed
+30%, 60% and 90% credible intervals.
 """
 function summary_table(chn, params::AbstractVector{Symbol};
         digits::Integer = 2)
-    @chain DataFrame(
+    df = @chain DataFrame(
             quantity = String[],
-            lo90 = Float64[], lo60 = Float64[], lo30 = Float64[],
-            hi30 = Float64[], hi60 = Float64[], hi90 = Float64[],
+            lower_90 = Float64[], lower_60 = Float64[],
+            lower_30 = Float64[], upper_30 = Float64[],
+            upper_60 = Float64[], upper_90 = Float64[],
         ) begin
         let df = _
             for p in params
@@ -394,6 +631,7 @@ function summary_table(chn, params::AbstractVector{Symbol};
             df
         end
     end
+    return _prettify(df)
 end
 
 ## --- Fit diagnostics ----------------------------------------------------
@@ -433,8 +671,8 @@ the smallest bulk effective sample size across parameters, and the
 number of divergent transitions.
 """
 function fit_diagnostics(chn)
-    rhats = _scalar_stats(MCMCChains.rhat(chn))
-    esses = _scalar_stats(MCMCChains.ess(chn; kind = :bulk))
+    rhats = _scalar_stats(FlexiChains.rhat(chn))
+    esses = _scalar_stats(FlexiChains.ess(chn; kind = :bulk))
     return (max_rhat     = maximum(rhats),
             min_ess_bulk = minimum(esses),
             n_divergent  = _num_divergences(chn))
@@ -469,11 +707,11 @@ function streams_table(streams::Pair{String, <:AbstractVector}...;
     rows = map(streams) do (label, draws)
         s = posterior_summary(draws)
         (stream = label,
-         lo90 = round(s.lo90; digits), lo60 = round(s.lo60; digits),
-         lo30 = round(s.lo30; digits), hi30 = round(s.hi30; digits),
-         hi60 = round(s.hi60; digits), hi90 = round(s.hi90; digits))
+         lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
+         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+         upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
     end
-    return DataFrame(rows)
+    return _prettify(DataFrame(rows))
 end
 
 """
@@ -496,9 +734,10 @@ function comparison_table(C_draws::AbstractVector;
         else
             "outside 90%"
         end
-        (scenario = label, reported_C_T = val, narrowest_CrI = crI)
+        (scenario = label, reported_cases = val,
+         narrowest_interval = crI)
     end
-    return DataFrame(rows)
+    return _prettify(DataFrame(rows))
 end
 
 """
@@ -543,6 +782,38 @@ function plot_cumulative_cases(
     return fg
 end
 
+"""
+$(TYPEDSIGNATURES)
+
+Overlaid posterior densities of an arbitrary scalar quantity from one
+or more fits, built through AlgebraOfGraphics. Pass each fit as
+`"label" => draws`; `xlabel` and `title` set the axis text.
+"""
+function plot_density_overlay(
+        streams::Pair{String, <:AbstractVector}...;
+        xlabel::AbstractString = "Value",
+        title::AbstractString = "Posterior density")
+    df = @chain DataFrame(stream = String[], value = Float64[]) begin
+        let df = _
+            for (label, draws) in streams
+                for x in draws
+                    push!(df, (label, float(x)))
+                end
+            end
+            df
+        end
+    end
+
+    spec = AoG.data(df) *
+           AoG.mapping(:value => xlabel, color = :stream => "Fit") *
+           AoG.AlgebraOfGraphics.density() *
+           AoG.visual(linewidth = 2)
+    return AoG.draw(spec;
+        axis  = (; ylabel = "Posterior density", title = title),
+        figure = (; size = (760, 420)),
+    )
+end
+
 _panel_pos(pos::Integer) = (1, pos)
 _panel_pos(pos::Tuple)   = pos
 
@@ -550,12 +821,27 @@ _panel_exports!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     r, c = _panel_pos(pos)
     upper = max(20, ceil(Int, quantile(pp, 0.99)))
     ax = Axis(fig[r, c];
-        xlabel = "Replicated exports",
-        ylabel = "$(predictive_label) predictive count",
-        title  = "Exports (Poisson)",
+        xlabel = "Replicated exported cases",
+        ylabel = "$(predictive_label) predictive frequency",
+        title  = "Exports (cases)",
         limits = ((0, upper), nothing),
     )
     hist!(ax, pp; bins = 0:1:upper, color = (:steelblue, 0.7))
+    vlines!(ax, [obs]; color = :red, linewidth = 2)
+    return ax
+end
+
+_panel_exports_deaths!(fig, pos, pp, obs;
+        predictive_label = "Posterior") = begin
+    r, c = _panel_pos(pos)
+    upper = max(3, ceil(Int, quantile(pp, 0.995)))
+    ax = Axis(fig[r, c];
+        xlabel = "Replicated deaths among exports",
+        ylabel = "$(predictive_label) predictive frequency",
+        title  = "Exports (deaths)",
+        limits = ((0, upper), nothing),
+    )
+    hist!(ax, pp; bins = 0:1:upper, color = (:rebeccapurple, 0.7))
     vlines!(ax, [obs]; color = :red, linewidth = 2)
     return ax
 end
@@ -565,8 +851,8 @@ _panel_deaths!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(1.0, quantile(pp, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths",
-        ylabel = "$(predictive_label) predictive count",
-        title  = "Deaths (NegBinomial)",
+        ylabel = "$(predictive_label) predictive frequency",
+        title  = "Deaths (DRC)",
         limits = ((0, upper), nothing),
     )
     hist!(ax, pp; bins = range(0, upper; length = 40),
@@ -580,8 +866,8 @@ _panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
     upper = max(1.0, quantile(pp, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated reported cases",
-        ylabel = "$(predictive_label) predictive count",
-        title  = "Reported cases (NegBinomial)",
+        ylabel = "$(predictive_label) predictive frequency",
+        title  = "Reported cases (DRC)",
         limits = ((0, upper), nothing),
     )
     hist!(ax, pp; bins = range(0, upper; length = 40),
@@ -597,20 +883,29 @@ $(TYPEDSIGNATURES)
 
 Posterior predictive histogram with one panel per supplied data
 stream. Pass `pp_exports`/`pp_deaths` as `nothing` to suppress
-either of the first two panels, and supply `pp_cases` to add the
-reported-cases panel. Observed values are drawn as red `vlines`.
+either of the first two panels, and supply `pp_cases` and/or
+`pp_exports_deaths` to add the reported-cases and deaths-among-exports
+panels. Observed values are drawn as red `vlines`. With four streams
+the panels are laid out as a 2×2 grid (exports cases, exports deaths,
+DRC deaths, DRC reported cases); fewer streams are placed in a single
+row.
 """
 function plot_posterior_predictive(
         pp_exports::Union{Nothing, AbstractVector},
         pp_deaths::Union{Nothing, AbstractVector},
         obs_exports::Union{Nothing, Real},
         obs_deaths::Union{Nothing, Real};
-        pp_cases::Union{Nothing, AbstractVector} = nothing,
-        obs_cases::Union{Nothing, Real}          = nothing,
-        predictive_label::AbstractString         = "Posterior")
+        pp_cases::Union{Nothing, AbstractVector}          = nothing,
+        obs_cases::Union{Nothing, Real}                   = nothing,
+        pp_exports_deaths::Union{Nothing, AbstractVector} = nothing,
+        obs_exports_deaths::Union{Nothing, Real}          = nothing,
+        predictive_label::AbstractString                  = "Posterior")
     panels = Tuple{Symbol, Any, Any}[]
     pp_exports === nothing ||
         push!(panels, (:exports, pp_exports, obs_exports))
+    pp_exports_deaths === nothing ||
+        push!(panels, (:exports_deaths, pp_exports_deaths,
+                       obs_exports_deaths))
     pp_deaths === nothing ||
         push!(panels, (:deaths,  pp_deaths,  obs_deaths))
     pp_cases === nothing ||
@@ -619,14 +914,19 @@ function plot_posterior_predictive(
     isempty(panels) && error(
         "plot_posterior_predictive needs at least one stream")
 
-    fig = Figure(; size = (450 * length(panels), 380))
+    ncols = length(panels) >= 4 ? 2 : length(panels)
+    nrows = cld(length(panels), ncols)
+    fig = Figure(; size = (450 * ncols, 380 * nrows))
     for (i, (kind, pp, obs)) in enumerate(panels)
+        pos = (cld(i, ncols), mod1(i, ncols))
         if kind === :exports
-            _panel_exports!(fig, i, pp, obs; predictive_label)
+            _panel_exports!(fig, pos, pp, obs; predictive_label)
+        elseif kind === :exports_deaths
+            _panel_exports_deaths!(fig, pos, pp, obs; predictive_label)
         elseif kind === :deaths
-            _panel_deaths!(fig, i, pp, obs; predictive_label)
+            _panel_deaths!(fig, pos, pp, obs; predictive_label)
         else
-            _panel_cases!(fig, i, pp, obs; predictive_label)
+            _panel_cases!(fig, pos, pp, obs; predictive_label)
         end
     end
     return fig
@@ -635,30 +935,32 @@ end
 """
 $(TYPEDSIGNATURES)
 
-Two-row × three-column comparison of posterior-predictive
-distributions. Top row: replicates from the per-stream fits
-(`exports_only`, `deaths_only`, `cases_only`). Bottom row:
-replicates from the joint fit, conditioning on all three observed
+Two-row × four-column comparison of posterior-predictive
+distributions. Top row: replicates from the per-stream fits. Bottom
+row: replicates from the joint fit, conditioning on all observed
 streams. Observed values shown as red vertical lines.
 
-Each panel is a histogram of replicated counts; rows share the
-same x-axis (the stream's count) so the per-stream and joint
+Each `NamedTuple` carries `(; exports, exports_deaths, deaths,
+cases)`. Each panel is a histogram of replicated counts; rows share
+the same x-axis (the stream's count) so the per-stream and joint
 predictives are directly comparable.
 """
 function plot_posterior_predictive_grid(;
-        individual::NamedTuple,   # (; exports, deaths, cases) of pp draws
-        joint::NamedTuple,        # (; exports, deaths, cases) of pp draws
-        observed::NamedTuple,     # (; exports, deaths, cases) of obs values
+        individual::NamedTuple,
+        joint::NamedTuple,
+        observed::NamedTuple,
     )
-    fig = Figure(; size = (1200, 640))
+    fig = Figure(; size = (1600, 640))
     rows = ((:individual, individual, "per-stream fit"),
             (:joint,      joint,      "joint fit"))
     for (i, (_, pp, label)) in enumerate(rows)
         _panel_exports!(fig, (i, 1), pp.exports, observed.exports;
                         predictive_label = label)
-        _panel_deaths!(fig, (i, 2),  pp.deaths,  observed.deaths;
+        _panel_exports_deaths!(fig, (i, 2), pp.exports_deaths,
+                        observed.exports_deaths; predictive_label = label)
+        _panel_deaths!(fig, (i, 3),  pp.deaths,  observed.deaths;
                        predictive_label = label)
-        _panel_cases!(fig, (i, 3),   pp.cases,   observed.cases;
+        _panel_cases!(fig, (i, 4),   pp.cases,   observed.cases;
                       predictive_label = label)
     end
     return fig
@@ -686,13 +988,126 @@ end
 $(TYPEDSIGNATURES)
 
 PairPlots.jl corner plot over the named posterior parameters,
-thinned by `thin`.
+thinned by `thin`. Pass `prior` (another chain holding the same
+parameters) to overlay the prior as a second series with a legend,
+so the data's contribution to each marginal is visible.
 """
 function plot_pair(chn, params::AbstractVector{Symbol};
-        thin::Integer = 2)
-    cols = NamedTuple(p => _draws(chn, p) for p in params)
-    df = DataFrame(cols)
-    return PairPlots.pairplot(df[1:thin:end, :])
+        thin::Integer = 2, prior = nothing)
+    _table(c) = DataFrame(
+        NamedTuple(p => _draws(c, p) for p in params))[1:thin:end, :]
+    post = _table(chn)
+    prior === nothing && return PairPlots.pairplot(post)
+    colours = CairoMakie.Makie.wong_colors()
+    return PairPlots.pairplot(
+        PairPlots.Series(post;  label = "Posterior", color = colours[1]),
+        PairPlots.Series(_table(prior); label = "Prior",
+                         color = colours[2]),
+    )
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Horizontal point-and-interval comparison of cumulative-case estimates
+from several sources. `rows` is a vector of
+`(label, central, lower, upper)` tuples, drawn top to bottom with the
+central estimate as a point and `[lower, upper]` as a bar. Use it to
+place model posteriors next to published point estimates and their
+intervals.
+"""
+function plot_estimate_comparison(
+        rows::AbstractVector;
+        xlabel::AbstractString = "Cumulative cases C(T)",
+        xmax::Union{Nothing, Real} = nothing)
+    n       = length(rows)
+    labels  = [String(r[1]) for r in rows]
+    central = [float(r[2])  for r in rows]
+    lo      = [float(r[3])  for r in rows]
+    hi      = [float(r[4])  for r in rows]
+    top     = isnothing(xmax) ? maximum(hi) * 1.08 : xmax
+
+    fig = Figure(; size = (840, 120 + 46n))
+    ax = Axis(fig[1, 1];
+        xlabel = xlabel,
+        yticks = (collect(1:n), reverse(labels)),
+        limits = ((0, top), (0.5, n + 0.5)),
+    )
+    for i in 1:n
+        y = n - i + 1
+        lines!(ax, [lo[i], hi[i]], [y, y];
+               color = (:steelblue, 0.8), linewidth = 3)
+        scatter!(ax, [central[i]], [y];
+                 color = :firebrick, markersize = 12)
+    end
+    return fig
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Density of a prior over the case-fatality ratio (CFR) on `[0, 1]`,
+plotted on the sub-range `[0, 0.7]`. The CDC central estimate of
+55/169 ≈ 0.33 is drawn as a solid vertical rule, and the report's 26%
+and 40% scenario bounds as dashed rules, so the prior can be read
+against the published CFR scenarios.
+"""
+function plot_cfr_prior(prior::Distribution)
+    colours = CairoMakie.Makie.wong_colors()
+    xs = range(0.0, 0.7; length = 400)
+    ys = pdf.(Ref(prior), xs)
+
+    fig = Figure(; size = (760, 420))
+    ax = Axis(fig[1, 1];
+        xlabel = "Case-fatality ratio (CFR)",
+        ylabel = "Prior density",
+        title  = "Prior over the case-fatality ratio",
+        limits = ((0, 0.7), nothing),
+    )
+    lines!(ax, xs, ys; color = colours[1], linewidth = 2)
+    vlines!(ax, [55 / 169]; color = :firebrick, linewidth = 2)
+    vlines!(ax, [0.26, 0.40];
+            color = (:grey, 0.6), linestyle = :dash, linewidth = 2)
+    return fig
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+One-row, two-panel figure summarising when the outbreak began. The
+left panel is the posterior density of the outbreak start date,
+obtained by rescaling the days-since-seeding `T` to a calendar date
+(`as_of_date` minus `T`). The right panel is the joint `(τ, T)`
+posterior pair plot, which is positively correlated: slower growth
+(larger `τ`) needs a longer elapsed `T` to reach the same counts.
+"""
+function plot_start_date_pair(chn;
+        as_of_date::AbstractString, thin::Integer = 2)
+    T_draws     = _draws(chn, :T)
+    cutoff_days = date2epochdays(Date(as_of_date))
+    start_days  = cutoff_days .- T_draws
+
+    fig = Figure(; size = (1100, 460))
+    ax = Axis(fig[1, 1];
+        xlabel = "Outbreak start date",
+        ylabel = "Posterior density",
+        title  = "Implied start of sustained transmission",
+        xticklabelrotation = π / 6,
+    )
+    density!(ax, start_days; color = (:steelblue, 0.5),
+             strokecolor = :steelblue, strokewidth = 2)
+    ## Date ticks every four weeks across the posterior range, so the
+    ## start date stays readable rather than relying on the default
+    ## locator or crowding the axis as the range widens.
+    lo = floor(Int, minimum(start_days))
+    hi = ceil(Int, maximum(start_days))
+    ax.xticks = collect(lo:28:hi)
+    ax.xtickformat = vals ->
+        [string(epochdays2date(round(Int, v))) for v in vals]
+
+    pair_df = DataFrame(τ = _draws(chn, :τ), T = T_draws)
+    PairPlots.pairplot(fig[1, 2], pair_df[1:thin:end, :])
+    return fig
 end
 
 ## --- Future-expected-deaths counterfactual -----------------------------
@@ -710,10 +1125,11 @@ end
 function _committed_deaths_one(r, T, α, θ, CFR;
         alg = DEATH_INTEGRAL_ALG)
     delay_dist = Gamma(α, θ)
+    scale = _delay_scale(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> r * exp(r * s) * ccdf(delay_dist, T - s)
     end
-    return CFR * integrate(g, zero(T), T; alg)
+    return CFR * integrate(g, zero(T), T, scale; alg)
 end
 
 """
@@ -736,7 +1152,7 @@ with `F_d` the Gamma(α, θ) onset-to-death CDF, returning a
 - `:total_projected`  `obs_deaths + delta_deaths`
 
 `obs_deaths` is the number of deaths already observed at time `T`
-(e.g. `TOTAL_DEATHS` from the bundled observations). `alg` is the
+(e.g. `obs.total_deaths` from the bundled observations). `alg` is the
 quadrature scheme used for ΔD; defaults to `GaussLegendre(n = 64)`,
 matching the rest of the package.
 """
@@ -892,26 +1308,61 @@ end
     forecast_table(fc::DataFrame; digits = 0)
 
 Summarise a [`forecast_reported`](@ref) result into a `DataFrame` with
-one row per stream (cases, deaths, exports) and 30/60/90% credible
-intervals for the cumulative forecast and the new-this-week count.
+one row per stream (cases, deaths, exports) and quantity (cumulative
+total by `T + 7`, or new this week), reporting the same equal-tailed
+30/60/90% credible interval endpoints (`lower_90 … upper_90`) as the
+other summary tables.
 """
 function forecast_table(fc::DataFrame; digits::Integer = 0)
+    _row(label, quantity, draws) = begin
+        s = posterior_summary(draws)
+        (stream = label, quantity = quantity,
+         lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
+         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+         upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
+    end
     rows = NamedTuple[]
     for (label, cum, new) in (
-            ("DRC reported cases", :cases_cum,  :cases_new),
-            ("DRC deaths",         :deaths_cum, :deaths_new),
+            ("DRC reported cases", :cases_cum,   :cases_new),
+            ("DRC deaths",         :deaths_cum,  :deaths_new),
             ("Uganda exports",     :exports_cum, :exports_new))
-        sc = posterior_summary(fc[!, cum])
-        sn = posterior_summary(fc[!, new])
-        push!(rows, (
-            stream         = label,
-            cum_lo90 = round(sc.lo90; digits), cum_med = round(quantile(fc[!, cum], 0.5); digits),
-            cum_hi90 = round(sc.hi90; digits),
-            new_lo90 = round(sn.lo90; digits), new_med = round(quantile(fc[!, new], 0.5); digits),
-            new_hi90 = round(sn.hi90; digits),
-        ))
+        push!(rows, _row(label, "cumulative by T+7", fc[!, cum]))
+        push!(rows, _row(label, "new this week",     fc[!, new]))
     end
-    return DataFrame(rows)
+    return _prettify(DataFrame(rows))
+end
+
+"""
+    forecast_vs_truth(fc::DataFrame; cases, deaths, exports, digits = 0)
+
+Validate a [`forecast_reported`](@ref) projection against the counts
+that were later observed. `cases`, `deaths` and `exports` are the
+observed cumulative DRC reported cases, DRC deaths and Uganda exports at
+the forecast target date. Returns a `DataFrame` with one row per stream
+giving the observed count, the equal-tailed 30/60/90% predictive
+intervals (the same endpoints as the other summary tables), and whether
+the observed count falls inside the 90% interval. Use it to forecast
+from an earlier data snapshot and check the now-known truth against the
+projection.
+"""
+function forecast_vs_truth(fc::DataFrame;
+        cases::Real, deaths::Real, exports::Real, digits::Integer = 0)
+    _row(label, draws, obs) = begin
+        s  = posterior_summary(draws)
+        lo = round(s.lo90; digits)
+        hi = round(s.hi90; digits)
+        (stream = label, observed = round(obs; digits),
+         lower_90 = lo, lower_60 = round(s.lo60; digits),
+         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+         upper_60 = round(s.hi60; digits), upper_90 = hi,
+         within_90 = lo <= obs <= hi ? "yes" : "no")
+    end
+    rows = [
+        _row("DRC reported cases", fc[!, :cases_cum],   cases),
+        _row("DRC deaths",         fc[!, :deaths_cum],  deaths),
+        _row("Uganda exports",     fc[!, :exports_cum], exports),
+    ]
+    return _prettify(DataFrame(rows))
 end
 
 """
@@ -929,10 +1380,57 @@ function plot_forecast(fc::DataFrame)
         v = fc[!, col]
         upper = max(1.0, quantile(v, 0.995))
         ax = Axis(fig[1, i];
-            xlabel = title, ylabel = "Forecast count",
+            xlabel = title, ylabel = "Predictive frequency",
             title = "One week ahead", limits = ((0, upper), nothing))
         hist!(ax, v; bins = range(0, upper; length = 30),
               color = (colour, 0.7))
+    end
+    return fig
+end
+
+"""
+    plot_forecast_vs_truth(fc::DataFrame; cases, deaths, exports,
+                           baseline_cases = 0, baseline_deaths = 0,
+                           baseline_exports = 0)
+
+Validation figure for a [`forecast_reported`](@ref) projection, laid out
+as a 2×3 grid. The top row shows the cumulative forecast distribution per
+stream (DRC reported cases, DRC deaths, Uganda exports); the bottom row
+shows the new counts forecast over the horizon, mirroring the
+one-week-ahead forecast. Each panel is a histogram with the 90%
+predictive interval shaded and the later-observed count drawn as a dashed
+black rule. `cases`, `deaths` and `exports` are the observed cumulative
+counts; `baseline_*` are the counts at the forecast origin, so the
+observed new count is the cumulative truth minus the baseline.
+"""
+function plot_forecast_vs_truth(fc::DataFrame;
+        cases::Real, deaths::Real, exports::Real,
+        baseline_cases::Real = 0, baseline_deaths::Real = 0,
+        baseline_exports::Real = 0)
+    fig = Figure(; size = (1100, 680))
+    function panel!(row, col, v, obs, title, colour)
+        lo    = quantile(v, 0.05)
+        hi    = quantile(v, 0.95)
+        upper = max(1.0, quantile(v, 0.995), obs * 1.05)
+        ax = Axis(fig[row, col];
+            xlabel = title, ylabel = "Predictive frequency",
+            limits = ((0, upper), nothing))
+        vspan!(ax, lo, hi; color = (colour, 0.15))
+        hist!(ax, v; bins = range(0, upper; length = 30),
+              color = (colour, 0.7))
+        vlines!(ax, [obs]; color = :black, linestyle = :dash, linewidth = 2)
+    end
+    streams = (
+        (:cases_cum,   :cases_new,   "reported cases (DRC)", :steelblue,
+         float(cases),   float(cases)   - float(baseline_cases)),
+        (:deaths_cum,  :deaths_new,  "deaths (DRC)",         :firebrick,
+         float(deaths),  float(deaths)  - float(baseline_deaths)),
+        (:exports_cum, :exports_new, "exports (Uganda)",     :seagreen,
+         float(exports), float(exports) - float(baseline_exports)))
+    for (j, (ccol, ncol, name, colour, obs_cum, obs_new)) in
+            enumerate(streams)
+        panel!(1, j, fc[!, ccol], obs_cum, "Cumulative $name", colour)
+        panel!(2, j, fc[!, ncol], max(obs_new, 0.0), "New $name", colour)
     end
     return fig
 end

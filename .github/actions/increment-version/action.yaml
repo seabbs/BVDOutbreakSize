@@ -1,0 +1,226 @@
+name: 'Increment Version'
+description: 'Increment version in Project.toml and create PR'
+inputs:
+  increment-type:
+    description: 'Type of version increment: major, minor, or patch'
+    required: true
+  create-pr:
+    description: 'Whether to create a PR (true) or just increment on current branch (false)'
+    required: false
+    default: 'true'
+  pr-title-prefix:
+    description: 'Prefix for PR title'
+    required: false
+    default: 'chore: increment version'
+  update-readme-date:
+    description: 'Update the "Last updated" date in README.md to today (UTC)'
+    required: false
+    default: 'false'
+  assignee:
+    description: 'GitHub username to assign PR to'
+    required: false
+    default: 'seabbs'
+outputs:
+  old-version:
+    description: 'The previous version'
+    value: ${{ steps.increment.outputs.old-version }}
+  new-version:
+    description: 'The new version'
+    value: ${{ steps.increment.outputs.new-version }}
+  pr-number:
+    description: 'PR number if created or existing PR found'
+    value: ${{ steps.create-pr.outputs.pr-number || steps.use-existing-pr.outputs.pr-number }}
+  existing-pr:
+    description: 'Whether an existing PR was found'
+    value: ${{ steps.check-pr.outputs.existing-pr }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get current version and increment
+      id: increment
+      shell: bash
+      run: |
+        # Get current version
+        CURRENT_VERSION=$(grep '^version = ' Project.toml | sed 's/version = "\(.*\)"/\1/')
+        echo "Current version: $CURRENT_VERSION"
+
+        # Parse version parts
+        IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+        MAJOR=${VERSION_PARTS[0]}
+        MINOR=${VERSION_PARTS[1]}
+        PATCH=${VERSION_PARTS[2]}
+
+        # Increment based on type
+        case "${{ inputs.increment-type }}" in
+          "major")
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_VERSION="${NEW_MAJOR}.0.0"
+            ;;
+          "minor")
+            NEW_MINOR=$((MINOR + 1))
+            NEW_VERSION="${MAJOR}.${NEW_MINOR}.0"
+            ;;
+          "patch")
+            NEW_PATCH=$((PATCH + 1))
+            NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+            ;;
+          *)
+            echo "Error: Invalid increment type '${{ inputs.increment-type }}'. Must be major, minor, or patch."
+            exit 1
+            ;;
+        esac
+
+        echo "New version: $NEW_VERSION"
+        echo "old-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+        # Update Project.toml
+        sed -i "s/version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" Project.toml
+
+    - name: Update README last-updated date
+      if: inputs.update-readme-date == 'true'
+      shell: bash
+      run: |
+        TODAY=$(date -u +'%-d %B %Y')
+        echo "Setting README 'Last updated' to: $TODAY"
+        # Replace only the date that follows "**Last updated:**", up to
+        # the first period. "Data as of" is left untouched: it tracks the
+        # data cut-off in observations.toml, not the build date.
+        sed -i -E \
+          "s/(\*\*Last updated:\*\*) [^.]*\./\1 ${TODAY}./" README.md
+
+    - name: Check for existing PR
+      id: check-pr
+      if: inputs.create-pr == 'true'
+      shell: bash
+      run: |
+        NEW_VERSION="${{ steps.increment.outputs.new-version }}"
+
+        # Check if a PR already exists with the same version
+        EXISTING_PR=$(gh pr list --state open --search "in:title \"${{ inputs.pr-title-prefix }} to $NEW_VERSION\"" --json number --jq '.[0].number // empty')
+
+        if [ -n "$EXISTING_PR" ]; then
+          echo "existing-pr=true" >> $GITHUB_OUTPUT
+          echo "existing-pr-number=$EXISTING_PR" >> $GITHUB_OUTPUT
+          echo "PR #$EXISTING_PR already exists for version $NEW_VERSION. Skipping PR creation."
+        else
+          echo "existing-pr=false" >> $GITHUB_OUTPUT
+          echo "No existing PR found for version $NEW_VERSION. Proceeding with PR creation."
+        fi
+
+    - name: Create PR
+      id: create-pr
+      if: inputs.create-pr == 'true' && steps.check-pr.outputs.existing-pr == 'false'
+      shell: bash
+      run: |
+        # Configure git
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+        OLD_VERSION="${{ steps.increment.outputs.old-version }}"
+        NEW_VERSION="${{ steps.increment.outputs.new-version }}"
+        INCREMENT_TYPE="${{ inputs.increment-type }}"
+
+        # Create new branch
+        BRANCH_NAME="auto/version-increment-${NEW_VERSION}"
+
+        # If the branch already exists on the remote (an earlier run left
+        # it behind, or a previous version PR was closed without deleting
+        # it), don't fail the workflow on every subsequent push to main.
+        # Log a notice and exit cleanly; a later push proceeds once the
+        # stale branch is cleared.
+        if git ls-remote --exit-code --heads origin "$BRANCH_NAME" \
+            >/dev/null 2>&1; then
+          echo "::notice::Branch $BRANCH_NAME already exists on the" \
+            "remote; skipping version-increment PR creation."
+          exit 0
+        fi
+
+        git checkout -b "$BRANCH_NAME"
+
+        # Commit changes
+        git add Project.toml
+        if [ "${{ inputs.update-readme-date }}" = "true" ]; then
+          git add README.md
+        fi
+        git commit -m "${{ inputs.pr-title-prefix }} to $NEW_VERSION
+
+        Automatically incremented $INCREMENT_TYPE version.
+
+        Previous version: $OLD_VERSION
+        New version: $NEW_VERSION"
+
+        # Push branch. Tolerate a race where a concurrent push to main
+        # created the same branch first: log and exit cleanly rather than
+        # failing the run.
+        if ! git push origin "$BRANCH_NAME"; then
+          echo "::notice::Could not push $BRANCH_NAME (it may already" \
+            "exist); skipping PR creation."
+          exit 0
+        fi
+
+        # Create PR using GitHub CLI
+        PR_OUTPUT=$(gh pr create \
+          --title "${{ inputs.pr-title-prefix }} to $NEW_VERSION" \
+          --body "This PR automatically increments the version from \`$OLD_VERSION\` to \`$NEW_VERSION\` as a **$INCREMENT_TYPE** release.
+
+        ## Changes
+        - Updated \`version\` in \`Project.toml\` from \`$OLD_VERSION\` to \`$NEW_VERSION\`
+
+        ## Version Increment Type
+        - **$INCREMENT_TYPE** release: $(case $INCREMENT_TYPE in
+          major) echo "Breaking changes or major new features" ;;
+          minor) echo "New features, backwards compatible" ;;
+          patch) echo "Bug fixes and small improvements" ;;
+        esac)
+
+        ## Review Checklist
+        - [ ] Version increment type is appropriate ($INCREMENT_TYPE)
+        - [ ] No other changes needed for this release
+
+        *This PR was created automatically by the Version Increment workflow.*" \
+          --base main \
+          --head "$BRANCH_NAME" \
+          --assignee "${{ inputs.assignee }}")
+
+        # Extract PR number
+        PR_NUMBER=$(echo "$PR_OUTPUT" | grep -o '/pull/[0-9]*' | grep -o '[0-9]*')
+        echo "pr-number=$PR_NUMBER" >> $GITHUB_OUTPUT
+        echo "Created PR #$PR_NUMBER"
+
+    - name: Use existing PR
+      id: use-existing-pr
+      if: inputs.create-pr == 'true' && steps.check-pr.outputs.existing-pr == 'true'
+      shell: bash
+      run: |
+        EXISTING_PR_NUMBER="${{ steps.check-pr.outputs.existing-pr-number }}"
+        echo "pr-number=$EXISTING_PR_NUMBER" >> $GITHUB_OUTPUT
+        echo "Using existing PR #$EXISTING_PR_NUMBER"
+
+    - name: Commit directly to branch
+      if: inputs.create-pr == 'false'
+      shell: bash
+      run: |
+        # Configure git
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+        OLD_VERSION="${{ steps.increment.outputs.old-version }}"
+        NEW_VERSION="${{ steps.increment.outputs.new-version }}"
+        INCREMENT_TYPE="${{ inputs.increment-type }}"
+
+        # Commit changes
+        git add Project.toml
+        if [ "${{ inputs.update-readme-date }}" = "true" ]; then
+          git add README.md
+        fi
+        git commit -m "${{ inputs.pr-title-prefix }} to $NEW_VERSION
+
+        Automatically incremented $INCREMENT_TYPE version.
+
+        Previous version: $OLD_VERSION
+        New version: $NEW_VERSION"
+
+        # Push to current branch
+        git pull && git push

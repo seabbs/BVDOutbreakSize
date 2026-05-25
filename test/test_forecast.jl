@@ -2,6 +2,11 @@
 ## synthetic chain carrying the parameters `forecast_reported` reads,
 ## then checks the returned DataFrame contract.
 
+using DataFrames: DataFrame, nrow
+using Distributions: Normal, Gamma, Beta, truncated
+using Turing: Turing, @model, sample, Prior
+import FlexiChains
+
 @model function _forecast_test()
     r          ~ truncated(Normal(0.05, 0.01); lower = 1e-3)
     T          ~ truncated(Normal(100.0, 10.0); lower = 1.0)
@@ -18,7 +23,7 @@ end
 
 @testset "forecast_reported returns the documented columns" begin
     chn = sample(_forecast_test(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
 
     fc = forecast_reported(chn;
         horizon           = 7,
@@ -45,7 +50,7 @@ end
 
 @testset "forecast_table and plot_forecast" begin
     chn = sample(_forecast_test(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     fc = forecast_reported(chn;
         horizon = 7, daily_travellers = 1871,
         source_population = 4_392_200,
@@ -53,9 +58,44 @@ end
 
     tbl = forecast_table(fc)
     @test tbl isa DataFrame
-    @test nrow(tbl) == 3
-    @test :stream in propertynames(tbl)
+    ## Three streams × two quantities (cumulative, new this week).
+    @test nrow(tbl) == 6
+    @test names(tbl) ==
+          ["Stream", "Quantity", "Lower 90%", "Lower 60%", "Lower 30%",
+           "Upper 30%", "Upper 60%", "Upper 90%"]
+    @test Set(tbl[!, "Quantity"]) ==
+          Set(["cumulative by T+7", "new this week"])
 
     fig = plot_forecast(fc)
+    @test fig !== nothing
+end
+
+@testset "forecast_vs_truth compares cumulative forecast to observed" begin
+    chn = sample(_forecast_test(), Prior(), 200;
+                 chain_type = FlexiChains.VNChain, progress = false)
+    fc = forecast_reported(chn;
+        horizon = 7, daily_travellers = 1871,
+        source_population = 4_392_200,
+        obs_cases = 514, obs_deaths = 136, obs_exports = 2)
+
+    tbl = forecast_vs_truth(fc;
+        cases = 600, deaths = 150, exports = 3)
+
+    @test tbl isa DataFrame
+    ## One row per stream (cases, deaths, exports).
+    @test nrow(tbl) == 3
+    @test names(tbl) ==
+          ["Stream", "Observed", "Lower 90%", "Lower 60%", "Lower 30%",
+           "Upper 30%", "Upper 60%", "Upper 90%", "Within 90% PI"]
+    @test Set(tbl[!, "Stream"]) ==
+          Set(["DRC reported cases", "DRC deaths", "Uganda exports"])
+
+    ## Coverage flag agrees with the reported interval endpoints.
+    for row in eachrow(tbl)
+        covered = row["Lower 90%"] <= row.Observed <= row["Upper 90%"]
+        @test row["Within 90% PI"] == (covered ? "yes" : "no")
+    end
+
+    fig = plot_forecast_vs_truth(fc; cases = 600, deaths = 150, exports = 3)
     @test fig !== nothing
 end

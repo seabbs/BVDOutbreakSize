@@ -3,13 +3,20 @@
 ## recreate the minimal set here to keep the tests self-contained
 ## and avoid a dependency on the doc-build pipeline.
 
+using Distributions: Normal, truncated
+using StatsFuns: logit, logistic
+using Turing: Turing, @model, sample, Prior, to_submodel
+import FlexiChains
+
 @model function _pooled_test(;
         mu_prior  = Normal(logit(0.25), 1.0),
         tau_prior = truncated(Normal(0.0, 0.5); lower = 1e-4))
     μ_logit  ~ mu_prior
     τ_logit  ~ tau_prior
-    logit_p_drc    ~ Normal(μ_logit, τ_logit)
-    logit_p_uganda ~ Normal(μ_logit, τ_logit)
+    z_drc    ~ Normal(0, 1)
+    z_uganda ~ Normal(0, 1)
+    logit_p_drc    = μ_logit + τ_logit * z_drc
+    logit_p_uganda = μ_logit + τ_logit * z_uganda
     p_drc    := logistic(logit_p_drc)
     p_uganda := logistic(logit_p_uganda)
     return (; μ_logit, τ_logit, p_drc, p_uganda)
@@ -24,7 +31,7 @@ end
 
 @testset "pooled_ascertainment prior draws produce p ∈ (0, 1)" begin
     chn = sample(_pooled_test(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     p_drc    = vec(Array(chn[:p_drc]))
     p_uganda = vec(Array(chn[:p_uganda]))
     τ_logit  = vec(Array(chn[:τ_logit]))
@@ -39,7 +46,7 @@ end
 
 @testset "pooled_ascertainment composes via to_submodel" begin
     chn = sample(_pooled_test_compose(), Prior(), 100;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     p_drc    = vec(Array(chn[:p_drc_outer]))
     p_uganda = vec(Array(chn[:p_uganda_outer]))
     @test length(p_drc) == 100

@@ -10,21 +10,22 @@ end
 
 @testset "summary_table returns expected columns and rows" begin
     chn = sample(_summary_model(), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     params = [:a, :b]
     df = summary_table(chn, params)
 
     @test df isa DataFrame
     @test names(df) ==
-          ["quantity", "lo90", "lo60", "lo30", "hi30", "hi60", "hi90"]
+          ["Quantity", "Lower 90%", "Lower 60%", "Lower 30%",
+           "Upper 30%", "Upper 60%", "Upper 90%"]
     @test nrow(df) == length(params)
-    @test df.quantity == ["a", "b"]
+    @test df[!, "Quantity"] == ["a", "b"]
 
     # Each row's quantile columns are monotone (an internal sanity
     # check that the rounded entries still respect the ordering).
     for r in eachrow(df)
-        @test r.lo90 <= r.lo60 <= r.lo30
-        @test r.hi30 <= r.hi60 <= r.hi90
-        @test r.lo30 <= r.hi30
+        @test r["Lower 90%"] <= r["Lower 60%"] <= r["Lower 30%"]
+        @test r["Upper 30%"] <= r["Upper 60%"] <= r["Upper 90%"]
+        @test r["Lower 30%"] <= r["Upper 30%"]
     end
 end

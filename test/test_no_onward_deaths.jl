@@ -14,7 +14,7 @@ end
 
 @testset "predict_no_onward_deaths returns the documented columns" begin
     chn = sample(_no_onward_synthetic(), Prior(), 100;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     obs_deaths = 88
     df = predict_no_onward_deaths(chn; obs_deaths = obs_deaths)
 
@@ -31,7 +31,7 @@ end
 
 @testset "plot_no_onward_deaths returns a renderable figure-grid" begin
     chn = sample(_no_onward_synthetic(), Prior(), 80;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     df = predict_no_onward_deaths(chn; obs_deaths = 50)
     fg = plot_no_onward_deaths(df; obs_deaths = 50)
     @test fg !== nothing

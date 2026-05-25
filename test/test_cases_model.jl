@@ -3,6 +3,10 @@
 ## set here to keep the tests self-contained and avoid a dependency on
 ## the doc-build pipeline.
 
+using Distributions: Beta, NegativeBinomial, truncated, Normal
+using Turing: Turing, @model, sample, Prior, to_submodel
+import FlexiChains
+
 @model function _cases_test_growth()
     log_τ ~ Normal(log(14), 0.4)
     m     ~ truncated(Normal(7.0, 2.5); lower = 0, upper = 13.0)
@@ -60,7 +64,7 @@ end
 @testset "cases_model prior draws finite reported_cases" begin
     m = _cases_test_only(missing)
     chn = sample(m, Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     rc = vec(Array(chn[:reported_cases]))
     @test length(rc) == 200
     @test all(isfinite, rc)
@@ -72,7 +76,7 @@ end
 
 @testset "cases_only_model fits a tiny observation" begin
     chn = sample(_cases_test_only(50), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     C = vec(Array(chn[:cumulative_cases]))
     @test length(C) == 200
     @test all(isfinite, C)

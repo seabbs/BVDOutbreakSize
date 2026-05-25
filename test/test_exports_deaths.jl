@@ -3,6 +3,12 @@
 ## minimal set here to keep the tests self-contained and avoid a
 ## dependency on the doc-build pipeline.
 
+using Distributions: Gamma, Normal, Poisson, Beta, pdf, truncated
+using Integrals: IntegralProblem, GaussLegendre, solve
+using StatsFuns: logit, logistic
+using Turing: Turing, @model, sample, Prior, to_submodel
+import FlexiChains
+
 const _XD_ALG = GaussLegendre(; n = 32)
 
 function _xd_cdf_integrand(u, p)
@@ -54,8 +60,10 @@ end
         tau_prior = truncated(Normal(0.0, 0.5); lower = 1e-4))
     μ_logit  ~ mu_prior
     τ_logit  ~ tau_prior
-    logit_p_drc    ~ Normal(μ_logit, τ_logit)
-    logit_p_uganda ~ Normal(μ_logit, τ_logit)
+    z_drc    ~ Normal(0, 1)
+    z_uganda ~ Normal(0, 1)
+    logit_p_drc    = μ_logit + τ_logit * z_drc
+    logit_p_uganda = μ_logit + τ_logit * z_uganda
     p_drc    := logistic(logit_p_drc)
     p_uganda := logistic(logit_p_uganda)
     return (; μ_logit, τ_logit, p_drc, p_uganda)
@@ -110,7 +118,7 @@ end
 @testset "exports_deaths_model prior draws produce non-negative counts" begin
     m = _xd_only(missing)
     chn = sample(m, Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     xd = vec(Array(chn[:exports_deaths]))
     @test length(xd) == 200
     @test all(isfinite, xd)
@@ -123,7 +131,7 @@ end
 
 @testset "exports_deaths_only fits a zero observation" begin
     chn = sample(_xd_only(0), Prior(), 200;
-                 chain_type = MCMCChains.Chains, progress = false)
+                 chain_type = FlexiChains.VNChain, progress = false)
     C = vec(Array(chn[:cumulative_cases]))
     @test length(C) == 200
     @test all(isfinite, C)
