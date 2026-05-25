@@ -75,10 +75,12 @@ onset-incidence convolution.
         m_prior   = truncated(Normal(7.0, 2.5); lower = 0, upper = 13.0))
     τ ~ tau_prior
     m ~ m_prior
-    r   := log(2) / τ
-    T   := m * τ
-    I_T := 2.0 ^ m
-    return (; τ, r, m, T, I_T)
+    r := log(2) / τ
+    T := m * τ
+    ## `I_T = exp(r·T) = 2^m` is recorded by the composer as a shared
+    ## deterministic so the chain has it regardless of which growth
+    ## submodel is injected.
+    return (; τ, r, m, T)
 end
 
 """
@@ -350,8 +352,13 @@ sensitivity analysis can swap a prior without editing this composer:
     ## nested-convolution cost). Built ONCE per draw — the deaths,
     ## reports and exports submodels all receive the same `oi`.
     oi = OnsetIncidence(r, incub_state.dist, T)
-    ## `I_T` (cumulative infections) is already recorded by the growth
-    ## submodel; only the new onset total needs a deterministic here.
+    ## Cumulative infections and cumulative onsets at the cut-off,
+    ## tracked as deterministics so they appear in the chain
+    ## regardless of which growth submodel the caller injects (the
+    ## composer takes ownership of `I_T` so the baseline
+    ## `exponential_growth_model` from analysis.jl can be injected
+    ## directly without it needing to expose a matching field).
+    I_T      := exp(r * T)
     onsets_T := expected_onsets_staged(oi)
 
     exports_state ~ to_submodel(
@@ -364,7 +371,7 @@ sensitivity analysis can swap a prior without editing this composer:
         cases_onset_staged_obs(reported_cases, oi, report_state.dist,
             p_drc, k; obs = cases_obs), false)
 
-    return (; I_T = growth_state.I_T, onsets_T,
+    return (; I_T, onsets_T,
             expected_exports = exports_state.expected_exports,
             expected_deaths  = deaths_state.expected_deaths,
             expected_reports = cases_state.expected_reports)
