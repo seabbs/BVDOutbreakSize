@@ -10,9 +10,8 @@ using BVDOutbreakSize: REPORT_SCENARIOS, expected_deaths,
                        plot_prior_predictive,
                        plot_posterior_predictive, plot_pair,
                        forecast_reported, forecast_table, plot_forecast,
-                       predict_no_onward_deaths, plot_no_onward_deaths
-                       plot_start_date_pair, plot_estimate_comparison,
-                       forecast_reported, forecast_table, plot_forecast,
+                       predict_no_onward_deaths, plot_no_onward_deaths,
+                       plot_estimate_comparison, plot_start_date_pair,
                        forecast_vs_truth, plot_forecast_vs_truth
 using ADTypes: AutoMooncake
 import CairoMakie
@@ -26,8 +25,6 @@ using Random: MersenneTwister
 using Statistics: quantile
 using StatsFuns: logit, logistic
 using Turing: Turing, @model, sample, Prior, to_submodel
-import MCMCChains
-using MCMCChains: Chains
 import FlexiChains
 using FlexiChains: VNChain
 import CairoMakie
