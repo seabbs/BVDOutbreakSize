@@ -425,15 +425,39 @@ Deaths-among-exports convolution
 ``\\int_{lo}^{hi} C(s)\\, F_d(T - s)\\, ds`` with `F_d` the `delay_dist`
 onset-to-death CDF. The CDF is itself written as the inner integral of
 the density, ``F_d(x) = \\int_0^x f_d(u)\\,du``, so the whole expression
-differentiates through the density alone (the reverse-mode AD backend
-does not support the gamma CDF shape-parameter derivative). Outer and
-inner integrals both use [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+differentiates through the density alone.
+Previously, the reverse-mode AD backend did not support the gamma CDF
+shape-parameter derivative). Outer and inner integrals both use
+[`CUMULATIVE_INTEGRAL_ALG`](@ref).
 """
 function integrate_exports_deaths(cumulative, delay_dist, lo, hi, T;
         alg = CUMULATIVE_INTEGRAL_ALG)
     cdf_to(x) = integrate(u -> pdf(delay_dist, u), zero(x), x; alg)
     g = let cumulative = cumulative, T = T
         s -> cumulative(s) * cdf_to(T - s)
+    end
+    return integrate(g, lo, hi; alg)
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Deaths-among-exports convolution specialised for `Gamma` delay
+distributions. Same expression as the generic method —
+``\\int_{lo}^{hi} C(s)\\, F_d(T - s)\\, ds`` — but the onset-to-death
+CDF is evaluated in closed form via [`_gamma_cdf`](@ref) rather than
+re-integrated from the density at each outer quadrature node. Drops one
+entire quadrature level (just the outer integral remains) and
+sidesteps the singularity that fixed-node Gauss-Legendre hits at the
+head-form ``\\int_0^y t^{\\alpha-1} e^{-t} \\, du`` for `α < 1`. The
+shape-parameter derivative the AD backend needed for `cdf(::Gamma, ·)`
+is supplied by `_gamma_cdf`'s rrule (see `src/gamma_cdf.jl`).
+"""
+function integrate_exports_deaths(cumulative, delay_dist::Gamma, lo, hi, T;
+        alg = CUMULATIVE_INTEGRAL_ALG)
+    α, θ = delay_dist.α, delay_dist.θ
+    g = let cumulative = cumulative, T = T, α = α, θ = θ
+        s -> cumulative(s) * _gamma_cdf(α, θ, T - s)
     end
     return integrate(g, lo, hi; alg)
 end
