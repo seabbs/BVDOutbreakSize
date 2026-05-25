@@ -7,6 +7,8 @@ using BVDOutbreakSize: expected_exports, expected_exports_deaths,
                        integrate_cumulative, integrate_exports_deaths,
                        CUMULATIVE_INTEGRAL_ALG
 using Distributions: Gamma
+using FiniteDifferences: central_fdm, grad
+using Mooncake: Mooncake
 
 @testset "expected_exports matches the at-risk person-time integral" begin
     r          = 0.05
@@ -65,4 +67,59 @@ end
     @test f(60.0) < f(90.0) < f(120.0)
     ## Always strictly positive (clamped), even before the window opens.
     @test f(0.0) > 0
+end
+
+## Gamma-specialised dispatch of `integrate_exports_deaths` evaluates the
+## onset-to-death CDF in closed form via `_gamma_cdf` with rrule for AD
+## instead of an inner quadrature. Pin value-equivalence to the generic dispatch and confirm
+## the path is still reverse-mode differentiable via Mooncake.
+## Grid of (α, θ) for testing.
+const _GAMMA_DISPATCH_GRID = ((4.3, 2.6), (4.3, 1.0),
+                              (2.0, 3.0), (8.0, 1.5),
+                              (0.3, 2.6), (0.5, 1.0), (0.5, 3.0))
+const _GAMMA_DISPATCH_GRID_SMOOTH = filter(alpha_theta -> alpha_theta[1] >= 1.0, _GAMMA_DISPATCH_GRID)
+
+## For α >= 1 the generic dispatch's inner quadrature is reliable, so we can test
+## it against the gamma-specialised dispatch as a reference. 
+
+@testset "integrate_exports_deaths Gamma dispatch matches generic" begin
+    cumulative = s -> exp(0.05 * s)
+    w, T       = 15.0, 90.0
+    lo         = max(T - w, 0.0)
+
+    for (α, θ) in _GAMMA_DISPATCH_GRID_SMOOTH
+        delay_dist = Gamma(α, θ)
+        analytic  = integrate_exports_deaths(cumulative, delay_dist, lo, T, T)
+        numerical = invoke(integrate_exports_deaths,
+                           Tuple{Any, Any, Any, Any, Any},
+                           cumulative, delay_dist, lo, T, T)
+        @test analytic ≈ numerical rtol = 1e-6
+    end
+end
+
+## For α < 1 the generic
+## dispatch's inner pdf-quadrature hits the t^(α-1) singularity at 0
+## and is no longer a trustworthy reference. So we test the AD path for the
+## gamma dispatch at α < 1 against finite differences of the analytic form,
+## against the full grid of (α, θ) values 
+
+@testset "integrate_exports_deaths Gamma dispatch has correct gradients" begin
+    cumulative = s -> exp(0.05 * s)
+    w, T = 15.0, 90.0
+    lo   = max(T - w, 0.0)
+
+    fast(x) = integrate_exports_deaths(
+        cumulative, Gamma(x[1], x[2]), lo, T, T)
+
+    cache = Mooncake.prepare_gradient_cache(fast, [1.0, 1.0])
+    _mooncake_grad(x) = Mooncake.value_and_gradient!!(cache, fast, x)[2][2]
+    _fd_grad(x)       = grad(central_fdm(5, 1), fast, x)[1]
+
+    for (α, θ) in _GAMMA_DISPATCH_GRID
+        x  = [α, θ]
+        gf = _mooncake_grad(x)
+        gd = _fd_grad(x)
+        @test all(isfinite, gf)
+        @test gf ≈ gd rtol = 1e-5
+    end
 end
