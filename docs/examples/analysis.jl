@@ -2633,14 +2633,15 @@ imperial_summary_20may #hide
 #     plus added early-phase variance.
 #
 # **Sample budget.** The LNA model carries roughly 30 latent parameters
-# (~23 trajectory increments plus the new submodel parameters) and runs
-# the staged onset convolution plus the existing onset-to-death and
-# export integrals on a piecewise trajectory per gradient evaluation. To
-# keep this section under the docs CI's time budget we use **2 chains
-# of 500 post-warmup draws** (vs $4\times1000$ in the main fit), with a
-# target acceptance of $0.95$. The shorter run is enough for a
-# credible interval and a side-by-side comparison; production use would
-# want the full $4\times1000$.
+# (~23 trajectory increments plus the new submodel parameters) and the
+# staged onset convolution plus the existing onset-to-death and export
+# integrals run on a piecewise trajectory per gradient evaluation, so
+# every leapfrog step is several times more expensive than the main
+# model's. To keep this section under the docs CI's time budget we use
+# **2 chains of 250 post-warmup draws** (vs $4\times1000$ in the main
+# fit), with target acceptance $0.95$. The shorter run is enough for
+# a credible interval and a side-by-side comparison; production use
+# would want the full $4\times1000$.
 
 #md # ```@raw html
 #md # <details><summary>Build and fit the stochastic-latent model</summary>
@@ -2752,7 +2753,7 @@ stochastic_model = bvd_joint_stochastic(
     onset_delta   = STOCHASTIC_ONSET_DELTA);
 
 chn_stochastic = nuts_sample(stochastic_model;
-    samples = 500, chains = 2, target_accept = 0.95);
+    samples = 250, chains = 2, target_accept = 0.95);
 
 posterior_C_stochastic = vec(Array(chn_stochastic[:cumulative_cases]));
 
@@ -2831,7 +2832,7 @@ stochastic_vs_main_fig #hide
 
 # **Caveats specific to the stochastic-latent fit.**
 #
-# - *Convergence.* On the shorter $2\times500$ budget some divergences
+# - *Convergence.* On the shorter $2\times250$ budget some divergences
 #   and raised $\hat R$ values are expected, especially for the latent
 #   log-incidence increments that the four aggregate counts barely
 #   inform. Inspect `stochastic_diagnostics` above: anything appreciably
@@ -2854,9 +2855,11 @@ stochastic_vs_main_fig #hide
 #   stage. The constant log-variance LNA is still an approximation to a
 #   fuller $1/C$-scaled LNA — the natural next step. See the proposal
 #   page for the bias characterisation.
-# - *Sample budget.* The stochastic-latent fit uses half the warmup and
-#   draws of the main fit; a full $4\times1000$-sample run is feasible
-#   but would push the docs build close to its time limit.
+# - *Sample budget.* The stochastic-latent fit uses a quarter of the
+#   warmup and draws of the main fit ($2\times250$ vs $4\times1000$); a
+#   full $4\times1000$-sample run is feasible but would push the docs
+#   build well past its time limit because every gradient evaluation is
+#   several times more expensive than the main model's.
 
 # ## Saving results
 #
