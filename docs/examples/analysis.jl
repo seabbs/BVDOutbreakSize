@@ -2596,6 +2596,168 @@ imperial_summary #hide
 
 imperial_summary_20may #hide
 
+# ## Alternative architecture: discrete-time renewal
+#
+# Section [Limitations](#Limitations) flagged the main model's reliance on
+# a single constant growth rate and a deterministic latent state. As a
+# candidate redesign we have prototyped a *discrete-time renewal* model on
+# the same data: a daily grid with latent infections from
+# $I_t = R_t \sum_s I_{t-s} g_s$, a weekly piecewise-linear log-$R_t$
+# random walk, sampled generation interval and sampled
+# incubation / report / detection delays (LogNormal, exact
+# double-interval-censored PMF), the same onset-to-death Gamma anchored on
+# the Isiro reanalysis (trapezoidal discretisation; see the proposal page
+# for the bias), and the four streams plus the TMRCA bound wired in
+# through per-stream observation submodels.
+#
+# Full motivation, model maths, AD findings and the migration assessment
+# are in the proposal page; see
+# [Discrete renewal](proposals/discrete-renewal.md). Here we just *run* it
+# on the same observations the main analysis uses and put the resulting
+# posterior $C(T)$ next to the main model's, so it is clear how much the
+# architecture choice changes the headline estimate.
+#
+# !!! warning "Sensitivity only, not a preferred estimate"
+#     This section sits alongside the main model so its dependence on the
+#     exponential-growth assumption can be read off directly. The
+#     renewal posterior is a sensitivity check, not a preferred estimate;
+#     the four aggregate counts inform the weekly $R_t$ knots only weakly,
+#     so the trajectory shape is largely prior, and the outbreak age is
+#     held fixed at the grid length rather than sampled.
+#
+# **Sample budget.** The renewal model carries ~33 latent parameters (vs
+# a dozen for the main model) and runs the daily renewal recursion plus
+# six discrete convolutions per gradient evaluation. To keep this section
+# under the docs CI's ~45 min budget we use **2 chains of 500 post-warmup
+# draws** (vs 4×1000 in the main fit), with a target acceptance of 0.95.
+# The shorter run is enough for a credible interval and a side-by-side
+# comparison; production use would want the full 4×1000.
+
+#md # ```@raw html
+#md # <details><summary>Build and fit the renewal model</summary>
+#md # ```
+
+## Outbreak-age grid length. Use the main model's posterior median for T
+## (rounded up by a fortnight) so the renewal grid spans enough days for
+## the genetic TMRCA bound to bite without inflating the parameter count.
+renewal_grid_n = max(60, ceil(Int,
+        quantile(vec(Array(chn_joint[:T])), 0.5)) + 14)
+
+renewal_model = renewal_joint(
+    renewal_grid_n,
+    obs.exported_cases,
+    obs.total_deaths,
+    obs.reported_cases,
+    obs.exports_deaths;
+    tmrca_days    = obs.genetic_tmrca_days,
+    tmrca_days_sd = obs.genetic_tmrca_days_sd);
+
+chn_renewal = nuts_sample(renewal_model;
+    samples = 500, chains = 2, target_accept = 0.95);
+
+posterior_C_renewal = vec(Array(chn_renewal[:C_T]));
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# **Fit diagnostics for the renewal fit.** Worst R-hat, smallest bulk
+# ESS, and divergent transitions on the shorter budget.
+
+#md # ```@raw html
+#md # <details><summary>Renewal fit diagnostics</summary>
+#md # ```
+
+renewal_diagnostics = diagnostics_table( #hide
+    "joint (main, exponential growth)" => chn_joint, #hide
+    "joint (renewal, weekly Rt)"       => chn_renewal) #hide
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+renewal_diagnostics #hide
+
+# **Side-by-side posterior $C(T)$.** The renewal model fitted on the same
+# four streams and TMRCA bound, alongside the main joint.
+
+#md # ```@raw html
+#md # <details><summary>Renewal vs main joint C_T table</summary>
+#md # ```
+
+renewal_streams_table = streams_table(
+    "main joint (exponential growth)" => posterior_C_joint,
+    "renewal joint (weekly Rt)"       => posterior_C_renewal);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+renewal_streams_table #hide
+
+# The same as overlaid posterior densities and as a point-and-interval
+# panel, both using the existing plot helpers.
+
+#md # ```@raw html
+#md # <details><summary>Renewal vs main density and intervals</summary>
+#md # ```
+
+renewal_density_fig = plot_cumulative_cases(
+    "main joint (exponential growth)" => posterior_C_joint,
+    "renewal joint (weekly Rt)"       => posterior_C_renewal;
+    scenarios = []);
+
+let
+    renewal_summary = posterior_summary(posterior_C_renewal)
+    main_summary    = posterior_summary(posterior_C_joint)
+    global renewal_vs_main_fig = plot_estimate_comparison([
+        ("main joint (exponential growth)",
+            round(Int, quantile(posterior_C_joint, 0.5)),
+            round(Int, main_summary.lo90),
+            round(Int, main_summary.hi90)),
+        ("renewal joint (weekly Rt)",
+            round(Int, quantile(posterior_C_renewal, 0.5)),
+            round(Int, renewal_summary.lo90),
+            round(Int, renewal_summary.hi90)),
+    ])
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+renewal_density_fig #hide
+
+renewal_vs_main_fig #hide
+
+# **Caveats specific to the renewal fit.**
+#
+# - *Convergence.* On the shorter 2×500 budget some divergences and
+#   raised $\hat R$ values are expected, especially for the weekly $R_t$
+#   knots that the four aggregate counts barely inform. Inspect
+#   `renewal_diagnostics` above: anything appreciably above $\hat R = 1.05$
+#   or below ESS 200 should be read as "trajectory shape unconstrained
+#   under this budget", not a fault of the architecture.
+# - *Outbreak age held fixed.* The grid length `renewal_grid_n` is set
+#   from the main model's posterior median for $T$ rather than sampled,
+#   so the renewal posterior conditions on that age. A production version
+#   would make the age explicit (e.g. a continuous start offset).
+# - *Onset-to-death discretisation.* The Gamma onset-to-death PMF is
+#   discretised by trapezoidal density integration with $f(0)=0$ because
+#   the analytical double-censored Gamma CDF is undifferentiable under
+#   Mooncake. This under-estimates the delay mean by roughly half a day
+#   (total variation $\lesssim 0.06$ vs the exact double-censored PMF;
+#   see the proposal page for the bias characterisation).
+# - *Weekly $R_t$ identifiability.* The weekly knots regularise toward
+#   roughly constant transmission (which is what the data support); the
+#   trajectory shape is largely prior. Read this section as evidence on
+#   the *headline* $C(T)$ under a more flexible latent process, not as
+#   evidence on time-varying $R_t$ itself.
+# - *Sample budget.* The renewal fit uses half the warmup/draws of the
+#   main fit; a full 4×1000-sample run is feasible but would push the
+#   docs build close to its time limit. The proposal page documents the
+#   expected runtime trade-off.
+
 # ## Saving results
 #
 # The tables above are written to an `output/` directory at the repo
