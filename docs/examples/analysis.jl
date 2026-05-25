@@ -2596,6 +2596,160 @@ imperial_summary #hide
 
 imperial_summary_20may #hide
 
+# ## Alternative architecture: explicit-convolution
+#
+# The baseline model treats the latent trajectory $C(s) = \exp(r s)$
+# as cumulative onsets for the deaths convolution but as cumulative
+# infections for the exports window
+# ([issue #5](https://github.com/epiforecasts/BVDOutbreakSize/issues/5)).
+# A redesign that resolves this inconsistency is set out in the
+# [explicit-convolution proposal](proposals/explicit-convolution.md):
+# the latent state becomes cumulative infections, every observation
+# stream builds its expected count through explicit delay convolutions
+# from infection, and the case-fatality ratio (CFR) becomes
+# unambiguously the fraction of *onsets* that die.
+# A new infection-to-onset (incubation) delay sits between infections
+# and every downstream onset-clocked quantity, and reporting is now a
+# delayed convolution rather than instantaneous.
+#
+# This section fits the explicit-convolution model on the same data,
+# reusing the same growth, CFR, dispersion, ascertainment and
+# traveller-volume building blocks, and adds three sampled delays
+# (incubation, onset-to-death, onset-to-report) plus an
+# onset-to-detection window. The fit budget is intentionally smaller
+# than the baseline (2 chains × 500 post-warmup draws at target
+# acceptance $0.9$, vs the baseline's 4 chains × 1000 at $0.95$) so
+# the nested onset convolution stays inside the docs build window;
+# the trade-off is wider intervals and a noisier R-hat than the
+# baseline. The 16-parameter joint reaches the same posterior region;
+# see the side-by-side comparison below.
+#
+# The composer reuses every unchanged building block from above
+# (`cfr_model`, `surveillance_dispersion_model`,
+# `pooled_ascertainment_model`, `traveller_volume_model`) and accepts
+# them as injected submodels, matching the modularity invariant
+# described in the proposal.
+
+#md # ```@raw html
+#md # <details><summary>Fit the explicit-convolution joint model</summary>
+#md # ```
+
+using BVDOutbreakSize:
+    bvd_joint_explicit_convolution, exponential_growth_explicit,
+    infection_to_onset_delay_model, onset_to_death_delay_model,
+    onset_to_report_delay_model, onset_to_detection_window_model,
+    genetic_seeding_bound_model
+
+chn_explicit_conv = nuts_sample(
+    bvd_joint_explicit_convolution(
+        obs.exported_cases, obs.total_deaths, obs.reported_cases,
+        exponential_growth_model(), cfr_model(),
+        surveillance_dispersion_model(),
+        pooled_ascertainment_model(), traveller_volume_model();
+        tmrca_days = obs.genetic_tmrca_days,
+        tmrca_days_sd = obs.genetic_tmrca_days_sd);
+    samples = 500, chains = 2, target_accept = 0.9)
+
+posterior_I_T_explicit_conv      =
+    vec(Array(chn_explicit_conv[:I_T]))
+posterior_onsets_T_explicit_conv =
+    vec(Array(chn_explicit_conv[:onsets_T]))
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# The explicit-convolution latent state is cumulative infections
+# `I_T`; cumulative onsets `onsets_T` lag infections by the
+# incubation delay and are tracked alongside. The baseline model's
+# `cumulative_cases` straddles both (treated as onsets by the deaths
+# convolution, as infections by the exports window). The closest
+# like-for-like comparison is therefore against `I_T`; `onsets_T` is
+# included as the v2-consistent fraction-of-onsets analogue.
+
+#md # ```@raw html
+#md # <details><summary>Architecture comparison table</summary>
+#md # ```
+
+architecture_comparison_table = streams_table(
+    "baseline C(T)"                        => posterior_C_joint,
+    "explicit-convolution I(T) (infections)" =>
+        posterior_I_T_explicit_conv,
+    "explicit-convolution onsets(T)"       =>
+        posterior_onsets_T_explicit_conv);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+architecture_comparison_table #hide
+
+# Overlaid posterior densities of the two architectures' cumulative
+# case counts, with the baseline `C(T)` and the explicit-convolution
+# `I(T)` (cumulative infections):
+
+#md # ```@raw html
+#md # <details><summary>Architecture comparison density plot</summary>
+#md # ```
+
+architecture_density_fig = plot_cumulative_cases(
+    "baseline C(T)"                      => posterior_C_joint,
+    "explicit-convolution I(T)"          =>
+        posterior_I_T_explicit_conv,
+    "explicit-convolution onsets(T)"     =>
+        posterior_onsets_T_explicit_conv);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+architecture_density_fig #hide
+
+# Fit diagnostics for the explicit-convolution joint, alongside the
+# baseline:
+
+#md # ```@raw html
+#md # <details><summary>Diagnostics: baseline vs explicit-convolution</summary>
+#md # ```
+
+architecture_diagnostics = diagnostics_table(
+    "baseline joint"              => chn_joint,
+    "explicit-convolution joint"  => chn_explicit_conv);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+architecture_diagnostics #hide
+
+# !!! note "Caveats for the explicit-convolution fit"
+#     - **Weakly identified delays.** The incubation parameters
+#       `(α_inc, θ_inc)` are informed only indirectly (no stream
+#       observes onsets directly) and their posteriors track the
+#       constructed `6`-`11` day prior closely. The onset-to-report
+#       parameters inherit the Charniga $30$-day-cap caveat from issue
+#       #4. Both add structure the data barely speak to, in exchange
+#       for a coherent latent state.
+#     - **Sampler budget.** The nested onset-incidence convolution
+#       roughly doubles the per-draw cost. To fit inside the docs
+#       build the budget is halved (2 chains × 500 vs the baseline's
+#       4 × 1000), giving wider intervals and a higher floor on
+#       R-hat than the baseline; a full-budget fit is left to the
+#       follow-up that promotes this architecture out of the
+#       proposal stage.
+#     - **Deaths-among-exports and first-export-timing not yet
+#       ported.** Their explicit-convolution analogues are a small
+#       follow-up (the cumulative-intensity bin construction
+#       transfers unchanged); the joint fit here conditions on the
+#       three cumulative-count streams plus the TMRCA bound.
+#     - **The two architectures report subtly different quantities.**
+#       The baseline `C(T)` is the same trajectory used for both the
+#       deaths convolution (as onsets) and the exports window (as
+#       infections), so it is best read as somewhere between the
+#       explicit-convolution `I(T)` (infections) and `onsets(T)`
+#       (onsets). Comparing only the medians underplays this
+#       difference.
+
 # ## Saving results
 #
 # The tables above are written to an `output/` directory at the repo
@@ -2624,6 +2778,8 @@ CSV.write(joinpath(output_dir, "cumulative_cases_by_stream.csv"),
           streams_C_table)
 CSV.write(joinpath(output_dir, "imperial_comparison.csv"), main_comparison)
 CSV.write(joinpath(output_dir, "scenario_coverage.csv"), coverage_table)
+CSV.write(joinpath(output_dir, "architecture_comparison.csv"),
+          architecture_comparison_table)
 CSV.write(joinpath(output_dir, "forecast_validation.csv"),
           forecast_validation_table)
 
