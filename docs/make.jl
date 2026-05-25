@@ -71,6 +71,9 @@ makedocs(;
     pages    = [
         "Home"         => "index.md",
         "Analysis"     => "analysis.md",
+        "Redesign proposals" => [
+            "Explicit convolution" => "proposals/explicit-convolution.md",
+        ],
         "API"          => "api.md",
         "Contributing" => "contributing.md",
         "News"         => "news.md",

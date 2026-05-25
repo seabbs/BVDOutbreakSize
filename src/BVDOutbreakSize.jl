@@ -11,11 +11,13 @@ using Dates: Date, date2epochdays, epochdays2date
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using Turing
+using Turing: to_submodel
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions
 using Distributions: Distribution, Gamma, ccdf, pdf, Poisson,
-                     NegativeBinomial
+                     NegativeBinomial, LogNormal, Normal, truncated,
+                     censored
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
@@ -44,7 +46,16 @@ export REPORT_SCENARIOS,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
-       forecast_vs_truth, plot_forecast_vs_truth
+       forecast_vs_truth, plot_forecast_vs_truth,
+       infection_incidence, onset_incidence, OnsetIncidence,
+       ONSET_GRID_POINTS,
+       expected_onsets_staged, expected_exports_onset_staged,
+       expected_deaths_onset_staged, expected_reports_onset_staged,
+       exponential_growth_explicit, infection_to_onset_delay_model,
+       onset_to_death_delay_model, onset_to_report_delay_model,
+       onset_to_detection_window_model, genetic_seeding_bound_model,
+       exports_onset_staged_obs, deaths_onset_staged_obs,
+       cases_onset_staged_obs, bvd_joint_explicit_convolution
 
 """
     REPORT_SCENARIOS
@@ -1394,5 +1405,10 @@ function plot_forecast_vs_truth(fc::DataFrame;
     end
     return fig
 end
+
+## Continuous-time explicit-convolution architecture (issue #5).
+## Added alongside the current model without changing it.
+include("explicit_convolution.jl")
+include("explicit_convolution_models.jl")
 
 end # module
