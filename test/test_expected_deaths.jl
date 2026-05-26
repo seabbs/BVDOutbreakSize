@@ -1,7 +1,5 @@
 ## Tests for the analytic Gamma method of `expected_deaths`.
 
-using JET: test_opt
-import BVDOutbreakSize
 
 # Reference parameter values. α, θ match the Gamma onset-to-death
 # prior means; CFR, r, T are mid-run state. x_cdf is the CDF argument
