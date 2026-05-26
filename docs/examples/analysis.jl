@@ -1084,6 +1084,12 @@ end
 # the $516 - 33 \approx 483$ shortfall between the suspected and
 # confirmed counts. The dispersion $k$ (equation (9)) is shared with the
 # deaths and confirmed likelihoods.
+#
+# $\mu_{\text{bg}} = \lambda_{\text{bg}}\, T$ assumes the non-BVD
+# background rate is constant in time. Surveillance intensification over
+# the outbreak would make $\lambda_{\text{bg}}$ time-varying, but with a
+# single cumulative suspected count the cumulative rate is the only
+# identifiable summary; we keep the constant-rate parameterisation.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: background_suspected_model</summary>
