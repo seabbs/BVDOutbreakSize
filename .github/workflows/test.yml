@@ -67,4 +67,7 @@ jobs:
           skip: Pkg,TOML,Dates,Printf,Random,Statistics,Test,Mooncake
       - uses: julia-actions/julia-runtest@v1
         with:
-          test_args: skip_quality
+          # `downgrade` ARG also skips :ad items: Mooncake-gradient
+          # tolerances drift on the downgraded dep set; the AD plumbing
+          # is exercised at the pinned versions on every other cell.
+          test_args: downgrade
