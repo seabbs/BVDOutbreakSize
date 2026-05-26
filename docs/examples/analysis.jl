@@ -1086,10 +1086,27 @@ end
 # deaths and confirmed likelihoods.
 #
 # $\mu_{\text{bg}} = \lambda_{\text{bg}}\, T$ assumes the non-BVD
-# background rate is constant in time. Surveillance intensification over
-# the outbreak would make $\lambda_{\text{bg}}$ time-varying, but with a
-# single cumulative suspected count the cumulative rate is the only
-# identifiable summary; we keep the constant-rate parameterisation.
+# background rate is constant in time and independent of the outbreak.
+# Two ways this might break:
+#
+# - *Surveillance ramp-up.* As awareness rises, more febrile cases
+#   present and get sampled, so $\lambda_{\text{bg}}$ would be
+#   time-varying. With a single cumulative suspected count we can only
+#   identify the cumulative rate, so we keep the constant-rate
+#   parameterisation as the summary.
+# - *Outbreak-correlated background.* If suspected ascertainment is
+#   triggered by the outbreak (more testing where BVD has been seen),
+#   non-BVD admissions get sampled at a rate that tracks $C(T)$ rather
+#   than calendar time. The model treats $\lambda_{\text{bg}}$ as
+#   independent of $C(T)$, so the BVD/background split is pinned by the
+#   confirmed truth-anchor; if the two were strongly coupled in
+#   reality, $\lambda_{\text{bg}}$ would absorb some of that
+#   $C(T)$-dependent variation and the implied positivity would shift.
+#   The earlier multiplicative form (Model C, $\mu_{\text{cases}} =
+#   (p_{\text{DRC}} / \pi)\, \mu_{\text{BVD}}$) is the opposite
+#   extreme — background fully proportional to outbreak size. The
+#   additive form here is the more conservative choice when the
+#   suspected case definition admits many non-BVD presentations.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: background_suspected_model</summary>
