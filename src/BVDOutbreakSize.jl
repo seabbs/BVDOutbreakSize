@@ -1289,7 +1289,14 @@ function forecast_reported(chn;
         ## Uganda exports: p_uganda · q · ∫_{T+h−w}^{T+h} C(s) ds (closed
         ## form for exponential growth).
         lo = max(Th - w[i], zero(Th))
-        μ_exports = pu[i] * q * (exp(r[i] * Th) - exp(r[i] * lo)) / r[i]
+        # When r ≈ 0 the closed-form ∫ exp(r·s) ds degenerates; use the
+        # l'Hôpital limit (Th − lo) to avoid NaN from 0/0.
+        ri = r[i]
+        μ_exports = if abs(ri) < eps(typeof(ri))
+            pu[i] * q * (Th - lo)
+        else
+            pu[i] * q * (exp(ri * Th) - exp(ri * lo)) / ri
+        end
         exports_cum[i] = rand(rng, Poisson(max(μ_exports, eps(μ_exports))))
     end
 
