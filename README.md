@@ -2,30 +2,19 @@
 
 **Authors:** Sam Abbott, Samuel Brand and Sebastian Funk.
 
-<!-- LAST_UPDATED:START -->
-**Last updated:** 26 May 2026. This is a live report, re-run as new
-data arrive, so the estimates change between updates.
-<!-- LAST_UPDATED:END -->
-
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev)
+[![DOI](https://zenodo.org/badge/1243778099.svg)](https://doi.org/10.5281/zenodo.20312758)
 
-<!-- DATA_AS_OF:START -->
+<!-- SHARED:START -->
+**Last updated:** 26 May 2026. This is a live report, re-run as new
+data arrive, so the estimates change between updates.
+
 **Data as of:** 23 May 2026. DRC counts come from the situation reports
 of the Institut National de Santé Publique (INSP); Uganda imports come
 from WHO. Estimates are reported as of this date; it can lag the update
 date above.
-<!-- DATA_AS_OF:END -->
 
-[![DOI](https://zenodo.org/badge/1243778099.svg)](https://doi.org/10.5281/zenodo.20312758)
-
-**See:**
-[current outbreak size](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Summary) ·
-[comparison with McCabe et al.](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Comparison-with-McCabe-et-al.) ·
-[how the data streams compare](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#How-the-data-streams-compare) ·
-[limitations](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Limitations).
-
-<!-- ABSTRACT:START -->
 **Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus
 (BVD) is ongoing in the Democratic Republic of the Congo (DRC),
 with cases also detected across the border in Uganda. Estimating
@@ -53,9 +42,7 @@ effect of newer data from the change in method we also fit the model
 to the data as of each report version in sequence (18 May, then the
 20 May update), comparing against both a joint reimplementation of the
 report's approach and its original published estimates at each version.
-<!-- ABSTRACT:END -->
 
-<!-- SCOPE:START -->
 **Scope.** This work is motivated by adding an external view of the
 current situation, based on our understanding of real-time infectious
 disease dynamics and the infection process that gives rise to observed
@@ -64,30 +51,29 @@ We are actively developing it and encourage feedback, so please get in
 touch.
 We fully support reuse and adaptation.
 Find out more in the
-[contributing guide](https://epiforecasts.io/BVDOutbreakSize/dev/contributing).
-<!-- SCOPE:END -->
+[contributing guide](https://epiforecasts.io/BVDOutbreakSize/stable/contributing).
 
-<!-- USE_OF_AI:START -->
-**Use of AI:** The model code and analysis were drafted by a language
+**Use of AI.** The model code and analysis were drafted by a language
 model and reviewed and revised under human oversight; the named authors
 are responsible for that oversight.
-<!-- USE_OF_AI:END -->
 
-**Why our numbers differ from the Imperial report.** Two reasons.
-First, the method: we fit all data streams jointly in a single
-Bayesian model rather than combining separate scenario analyses (the
-abstract above and the analysis page list the full set of changes).
-Second, the data: we use the 23 May 2026 snapshot, beyond the cut-offs
-used in either McCabe et al. report version. To separate these two
-effects we also refit the model to each report version's own data
-(18 May, then the 20 May update). The joint posterior assumes a single
-common cut-off for every data stream, so the counts must be kept in
-sync to the same date.
+**Why our numbers differ from McCabe et al.** Two reasons. First, the
+method: we fit all streams jointly in a single Bayesian model rather
+than combining separate scenario analyses (see
+[each way our method departs from the report](https://epiforecasts.io/BVDOutbreakSize/stable/analysis#What-we-do-differently-from-McCabe-et-al.)).
+Second, the data: our cut-off is later than either McCabe et al.
+report version (16 May for the 18 May report; 18 May for the 20 May
+update). The joint posterior assumes a single common cut-off for every
+data stream, so the deaths, exports and reported-case counts must all
+be kept in sync to the same date.
+<!-- SHARED:END -->
 
-The analysis page sets out
-[each way our method departs from the report](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#What-we-do-differently-from-McCabe-et-al.)
-alongside the matching Imperial method, and reports the
-[full joint results](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#Results).
+**See:**
+[current outbreak size](https://epiforecasts.io/BVDOutbreakSize/stable/analysis#Summary) ·
+[comparison with McCabe et al.](https://epiforecasts.io/BVDOutbreakSize/stable/analysis#Comparison-with-McCabe-et-al.) ·
+[how the data streams compare](https://epiforecasts.io/BVDOutbreakSize/stable/analysis#How-the-data-streams-compare) ·
+[limitations](https://epiforecasts.io/BVDOutbreakSize/stable/analysis#Limitations) ·
+[full joint results](https://epiforecasts.io/BVDOutbreakSize/stable/analysis#Results).
 
 ## Installing the package
 

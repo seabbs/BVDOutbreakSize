@@ -15,11 +15,10 @@
 # Katwa), giving a sum below 23 May.
 #
 # Zone coverage grows over the trajectory: 7 zones reporting on 18 May,
-# 12 zones by 23 May. So a higher cumulative at a later sitrep partly
-# reflects newly-reporting zones rather than incidence alone. The 18
-# May INSP sum (516 cases, 131 deaths) matches the WHO AFRO joint
-# sitrep 01 figure exactly. The model uses suspected counts; a separate
-# PR fits confirmed cases via test positivity (#113, #115).
+# 12 zones by 23 May. So a higher cumulative at a later sitrep may
+# partly reflect newly-reporting zones rather than incidence alone.
+# The 18 May INSP sum (516 cases, 131 deaths) matches the WHO AFRO
+# joint sitrep 01 figure exactly. The model uses suspected counts.
 
 as_of_date = "2026-05-23"
 

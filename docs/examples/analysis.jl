@@ -6,24 +6,12 @@
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
-#md # function block(tag)
-#md #     m = match(Regex("<!-- $(tag):START -->(.*?)<!-- $(tag):END -->", "s"), readme)
-#md #     strip(m.captures[1])
-#md # end
-#md # Markdown.parse(block("LAST_UPDATED") * "\n\n" * block("DATA_AS_OF"))
-#md # ```
-#
-# [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable/analysis)
-# [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev/analysis)
-#
-#md # ```@eval
-#md # using BVDOutbreakSize, Markdown
-#md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
-#md # function block(tag)
-#md #     m = match(Regex("<!-- $(tag):START -->(.*?)<!-- $(tag):END -->", "s"), readme)
-#md #     strip(m.captures[1])
-#md # end
-#md # Markdown.parse(block("ABSTRACT") * "\n\n" * block("SCOPE") * "\n\n" * block("USE_OF_AI"))
+#md # m = match(r"<!-- SHARED:START -->(.*?)<!-- SHARED:END -->"s, readme)
+#md # body = strip(m.captures[1])
+#md # body = replace(body,
+#md #     r"https://epiforecasts\.io/BVDOutbreakSize/stable/analysis" => "",
+#md #     "https://epiforecasts.io/BVDOutbreakSize/stable/contributing" => "contributing.md")
+#md # Markdown.parse(body)
 #md # ```
 #
 # This page is generated from
@@ -32,22 +20,6 @@
 # [`src/`](https://github.com/epiforecasts/BVDOutbreakSize/tree/main/src).
 # See the *LLM-driven reimplementation* limitation below for the
 # oversight context behind the Use of AI note.
-#
-# **How the numbers differ from McCabe et al.** Our estimates differ
-# from the McCabe et al. [mccabe2026](@cite) report for two reasons.
-# First, the method: we fit
-# all streams jointly in a single Bayesian model rather than combining
-# separate scenario analyses (see
-# [What we do differently](#What-we-do-differently-from-McCabe-et-al.)
-# below). Second, the data: our cut-off is **23 May 2026** with $905$
-# suspected cases and $220$ suspected deaths in DRC and three
-# travel-related imports with one death in Uganda. The McCabe et al.
-# 18 May report used a 16 May cut-off ($336$ cases, $88$ deaths, two
-# imports); the 20 May update used 18 May ($516$ cases, $131$ deaths,
-# matching our 18 May INSP vintage exactly). The joint posterior
-# assumes a single common cut-off for every data stream, so the
-# deaths, exports and reported-case counts must all be kept in sync
-# to the same date.
 #
 # **Offline copy.** A self-contained single-file HTML version of this
 # report, built from the same run, is attached to each results release:

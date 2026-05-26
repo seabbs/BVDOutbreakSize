@@ -30,14 +30,18 @@ const BASE_URL = "https://raw.githubusercontent.com/INRB-UMIE/" *
 const CASES_FILE  = "insp_sitrep__cumulative_suspected_cases__daily.csv"
 const DEATHS_FILE = "insp_sitrep__cumulative_suspected_deaths__daily.csv"
 
-trajectory(file) = @chain Downloads.download("$BASE_URL/$file") begin
-    CSV.read(DataFrame; missingstring = ["ND"])
-    rename(_, names(_)[3] => :value)
-    @transform :date = Date.(:date)
-    dropmissing(:value)
-    groupby(:date)
-    @combine :total = sum(:value) :n_zones = length(:value)
-    @orderby :date
+function trajectory(file)
+    df = CSV.read(Downloads.download("$BASE_URL/$file"),
+                  DataFrame; missingstring = ["ND"])
+    value_col = names(df)[3]
+    @chain df begin
+        @rename    :value = $value_col
+        @transform :date  = Date.(:date)
+        @rsubset   !ismissing(:value)
+        @groupby   :date
+        @combine   :total = sum(:value) :n_zones = length(:value)
+        @orderby   :date
+    end
 end
 
 cases  = trajectory(CASES_FILE)
@@ -46,12 +50,12 @@ deaths = trajectory(DEATHS_FILE)
 cut_off = length(ARGS) >= 1 ? Date(ARGS[1]) :
                               min(maximum(cases.date), maximum(deaths.date))
 
-cases_at  = @subset(cases,  :date .== cut_off)
-deaths_at = @subset(deaths, :date .== cut_off)
+cases_at  = @subset cases  :date .== cut_off
+deaths_at = @subset deaths :date .== cut_off
 isempty(cases_at)  && error("no cases vintage on $cut_off")
 isempty(deaths_at) && error("no deaths vintage on $cut_off")
 
-cases_kept = @subset(cases, :date .<= cut_off)
+cases_kept = @subset cases :date .<= cut_off
 
 println("Cut-off: $cut_off")
 println()
