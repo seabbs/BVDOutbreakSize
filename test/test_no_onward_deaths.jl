@@ -6,20 +6,11 @@
 
 @testitem "predict_no_onward_deaths returns the documented columns" tags=[:slow] begin
     using DataFrames: DataFrame, nrow
-    using Distributions: Normal, Beta, truncated
-    using Turing: @model, sample, Prior
+    using Turing: sample, Prior
     import FlexiChains
-    using BVDOutbreakSize: predict_no_onward_deaths
+    using BVDOutbreakSize: deaths_only_model, predict_no_onward_deaths
 
-    @model function _no_onward_synthetic()
-        r   ~ truncated(Normal(0.05, 0.02); lower = 1e-3)
-        T   ~ truncated(Normal(60.0, 10.0); lower = 14.0, upper = 180.0)
-        α   ~ truncated(Normal(4.3, 1.0);   lower = 0.5)
-        θ   ~ truncated(Normal(2.6, 0.6);   lower = 0.2)
-        CFR ~ Beta(6.0, 14.0)
-    end
-
-    chn = sample(_no_onward_synthetic(), Prior(), 100;
+    chn = sample(deaths_only_model(missing), Prior(), 100;
                  chain_type = FlexiChains.VNChain, progress = false)
     obs_deaths = 88
     df = predict_no_onward_deaths(chn; obs_deaths = obs_deaths)
@@ -36,20 +27,12 @@
 end
 
 @testitem "plot_no_onward_deaths returns a renderable figure-grid" tags=[:slow] setup=[HeadlessMakie] begin
-    using Distributions: Normal, Beta, truncated
-    using Turing: @model, sample, Prior
+    using Turing: sample, Prior
     import FlexiChains
-    using BVDOutbreakSize: predict_no_onward_deaths, plot_no_onward_deaths
+    using BVDOutbreakSize: deaths_only_model,
+                           predict_no_onward_deaths, plot_no_onward_deaths
 
-    @model function _no_onward_synthetic()
-        r   ~ truncated(Normal(0.05, 0.02); lower = 1e-3)
-        T   ~ truncated(Normal(60.0, 10.0); lower = 14.0, upper = 180.0)
-        α   ~ truncated(Normal(4.3, 1.0);   lower = 0.5)
-        θ   ~ truncated(Normal(2.6, 0.6);   lower = 0.2)
-        CFR ~ Beta(6.0, 14.0)
-    end
-
-    chn = sample(_no_onward_synthetic(), Prior(), 80;
+    chn = sample(deaths_only_model(missing), Prior(), 80;
                  chain_type = FlexiChains.VNChain, progress = false)
     df = predict_no_onward_deaths(chn; obs_deaths = 50)
     fg = plot_no_onward_deaths(df; obs_deaths = 50)

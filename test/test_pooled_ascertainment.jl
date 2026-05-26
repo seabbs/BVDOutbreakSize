@@ -1,29 +1,13 @@
 ## Smoke tests for the pooled DRC / Uganda ascertainment submodel.
-## The `@model` blocks live in the literate walkthrough, so we
-## recreate the minimal set here to keep the tests self-contained
-## and avoid a dependency on the doc-build pipeline.
+## Exercises the real `pooled_ascertainment_model` from
+## `src/models/priors.jl`.
 
 @testsnippet PooledFixtures begin
-    using Distributions: Normal, truncated
-    using StatsFuns: logit, logistic
     using Turing: @model, to_submodel
-
-    @model function _pooled_test(;
-            mu_prior  = Normal(logit(0.25), 1.0),
-            tau_prior = truncated(Normal(0.0, 0.5); lower = 1e-4))
-        μ_logit  ~ mu_prior
-        τ_logit  ~ tau_prior
-        z_drc    ~ Normal(0, 1)
-        z_uganda ~ Normal(0, 1)
-        logit_p_drc    = μ_logit + τ_logit * z_drc
-        logit_p_uganda = μ_logit + τ_logit * z_uganda
-        p_drc    := logistic(logit_p_drc)
-        p_uganda := logistic(logit_p_uganda)
-        return (; μ_logit, τ_logit, p_drc, p_uganda)
-    end
+    using BVDOutbreakSize: pooled_ascertainment_model
 
     @model function _pooled_test_compose()
-        asc ~ to_submodel(_pooled_test(), false)
+        asc ~ to_submodel(pooled_ascertainment_model(), false)
         p_drc_outer    := asc.p_drc
         p_uganda_outer := asc.p_uganda
         return asc
@@ -33,7 +17,7 @@ end
 @testitem "pooled_ascertainment prior draws produce p ∈ (0, 1)" tags=[:slow] setup=[PooledFixtures] begin
     using Turing: sample, Prior
     import FlexiChains
-    chn = sample(_pooled_test(), Prior(), 200;
+    chn = sample(pooled_ascertainment_model(), Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
     p_drc    = vec(Array(chn[:p_drc]))
     p_uganda = vec(Array(chn[:p_uganda]))

@@ -1,7 +1,9 @@
-## Smoke tests for the deaths-among-exports likelihood. The `@model`
-## blocks live in the literate walkthrough, so we recreate the
-## minimal set here to keep the tests self-contained and avoid a
-## dependency on the doc-build pipeline.
+## Smoke tests for the deaths-among-exports likelihood.
+## kept: the real `exports_deaths_model` is time-resolved (per-day
+## Poisson over a daily vector) and exposes neither `:exports_deaths`
+## nor `:expected_exports_deaths_T`; the helpers below condense the
+## kernel to a single scalar-count likelihood with the same expected
+## value at the cut-off, which is what these smoke tests assert against.
 
 @testsnippet ExportsDeathsFixtures begin
     using Distributions: Gamma, Normal, Poisson, Beta, pdf, truncated

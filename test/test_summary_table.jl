@@ -10,6 +10,9 @@
     import FlexiChains
     using BVDOutbreakSize: summary_table
 
+    ## kept: summary_table only needs two named parameters with sensible
+    ## quantiles; the real models drag in BVD-specific structure that the
+    ## test does not need.
     @model function _summary_model()
         a ~ Normal(0.0, 1.0)
         b ~ Normal(2.0, 0.5)

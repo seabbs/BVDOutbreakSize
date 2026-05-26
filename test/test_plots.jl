@@ -84,6 +84,8 @@ end
     import FlexiChains
     using BVDOutbreakSize: plot_pair
 
+    ## kept: plot_pair only needs two named parameters; using a real
+    ## BVD model would bloat the test without changing what it checks.
     @model function _plot_model()
         a ~ Normal(0.0, 1.0)
         b ~ Normal(2.0, 0.5)
@@ -101,6 +103,8 @@ end
     import FlexiChains
     using BVDOutbreakSize: plot_pair
 
+    ## kept: plot_pair only needs two named parameters; using a real
+    ## BVD model would bloat the test without changing what it checks.
     @model function _plot_model()
         a ~ Normal(0.0, 1.0)
         b ~ Normal(2.0, 0.5)

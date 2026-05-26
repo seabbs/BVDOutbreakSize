@@ -8,6 +8,8 @@
     using Turing: @model
     using BVDOutbreakSize: nuts_sample, fit_diagnostics
 
+    ## kept: a trivial 2-parameter Gaussian gives NUTS the fast, well-
+    ## conditioned target needed to exercise rhat/ESS/divergence summaries.
     @model function _diag_synthetic()
         x ~ Normal(0, 1)
         y ~ Normal(0, 1)
@@ -27,6 +29,8 @@ end
     using Turing: @model
     using BVDOutbreakSize: nuts_sample, diagnostics_table
 
+    ## kept: see the first @testitem; the diagnostics-table check just
+    ## wants two cheap NUTS fits with no BVD-specific structure.
     @model function _diag_synthetic()
         x ~ Normal(0, 1)
         y ~ Normal(0, 1)

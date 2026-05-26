@@ -9,6 +9,8 @@
     using Turing: @model
     using BVDOutbreakSize: nuts_sample
 
+    ## kept: a trivial one-parameter Gaussian is the cheapest target
+    ## that still exercises every NUTS wiring path.
     @model function _nuts_model()
         x ~ Normal(0.0, 1.0)
     end

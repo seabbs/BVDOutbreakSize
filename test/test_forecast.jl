@@ -3,32 +3,22 @@
 ## then checks the returned DataFrame contract.
 
 @testsnippet ForecastFixtures begin
-    using Distributions: Normal, Beta, truncated
-    using Turing: @model
+    using Turing: sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: bvd_joint
 
-    @model function _forecast_test()
-        r          ~ truncated(Normal(0.05, 0.01); lower = 1e-3)
-        T          ~ truncated(Normal(100.0, 10.0); lower = 1.0)
-        CFR        ~ Beta(6.0, 14.0)
-        α          ~ truncated(Normal(4.3, 0.5); lower = 0.5)
-        θ          ~ truncated(Normal(2.6, 0.3); lower = 0.2)
-        w          ~ truncated(Normal(15.0, 2.0); lower = 1.0)
-        p_drc      ~ Beta(2.0, 6.0)
-        p_uganda   ~ Beta(2.0, 6.0)
-        inv_sqrt_k ~ truncated(Normal(0.0, 1.0); lower = 1e-3)
-        k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
-        return nothing
-    end
+    ## A prior draw from the real joint model exposes every parameter
+    ## name (:r, :T, :CFR, :α, :θ, :w, :p_drc, :p_uganda, :k) that
+    ## `forecast_reported` reads.
+    _forecast_chain(n) = sample(bvd_joint(missing, missing), Prior(), n;
+        chain_type = FlexiChains.VNChain, progress = false)
 end
 
 @testitem "forecast_reported returns the documented columns" tags=[:slow] setup=[ForecastFixtures] begin
     using DataFrames: DataFrame, nrow
-    using Turing: sample, Prior
-    import FlexiChains
     using BVDOutbreakSize: forecast_reported
 
-    chn = sample(_forecast_test(), Prior(), 200;
-                 chain_type = FlexiChains.VNChain, progress = false)
+    chn = _forecast_chain(200)
 
     fc = forecast_reported(chn;
         horizon           = 7,
@@ -55,12 +45,9 @@ end
 
 @testitem "forecast_table and plot_forecast" tags=[:slow] setup=[ForecastFixtures, HeadlessMakie] begin
     using DataFrames: DataFrame, nrow
-    using Turing: sample, Prior
-    import FlexiChains
     using BVDOutbreakSize: forecast_reported, forecast_table, plot_forecast
 
-    chn = sample(_forecast_test(), Prior(), 200;
-                 chain_type = FlexiChains.VNChain, progress = false)
+    chn = _forecast_chain(200)
     fc = forecast_reported(chn;
         horizon = 7, daily_travellers = 1871,
         source_population = 4_392_200,
@@ -82,12 +69,9 @@ end
 
 @testitem "forecast_vs_truth compares cumulative forecast to observed" tags=[:slow] setup=[ForecastFixtures, HeadlessMakie] begin
     using DataFrames: DataFrame, nrow
-    using Turing: sample, Prior
-    import FlexiChains
     using BVDOutbreakSize: forecast_reported, forecast_vs_truth, plot_forecast_vs_truth
 
-    chn = sample(_forecast_test(), Prior(), 200;
-                 chain_type = FlexiChains.VNChain, progress = false)
+    chn = _forecast_chain(200)
     fc = forecast_reported(chn;
         horizon = 7, daily_travellers = 1871,
         source_population = 4_392_200,
