@@ -268,18 +268,6 @@ person-time export integral and the deaths-among-exports convolution
 """
 const CUMULATIVE_INTEGRAL_ALG = GaussLegendre(; n = 32)
 
-"""
-    GAMMA_CDF_ADJ_INTEGRAL_ALG
-
-Adaptive Gauss–Kronrod quadrature (`QuadGKJL`) used in the adjoint
-computation of the gamma CDF (the `α`-partial integral inside
-`_gamma_cdf`'s rrule). Adaptive rather than fixed-node Gauss-Legendre
-because NUTS trajectories can land at `α < 1`, where the integrand
-`t^{α-1} e^{-t} log t` is singular at `t = 0` and fixed-node quadrature
-loses accuracy.
-"""
-const GAMMA_CDF_ADJ_INTEGRAL_ALG = QuadGKJL()
-
 _integrate_kernel(u, p) = p.f(p.halfwidth * (u + 1) + p.lo)
 
 """
