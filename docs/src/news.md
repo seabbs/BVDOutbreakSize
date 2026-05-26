@@ -27,8 +27,10 @@ each push to `main` also republishes the rendered analysis and the
   first import and are excluded from `exported_cases` because the
   model treats Uganda as imports only.
 - Added a `reported_case_history` block in `data/observations.toml`
-  with eight INSP sitrep vintages (14 May to 23 May 2026), ready for
-  the cumulative-trajectory likelihood once it merges.
+  with six INSP sitrep vintages (18 May to 23 May 2026), ready for
+  the cumulative-trajectory likelihood once it merges. The 14 and
+  15 May vintages are omitted because they cover only 1 and 3
+  reporting zones respectively.
 
 ## v1.1.0
 
