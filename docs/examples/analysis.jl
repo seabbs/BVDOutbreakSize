@@ -1,70 +1,19 @@
-# # Estimating the current size of the 2026 DRC Bundibugyo virus outbreak: a joint Bayesian re-analysis of the McCabe et al. report
-#
-# **Authors.** Sam Abbott, Kath Sherratt, Samuel Brand and Sebastian
-# Funk.
-#
-#md # ```@eval
-#md # using Dates, Markdown
-#md # Markdown.parse("**Last updated.** $(Dates.today()). This is a " *
-#md #     "live report, re-run as new data arrive, so the estimates " *
-#md #     "change between updates.")
-#md # ```
-#
-#md # ```@eval
-#md # using BVDOutbreakSize, Markdown
-#md # d = load_observations().as_of_date
-#md # Markdown.parse("**Data as of.** $(d), the release date of the " *
-#md #     "WHO AFRO External Situation Report 01 the counts are taken " *
-#md #     "from. Estimates are reported as of this date; it can lag " *
-#md #     "the update date above.")
-#md # ```
-#
-# [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable/analysis)
-# [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev/analysis)
-#
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
-#md # m = match(r"<!-- ABSTRACT:START -->(.*?)<!-- ABSTRACT:END -->"s, readme)
-#md # Markdown.parse(strip(m.captures[1]))
+#md # body = strip(match(r"^(.*?)<!-- SHARED:END -->"s, readme).captures[1])
+#md # body = replace(body,
+#md #     r"https://epiforecasts\.io/BVDOutbreakSize/stable/analysis" => "",
+#md #     "https://epiforecasts.io/BVDOutbreakSize/stable/contributing" => "contributing.md")
+#md # Markdown.parse(body)
 #md # ```
 #
-# **Scope.** This work is motivated by adding an external view of the
-# current situation, based on our understanding of real-time infectious
-# disease dynamics and the infection process that gives rise to
-# observed epidemic surveillance counts.
-# We are actively developing it and encourage feedback, so please get
-# in touch.
-# We fully support reuse and adaptation.
-# Find out more in the [contributing guide](contributing.md).
-#
-# **Use of AI.** The model code and this analysis were drafted by a
-# language model and reviewed and revised under human oversight; the
-# named authors are responsible for that oversight (see the
-# *LLM-driven reimplementation* limitation below). The full analysis
-# code lives in the
-# [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
-# repository, where issues and suggestions are welcome. This page is
-# generated from
+# This page is generated from
 # [`docs/examples/analysis.jl`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/docs/examples/analysis.jl);
 # the model code it calls is in
 # [`src/`](https://github.com/epiforecasts/BVDOutbreakSize/tree/main/src).
-#
-# **How the numbers differ from McCabe et al.** Our estimates differ
-# from the McCabe et al. [mccabe2026](@cite) report for two reasons.
-# First, the method: we fit
-# all streams jointly in a single Bayesian model rather than combining
-# separate scenario analyses (see
-# [What we do differently](#What-we-do-differently-from-McCabe-et-al.)
-# below). Second, the data: results are reported as of the cut-off
-# date in `data/observations.toml` (currently **2026-05-18**), using
-# the reported counts in the data table below. These match the 20 May
-# report's deaths and cases ($131$ and $516$) and are more recent than
-# the 16 May 2026 figures the 18 May report used (e.g. $88$ suspected
-# deaths). The joint
-# posterior assumes a single common
-# cut-off for every data stream, so the deaths, exports and reported-
-# case counts must all be kept in sync to the same date.
+# See the *LLM-driven reimplementation* limitation below for the
+# oversight context behind the Use of AI note.
 #
 # **Offline copy.** A self-contained single-file HTML version of this
 # report, built from the same run, is attached to each results release:
@@ -101,12 +50,10 @@
 #   incomplete gamma function and fall back to quadrature for any
 #   other onset-to-death family.
 # - *Closed-form CDF under AD.* The Gamma CDF is differentiated
-#   through a hand-written reverse-mode derivative rule, aka "rrule",
-#   for `ChainRulesCore.jl`, and converted for use with the `Mooncake.jl`
-#   AD backend using the `Mooncake.@from_rrule` macro. The rrule is 
-#   inspired by Stan's `grad_reg_inc_gamma` implementation and uses a
-#   Kummer series for the partial derivative with respect to the shape parameter
-#   of the regularized incomplete gamma function.
+#   through a hand-written reverse-mode derivative rule. The derivative
+#   with respect to the shape parameter of the regularized incomplete
+#   gamma function uses a Kummer series, following the corresponding
+#   routine in the Stan Math Library [carpenter2015stanmath](@cite).
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list McCabe et al. cite for their
 #   point estimates [bdbv_linelist_analysis_2026](@cite),

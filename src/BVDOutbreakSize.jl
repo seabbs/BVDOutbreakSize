@@ -29,7 +29,6 @@ using CairoMakie: Figure, Axis, hist!, density!, vlines!, vspan!,
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
        ITURI_DAILY_TRAVEL_SD,
-       EXPORTED_CASES, EXPORTS_DEATHS,
        load_observations,
        summary_table, posterior_summary,
        fit_diagnostics, diagnostics_table,
@@ -96,20 +95,6 @@ point-of-entry-to-point-of-entry variation and reporting uncertainty
 in the underlying mobility survey.
 """
 const ITURI_DAILY_TRAVEL_SD = 200
-
-"""
-    EXPORTED_CASES
-
-BVD cases detected in Uganda having travelled from Ituri Province.
-"""
-const EXPORTED_CASES = 2
-
-"""
-    EXPORTS_DEATHS
-
-Deaths recorded in Uganda among the exported BVD cases.
-"""
-const EXPORTS_DEATHS = 1
 
 # Include reverse rules for the gamma CDF
 include("gamma_cdf.jl")
