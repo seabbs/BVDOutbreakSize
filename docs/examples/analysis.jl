@@ -341,6 +341,10 @@ observations_table #hide
 #    of Method 2 main scenario via the exports-and-deaths
 #    composer.
 
+#md # ```@setup main
+#md # using BVDOutbreakSize, CodeTracking, Revise
+#md # ```
+
 # #### Building-block submodels
 #
 # Each building-block submodel introduces only the mathematical objects
@@ -398,17 +402,11 @@ observations_table #hide
 #md # <details><summary>Submodel: exponential_growth_model</summary>
 #md # ```
 
-@model function exponential_growth_model(;
-        tau_prior = LogNormal(log(14), 0.4),
-        m_prior   = truncated(Normal(7.0, 2.5); lower = 0))
-    τ ~ tau_prior
-    m ~ m_prior
-    r   := log(2) / τ
-    T   := m * τ
-    C_T := 2.0 ^ m
-    cumulative = s -> exp(r * s)
-    return (; τ, r, m, T, C_T, cumulative)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.exponential_growth_model())
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -449,14 +447,12 @@ end
 #md # <details><summary>Submodel: genetic_seeding_model</summary>
 #md # ```
 
-@model function genetic_seeding_model(T, tmrca_days::Real;
-        tmrca_days_sd::Real)
-    ## The molecular-clock TMRCA is a right-censored, noisy reading of the
-    ## true seeding time T: deeper or wider sampling only pushes it older,
-    ## so we learn the reading is at least `tmrca_days`, i.e. P(read ≥ g).
-    tmrca_days ~ censored(Normal(T, tmrca_days_sd); upper = tmrca_days)
-    return (; tmrca_days, tmrca_days_sd)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.genetic_seeding_model(100.0, 50.0;
+#md #     tmrca_days_sd = 15.0))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -501,13 +497,11 @@ end
 #md # <details><summary>Submodel: delay_model</summary>
 #md # ```
 
-@model function delay_model(;
-        alpha_prior = truncated(Normal(4.3, 1.22); lower = 0),
-        theta_prior = truncated(Normal(2.6, 0.82); lower = 0))
-    α ~ alpha_prior
-    θ ~ theta_prior
-    return (; α, θ, dist = Gamma(α, θ))
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.delay_model())
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -537,10 +531,11 @@ end
 #md # <details><summary>Submodel: cfr_model</summary>
 #md # ```
 
-@model function cfr_model(; cfr_prior = Beta(6.6, 13.4))
-    CFR ~ cfr_prior
-    return (; CFR)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.cfr_model())
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -568,11 +563,11 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: detection_window_model</summary>
 #md # ```
 
-@model function detection_window_model(;
-        window_prior = truncated(Normal(15.0, 5.0); lower = 0))
-    w ~ window_prior
-    return (; w)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.detection_window_model())
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -594,12 +589,11 @@ end
 #md # <details><summary>Submodel: traveller volume</summary>
 #md # ```
 
-@model function traveller_volume_model(;
-        mean::Real = ITURI_DAILY_TRAVEL,
-        sd::Real   = ITURI_DAILY_TRAVEL_SD)
-    daily_travellers ~ truncated(Normal(mean, sd); lower = 0)
-    return (; daily_travellers)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.traveller_volume_model())
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -650,12 +644,11 @@ end
 #md # <details><summary>Submodel: surveillance_dispersion_model</summary>
 #md # ```
 
-@model function surveillance_dispersion_model(;
-        inv_sqrt_k_prior = truncated(Normal(0.6, 0.2); lower = 0))
-    inv_sqrt_k ~ inv_sqrt_k_prior
-    k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
-    return (; k, inv_sqrt_k)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.surveillance_dispersion_model())
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -709,19 +702,11 @@ end
 #md # <details><summary>Submodel: pooled_ascertainment_model</summary>
 #md # ```
 
-@model function pooled_ascertainment_model(;
-        mu_prior  = Normal(logit(0.25), 1.0),
-        tau_prior = truncated(Normal(0, 0.5); lower = 1e-4))
-    μ_logit  ~ mu_prior
-    τ_logit  ~ tau_prior
-    z_drc    ~ Normal(0, 1)
-    z_uganda ~ Normal(0, 1)
-    logit_p_drc    = μ_logit + τ_logit * z_drc
-    logit_p_uganda = μ_logit + τ_logit * z_uganda
-    p_drc    := logistic(logit_p_drc)
-    p_uganda := logistic(logit_p_uganda)
-    return (; μ_logit, τ_logit, p_drc, p_uganda)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.pooled_ascertainment_model())
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -739,13 +724,11 @@ end
 #md # <details><summary>Function: safe_nbinomial</summary>
 #md # ```
 
-function safe_nbinomial(k, μ)
-    p_raw = k / (k + max(μ, eps(typeof(μ))))
-    p = isfinite(p_raw) ?
-        clamp(p_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
-        eps(typeof(k))
-    return NegativeBinomial(k, p)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.safe_nbinomial(1.0, 1.0))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -820,30 +803,11 @@ end
 #md # <details><summary>Submodel: exports_model</summary>
 #md # ```
 
-@model function exports_model(
-        exported_cases::Union{Missing, Integer},
-        growth_state, p_uganda::Real;
-        source_population::Real = ITURI_POPULATION,
-        window                  = detection_window_model(),
-        traveller               = traveller_volume_model())
-
-    cumulative = growth_state.cumulative
-    T          = growth_state.T
-
-    window_state ~ to_submodel(window, false)
-    w = window_state.w
-
-    travel_state ~ to_submodel(traveller, false)
-    daily_travellers = travel_state.daily_travellers
-
-    q = daily_travellers / source_population
-    expected_exports_T := expected_exports(cumulative, p_uganda, q, T, w)
-
-    exported_cases ~ Poisson(expected_exports_T)
-
-    return (; w, daily_travellers, p_uganda,
-              expected_exports = expected_exports_T)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.exports_model(1, nothing, 0.25))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -881,32 +845,11 @@ end
 #md # <details><summary>Submodel: deaths_model</summary>
 #md # ```
 
-@model function deaths_model(
-        total_deaths::Union{Missing, Integer},
-        growth_state, k::Real;
-        delay = delay_model(),
-        cfr   = cfr_model())
-
-    C_T = growth_state.C_T
-    r   = growth_state.r
-    T   = growth_state.T
-
-    delay_state ~ to_submodel(delay, false)
-    cfr_state   ~ to_submodel(cfr, false)
-
-    CFR = cfr_state.CFR
-
-    ## NaN-safe clamp: extreme NUTS proposals during warmup can push
-    ## the expected count to NaN / Inf.
-    raw_deaths         = expected_deaths(CFR, r, T, delay_state.dist)
-    expected_deaths_T := isfinite(raw_deaths) ?
-        max(raw_deaths, eps(typeof(raw_deaths))) :
-        eps(typeof(raw_deaths))
-
-    total_deaths ~ safe_nbinomial(k, expected_deaths_T)
-
-    return (; CFR, delay_dist = delay_state.dist, expected_deaths_T)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.deaths_model(1, nothing, 1.0))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -931,21 +874,11 @@ end
 #md # <details><summary>Submodel: cases_model</summary>
 #md # ```
 
-@model function cases_model(
-        reported_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real)
-
-    C_T = growth_state.C_T
-
-    raw_reports        = p_drc * C_T
-    expected_reports := isfinite(raw_reports) ?
-        max(raw_reports, eps(typeof(raw_reports))) :
-        eps(typeof(raw_reports))
-
-    reported_cases ~ safe_nbinomial(k, expected_reports)
-
-    return (; p_drc, expected_reports)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.cases_model(1, nothing, 1.0, 0.25))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -1014,42 +947,13 @@ end
 #md # <details><summary>Submodel: exports_deaths_model</summary>
 #md # ```
 
-@model function exports_deaths_model(
-        export_deaths_daily::AbstractVector,
-        growth_state, CFR::Real, delay_dist, p_uganda::Real;
-        pre_start_deaths::Union{Missing, Integer} = 0,
-        window::Real,
-        daily_travellers::Real,
-        source_population::Real = ITURI_POPULATION)
-
-    cumulative = growth_state.cumulative
-    T          = growth_state.T
-    q          = daily_travellers / source_population
-    n          = length(export_deaths_daily)   # days from earliest death to cut-off
-
-    ## Precompute the onset-to-death CDF once and reuse it across every
-    ## bin edge below (`T - s ≤ window` over the domain; see
-    ## `ExportDeathDelay`).
-    delay = ExportDeathDelay(delay_dist, window)
-    Λ(t) = expected_exports_deaths(
-        cumulative, delay, CFR, p_uganda, q, t, window)
-
-    ## Pre-death zero stretch as one Poisson observed at 0; `missing`
-    ## generates it for predictive checks (see equation (20)).
-    pre = T - n > zero(T) ? Λ(T - n) : zero(T)
-    pre_start_deaths ~ Poisson(max(pre, zero(pre)))
-
-    ## Carry the upper edge forward so each Λ is evaluated once.
-    λlo = pre
-    for i in 1:n
-        λhi = Λ(T - n + i)
-        μ_day = max(λhi - λlo, eps(typeof(λhi)))
-        export_deaths_daily[i] ~ Poisson(μ_day)
-        λlo = λhi
-    end
-
-    return (;)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.exports_deaths_model(
+#md #     Int[], nothing, 0.33, nothing, 0.25;
+#md #     window = 15.0, daily_travellers = 1871.0))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -1076,28 +980,13 @@ end
 #md # <details><summary>Submodel: exports_detection_timing_model</summary>
 #md # ```
 
-@model function exports_detection_timing_model(
-        growth_state, p_uganda::Real;
-        delta::Union{Missing, Real},
-        pre_detection_exports::Union{Missing, Integer} = 0,
-        window::Real,
-        daily_travellers::Real,
-        source_population::Real = ITURI_POPULATION)
-
-    if !ismissing(delta)
-        cumulative = growth_state.cumulative
-        T          = growth_state.T
-        t1         = T - delta
-        q          = daily_travellers / source_population
-        survived_exports := t1 <= zero(T) ? zero(T) :
-            expected_exports(cumulative, p_uganda, q, t1, window)
-        ## No detection before t1 as a Poisson observed at 0; `missing`
-        ## generates it for predictive checks (see equation (22)).
-        pre_detection_exports ~ Poisson(max(survived_exports, zero(T)))
-    end
-
-    return (;)
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.exports_detection_timing_model(
+#md #     nothing, 0.25;
+#md #     delta = missing, window = 15.0, daily_travellers = 1871.0))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -1143,20 +1032,11 @@ end
 #md # <details><summary>Composer: exports-only fit</summary>
 #md # ```
 
-@model function exports_only_model(
-        exported_cases::Union{Missing, Integer};
-        growth        = exponential_growth_model(),
-        exports       = exports_model,
-        ascertainment = pooled_ascertainment_model())
-
-    growth_state ~ to_submodel(growth, false)
-    asc_state    ~ to_submodel(ascertainment, false)
-
-    exports_state ~ to_submodel(
-        exports(exported_cases, growth_state, asc_state.p_uganda), false)
-
-    cumulative_cases := growth_state.C_T
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.exports_only_model(1))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -1168,21 +1048,11 @@ end
 #md # <details><summary>Composer: deaths-only fit</summary>
 #md # ```
 
-@model function deaths_only_model(
-        total_deaths::Union{Missing, Integer};
-        growth     = exponential_growth_model(),
-        deaths     = deaths_model,
-        dispersion = surveillance_dispersion_model())
-
-    growth_state     ~ to_submodel(growth, false)
-    dispersion_state ~ to_submodel(dispersion, false)
-    k = dispersion_state.k
-
-    deaths_state ~ to_submodel(
-        deaths(total_deaths, growth_state, k), false)
-
-    cumulative_cases := growth_state.C_T
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.deaths_only_model(1))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -1193,23 +1063,11 @@ end
 #md # <details><summary>Composer: cases-only fit</summary>
 #md # ```
 
-@model function cases_only_model(
-        reported_cases::Union{Missing, Integer};
-        growth        = exponential_growth_model(),
-        cases         = cases_model,
-        dispersion    = surveillance_dispersion_model(),
-        ascertainment = pooled_ascertainment_model())
-
-    growth_state     ~ to_submodel(growth, false)
-    dispersion_state ~ to_submodel(dispersion, false)
-    asc_state        ~ to_submodel(ascertainment, false)
-    k = dispersion_state.k
-
-    cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, asc_state.p_drc), false)
-
-    cumulative_cases := growth_state.C_T
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.cases_only_model(1))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -1220,38 +1078,11 @@ end
 #md # <details><summary>Composer: exports-deaths-only fit</summary>
 #md # ```
 
-@model function exports_deaths_only_model(
-        export_deaths_daily::AbstractVector;
-        growth        = exponential_growth_model(),
-        delay         = delay_model(),
-        cfr           = cfr_model(),
-        window        = detection_window_model(),
-        traveller     = traveller_volume_model(),
-        exports_deaths_model = exports_deaths_model,
-        ascertainment = pooled_ascertainment_model(),
-        source_population::Real = ITURI_POPULATION,
-        pre_start_deaths::Union{Missing, Integer} = 0)
-
-    growth_state ~ to_submodel(growth, false)
-    delay_state  ~ to_submodel(delay, false)
-    cfr_state    ~ to_submodel(cfr, false)
-    window_state ~ to_submodel(window, false)
-    asc_state    ~ to_submodel(ascertainment, false)
-
-    travel_state ~ to_submodel(traveller, false)
-    daily_travellers = travel_state.daily_travellers
-
-    exports_deaths_state ~ to_submodel(
-        exports_deaths_model(export_deaths_daily, growth_state,
-            cfr_state.CFR, delay_state.dist, asc_state.p_uganda;
-            pre_start_deaths = pre_start_deaths,
-            window           = window_state.w,
-            daily_travellers = daily_travellers,
-            source_population = source_population),
-        false)
-
-    cumulative_cases := growth_state.C_T
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.exports_deaths_only_model(Int[]))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -1269,60 +1100,11 @@ end
 #md # <details><summary>Composer: joint fit</summary>
 #md # ```
 
-@model function bvd_joint(
-        exported_cases::Union{Missing, Integer},
-        total_deaths::Union{Missing, Integer},
-        reported_cases::Union{Missing, Integer} = missing,
-        export_deaths_daily::AbstractVector = Int[];
-        growth        = exponential_growth_model(),
-        exports       = exports_model,
-        deaths        = deaths_model,
-        cases         = cases_model,
-        exports_deaths_model = exports_deaths_model,
-        exports_detection_timing = exports_detection_timing_model,
-        dispersion    = surveillance_dispersion_model(),
-        ascertainment = pooled_ascertainment_model(),
-        genetic       = nothing,
-        source_population::Real = ITURI_POPULATION,
-        pre_start_deaths::Union{Missing, Integer} = 0,
-        pre_detection_exports::Union{Missing, Integer} = 0,
-        first_export_detection_delta::Union{Missing, Real} = missing)
-
-    growth_state     ~ to_submodel(growth, false)
-    if genetic !== nothing
-        genetic_state ~ to_submodel(genetic(growth_state.T), false)
-    end
-    dispersion_state ~ to_submodel(dispersion, false)
-    asc_state        ~ to_submodel(ascertainment, false)
-    k        = dispersion_state.k
-    p_drc    = asc_state.p_drc
-    p_uganda = asc_state.p_uganda
-
-    exports_state ~ to_submodel(
-        exports(exported_cases, growth_state, p_uganda), false)
-    deaths_state ~ to_submodel(
-        deaths(total_deaths, growth_state, k), false)
-    cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, p_drc), false)
-    exports_deaths_state ~ to_submodel(
-        exports_deaths_model(export_deaths_daily, growth_state,
-            deaths_state.CFR, deaths_state.delay_dist, p_uganda;
-            pre_start_deaths = pre_start_deaths,
-            window           = exports_state.w,
-            daily_travellers = exports_state.daily_travellers,
-            source_population = source_population),
-        false)
-    detection_timing_state ~ to_submodel(
-        exports_detection_timing(growth_state, p_uganda;
-            delta            = first_export_detection_delta,
-            pre_detection_exports = pre_detection_exports,
-            window           = exports_state.w,
-            daily_travellers = exports_state.daily_travellers,
-            source_population = source_population),
-        false)
-
-    cumulative_cases := growth_state.C_T
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.bvd_joint(1, 1))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>
@@ -1343,30 +1125,11 @@ end
 #md # <details><summary>Composer: report reimplementation</summary>
 #md # ```
 
-@model function imperial_only_model(
-        exported_cases::Union{Missing, Integer},
-        total_deaths::Union{Missing, Integer};
-        growth        = exponential_growth_model(),
-        exports       = exports_model,
-        deaths        = deaths_model,
-        dispersion    = surveillance_dispersion_model(),
-        ascertainment = pooled_ascertainment_model())
-
-    growth_state     ~ to_submodel(growth, false)
-    dispersion_state ~ to_submodel(dispersion, false)
-    asc_state        ~ to_submodel(ascertainment, false)
-    k        = dispersion_state.k
-    p_uganda = asc_state.p_uganda
-
-    if !ismissing(exported_cases)
-        exports_state ~ to_submodel(
-            exports(exported_cases, growth_state, p_uganda), false)
-    end
-    deaths_state ~ to_submodel(
-        deaths(total_deaths, growth_state, k), false)
-
-    cumulative_cases := growth_state.C_T
-end
+#md # ```@example main
+#md # println("```julia")
+#md # print(@code_string BVDOutbreakSize.imperial_only_model(1, 1))
+#md # println("\n```")
+#md # ```
 
 #md # ```@raw html
 #md # </details>

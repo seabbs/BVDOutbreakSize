@@ -17,7 +17,10 @@ using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
                            TYPEDFIELDS, TYPEDSIGNATURES
-using Distributions: Distribution, Gamma, cdf, ccdf, mgf, pdf, Poisson, NegativeBinomial
+using Distributions: Distribution, Gamma, cdf, ccdf, mgf, pdf, Poisson,
+                     NegativeBinomial, Normal, LogNormal, Beta,
+                     truncated, censored
+using StatsFuns: logit, logistic
 using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
@@ -45,7 +48,17 @@ export REPORT_SCENARIOS,
        plot_cfr_prior,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
-       forecast_vs_truth, plot_forecast_vs_truth
+       forecast_vs_truth, plot_forecast_vs_truth,
+       # prior submodels
+       exponential_growth_model, genetic_seeding_model, delay_model,
+       cfr_model, detection_window_model, traveller_volume_model,
+       surveillance_dispersion_model, pooled_ascertainment_model,
+       # observation models
+       exports_model, deaths_model, cases_model, exports_deaths_model,
+       exports_detection_timing_model,
+       # joint composers
+       exports_only_model, deaths_only_model, cases_only_model,
+       exports_deaths_only_model, bvd_joint, imperial_only_model
 
 include("docstrings.jl")
 include("constants.jl")
@@ -58,5 +71,8 @@ include("summaries.jl")
 include("counterfactual.jl")
 include("forecast.jl")
 include("plots.jl")
+include("models/priors.jl")
+include("models/observations.jl")
+include("models/joint.jl")
 
 end # module
