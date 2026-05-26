@@ -632,8 +632,7 @@ end
 # We evaluate the infection-to-confirmation convolution against $C(s)$
 # as an exact double integral — outer over the lab-turnaround kernel,
 # inner the same infection-to-report convolution the reported-cases
-# likelihood already uses (see [`expected_confirmed_cases`](@ref) and
-# equation (21)):
+# likelihood already uses (equation (21)):
 #
 # ```math
 # \int_0^T e^{r s}\, f_{\text{conf}}(T - s)\, ds
@@ -1187,10 +1186,10 @@ end
 # The inner bracket is the same $\int e^{r s'}\, f_{\text{rep}}\, ds'$
 # convolution the reported-cases submodel computes (equation (18)),
 # evaluated at the pushed-back cut-off $T - u$ instead of $T$. The
-# confirmed submodel reuses that integrator directly via
-# [`expected_confirmed_cases`](@ref), so no moment-matching enters and
-# either kernel can be swapped to a different `Distribution` family
-# without changing the code path. Sampling the report-delay,
+# confirmed submodel takes that integrator's closure directly as
+# input, so no moment-matching enters and either kernel can be swapped
+# to a different `Distribution` family without changing the code path.
+# Sampling the report-delay,
 # lab-turnaround and sensitivity priors separately keeps each step
 # interpretable. The dispersion $k$ is shared across all NegBinomial
 # likelihoods.
@@ -1203,7 +1202,7 @@ end
 #
 # with mean $0.88$, SD $0.08$ and a $95\%$ interval covering roughly
 # $0.69$ to $0.99$. The Cepheid GeneXpert Ebola assay validations
-# [pinsky2015;semper2016](@cite) report $100\%$ sensitivity against the
+# [pinsky2015,semper2016](@cite) report $100\%$ sensitivity against the
 # Trombley reference on Sierra Leone field whole blood and on
 # virus-isolation-confirmed patient samples; the prior centre sits
 # below that to leave room for early-infection low-viral-load
