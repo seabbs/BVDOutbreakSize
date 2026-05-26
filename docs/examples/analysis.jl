@@ -84,12 +84,10 @@
 #   incomplete gamma function and fall back to quadrature for any
 #   other onset-to-death family.
 # - *Closed-form CDF under AD.* The Gamma CDF is differentiated
-#   through a hand-written reverse-mode derivative rule, aka "rrule",
-#   for `ChainRulesCore.jl`, and converted for use with the `Mooncake.jl`
-#   AD backend using the `Mooncake.@from_rrule` macro. The rrule is 
-#   inspired by Stan's `grad_reg_inc_gamma` implementation and uses a
-#   Kummer series for the partial derivative with respect to the shape parameter
-#   of the regularized incomplete gamma function.
+#   through a hand-written reverse-mode derivative rule. The derivative
+#   with respect to the shape parameter of the regularized incomplete
+#   gamma function uses a Kummer series, following the corresponding
+#   routine in the Stan Math Library [carpenter2015stanmath](@cite).
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list McCabe et al. cite for their
 #   point estimates [bdbv_linelist_analysis_2026](@cite),

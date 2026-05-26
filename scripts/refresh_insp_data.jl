@@ -14,12 +14,14 @@
 # Pass an ISO date to pin a specific cut-off (useful when the latest
 # vintage has downward revisions, as 2026-05-24 did for Goma and Katwa).
 #
-# Reads the raw CSVs into a DataFrame, drops "ND" entries (incomplete
-# zone backfill) rather than treating them as zero, and sums across
-# all reporting health zones for each sitrep date.
+# Reads the raw CSVs, drops "ND" entries (incomplete zone backfill)
+# rather than treating them as zero, and sums across all reporting
+# health zones for each sitrep date.
 
 using CSV
+using Chain
 using DataFrames
+using DataFramesMeta
 using Dates
 using Downloads
 
@@ -28,57 +30,37 @@ const BASE_URL = "https://raw.githubusercontent.com/INRB-UMIE/" *
 const CASES_FILE  = "insp_sitrep__cumulative_suspected_cases__daily.csv"
 const DEATHS_FILE = "insp_sitrep__cumulative_suspected_deaths__daily.csv"
 
-function load_insp(file::AbstractString)
-    url = "$BASE_URL/$file"
-    tmp = Downloads.download(url)
-    df = CSV.read(tmp, DataFrame; missingstring = ["ND"])
-    value_col = setdiff(names(df), ["nom", "date"])[1]
-    rename!(df, value_col => :value)
-    df.date = Date.(df.date)
-    return df
+trajectory(file) = @chain Downloads.download("$BASE_URL/$file") begin
+    CSV.read(DataFrame; missingstring = ["ND"])
+    rename(_, names(_)[3] => :value)
+    @transform :date = Date.(:date)
+    dropmissing(:value)
+    groupby(:date)
+    @combine :total = sum(:value) :n_zones = length(:value)
+    @orderby :date
 end
 
-function trajectory(df::DataFrame)
-    grouped = groupby(dropmissing(df, :value), :date)
-    out = combine(grouped, :value => sum => :total,
-                  nrow => :n_zones_reporting)
-    sort!(out, :date)
-    return out
-end
+cases  = trajectory(CASES_FILE)
+deaths = trajectory(DEATHS_FILE)
 
-function format_trajectory(rows::DataFrame, cut_off::Date)
-    kept = filter(:date => <=(cut_off), rows)
-    dates = ["\"$(d)\"" for d in kept.date]
-    vals  = string.(kept.total)
-    return (dates_str = "[" * join(dates, ", ") * "]",
-            values_str = "[" * join(vals, ", ") * "]",
-            kept = kept)
-end
+cut_off = length(ARGS) >= 1 ? Date(ARGS[1]) :
+                              min(maximum(cases.date), maximum(deaths.date))
 
-cut_off = length(ARGS) >= 1 ? Date(ARGS[1]) : Date(0)
-
-cases  = trajectory(load_insp(CASES_FILE))
-deaths = trajectory(load_insp(DEATHS_FILE))
-
-cut_off == Date(0) && (cut_off = min(maximum(cases.date),
-                                     maximum(deaths.date)))
-
-cases_at = filter(:date => ==(cut_off), cases)
-deaths_at = filter(:date => ==(cut_off), deaths)
+cases_at  = @subset(cases,  :date .== cut_off)
+deaths_at = @subset(deaths, :date .== cut_off)
 isempty(cases_at)  && error("no cases vintage on $cut_off")
 isempty(deaths_at) && error("no deaths vintage on $cut_off")
 
+cases_kept = @subset(cases, :date .<= cut_off)
+
 println("Cut-off: $cut_off")
 println()
-println("Cases trajectory (date, total, n_zones_reporting):")
+println("Cases trajectory (date, total, n_zones):")
 show(stdout, MIME("text/plain"), cases); println()
 println()
-println("Deaths trajectory (date, total, n_zones_reporting):")
+println("Deaths trajectory (date, total, n_zones):")
 show(stdout, MIME("text/plain"), deaths); println()
 println()
-
-cases_fmt = format_trajectory(cases, cut_off)
-
 println("--- TOML snippet for data/observations.toml ---")
 println()
 println("as_of_date = \"$cut_off\"")
@@ -90,5 +72,5 @@ println("[reported_cases]")
 println("value  = $(cases_at.total[1])")
 println()
 println("[reported_case_history]")
-println("dates  = $(cases_fmt.dates_str)")
-println("values = $(cases_fmt.values_str)")
+println("dates  = [", join(("\"$(d)\"" for d in cases_kept.date), ", "), "]")
+println("values = [", join(cases_kept.total, ", "), "]")
