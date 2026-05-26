@@ -1,9 +1,9 @@
-## Tests for the analytic Gamma method of `expected_deaths`.
+## Tests for the analytic Gamma method of `delay_convolution`.
 
 
 # Reference parameter values. α, θ match the Gamma onset-to-death
 # prior means; CFR, r, T are mid-run state. x_cdf is the CDF argument
-# that expected_deaths(::Gamma) actually feeds to `_gamma_cdf`,
+# that delay_convolution(::Gamma) actually feeds to `_gamma_cdf`,
 # i.e. T*(1 + θ*r) — testing at this point keeps the AD checks
 # aligned with the path the sampler will exercise.
 #
@@ -12,10 +12,10 @@
 let α = 4.3, θ = 2.6, CFR = 0.3, r = 0.05, T = 30.0,
     x_cdf = T * (1 + θ * r)
 
-    @testset "expected_deaths Gamma analytic matches integration" begin
+    @testset "delay_convolution Gamma analytic matches integration" begin
         dist = Gamma(α, θ)
-        analytic = expected_deaths(CFR, r, T, dist)
-        numerical = invoke(expected_deaths,
+        analytic = delay_convolution(CFR, r, T, dist)
+        numerical = invoke(delay_convolution,
                            Tuple{Any, Any, Any, Any},
                            CFR, r, T, dist) #avoid the analytic method dispatch
         @test analytic ≈ numerical rtol = 1e-6

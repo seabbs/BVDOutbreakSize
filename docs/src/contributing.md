@@ -9,7 +9,7 @@ conventions to follow when changing it.
 
 - `src/BVDOutbreakSize.jl` — the package: data loading
   (`load_observations`), NUTS sampling (`nuts_sample`), the shared
-  Gauss-Legendre integrators (`integrate`, `expected_deaths`,
+  Gauss-Legendre integrators (`integrate`, `delay_convolution`,
   `integrate_cumulative`, `integrate_exports_deaths`), summary and
   comparison tables, plotting, the no-onward-deaths projection
   (`predict_no_onward_deaths`) and forecast helpers

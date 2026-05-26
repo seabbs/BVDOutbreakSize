@@ -1,16 +1,16 @@
-## Smoke tests for the truth-anchored cases and confirmed-cases
+## Smoke tests for the truth-anchored reported and confirmed cases
 ## likelihoods. C(T) is the latent eventually-confirmed pool; reported
-## counts are inflated above it by 1/π and convolved through the
-## infection-to-report delay; confirmed counts anchor it via the
-## infection-to-confirmation delay f_conf = f_rep ∗ f_lab. The `@model`
-## blocks live in the literate walkthrough, so we recreate the minimal
-## set here.
+## counts add an independent non-BVD background to the BVD-suspected
+## convolution. Confirmed counts are the same BVD-suspected convolution
+## evaluated one more step through f_lab, multiplied by the PCR
+## sensitivity. The `@model` blocks live in the literate walkthrough;
+## we recreate the minimal set here.
 
 using Distributions: Beta, Gamma, NegativeBinomial, truncated, Normal,
-                     mean, var
+                     mean, std, pdf
 using Turing: Turing, @model, sample, Prior, to_submodel
 import FlexiChains
-using BVDOutbreakSize: expected_deaths
+using BVDOutbreakSize: delay_convolution, integrate
 
 function _safe_nbinomial(k, μ)
     p_raw = k / (k + max(μ, eps(typeof(μ))))
@@ -18,15 +18,6 @@ function _safe_nbinomial(k, μ)
         clamp(p_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
         eps(typeof(k))
     return NegativeBinomial(k, p)
-end
-
-## Moment-matched Gamma mirroring `_convolved_gamma` in analysis.jl.
-function _conv_gamma(d_rep::Gamma, d_lab::Gamma)
-    μ  = mean(d_rep) + mean(d_lab)
-    σ² = var(d_rep)  + var(d_lab)
-    θ  = σ² / μ
-    α  = μ  / θ
-    return Gamma(α, θ)
 end
 
 @model function _confirmed_test_growth()
@@ -69,7 +60,7 @@ end
 end
 
 @model function _confirmed_test_sensitivity()
-    s_test ~ Beta(20.0, 2.0)
+    s_test ~ Beta(15.0, 2.0)
     return (; s_test)
 end
 
@@ -79,8 +70,10 @@ end
         λ_bg::Real, f_rep::Gamma)
     r = growth_state.r
     T = growth_state.T
-    conv_rep = expected_deaths(one(p_drc), r, T, f_rep)
-    μ_BVD_raw = p_drc * conv_rep
+    bvd_reported_at = let r = r, p_drc = p_drc, f_rep = f_rep
+        τ -> p_drc * delay_convolution(one(p_drc), r, τ, f_rep)
+    end
+    μ_BVD_raw = bvd_reported_at(T)
     μ_bg_raw  = λ_bg * T
     μ_BVD := isfinite(μ_BVD_raw) ?
         max(μ_BVD_raw, eps(typeof(μ_BVD_raw))) :
@@ -91,18 +84,25 @@ end
     expected_reports := μ_BVD + μ_bg
     positivity := μ_BVD / expected_reports
     reported_cases ~ _safe_nbinomial(k, expected_reports)
-    return (; expected_reports, reported_cases, positivity)
+    return (; expected_reports, reported_cases, positivity,
+              bvd_reported_at)
 end
 
 @model function _confirmed_test_confirmed(
         confirmed_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real, s_test::Real,
-        f_rep::Gamma, f_lab::Gamma)
-    f_conf = _conv_gamma(f_rep, f_lab)
-    r = growth_state.r
+        bvd_reported_at, growth_state, k::Real,
+        s_test::Real, f_lab::Gamma)
     T = growth_state.T
-    conv_conf = expected_deaths(one(p_drc), r, T, f_conf)
-    raw_confirmed = s_test * p_drc * conv_conf
+    integrand = let bvd_reported_at = bvd_reported_at,
+                    f_lab = f_lab, T = T
+        u -> begin
+            d = T - u
+            d <= 0 ? zero(T) :
+                pdf(f_lab, u) * bvd_reported_at(d)
+        end
+    end
+    scale_lab = mean(f_lab) + 10 * std(f_lab)
+    raw_confirmed = s_test * integrate(integrand, zero(T), T, scale_lab)
     expected_confirmed := isfinite(raw_confirmed) ?
         max(raw_confirmed, eps(typeof(raw_confirmed))) :
         eps(typeof(raw_confirmed))
@@ -138,8 +138,8 @@ end
             reported_cases, growth_state, k, p_drc, λ_bg, f_rep), false)
     confirmed_state ~ to_submodel(
         _confirmed_test_confirmed(
-            confirmed_cases, growth_state, k, p_drc, s_test,
-            f_rep, f_lab), false)
+            confirmed_cases, reported_state.bvd_reported_at,
+            growth_state, k, s_test, f_lab), false)
     cumulative_cases := growth_state.C_T
 end
 
@@ -166,20 +166,4 @@ end
     @test length(C) == 200
     @test all(isfinite, C)
     @test all(C .> 0)
-end
-
-@testset "convolved Gamma matches the moments of the sum" begin
-    ## E[X+Y] = E[X] + E[Y] and Var[X+Y] = Var[X] + Var[Y] by
-    ## independence; `_conv_gamma` matches both by construction.
-    d_rep = Gamma(4.0, 3.0)
-    d_lab = Gamma(2.0, 1.5)
-    d_conf = _conv_gamma(d_rep, d_lab)
-    @test mean(d_conf) ≈ mean(d_rep) + mean(d_lab)
-    @test var(d_conf)  ≈ var(d_rep)  + var(d_lab)
-    ## Same-rate special case: the convolution is exactly Gamma.
-    d_same_rep = Gamma(4.0, 2.5)
-    d_same_lab = Gamma(2.0, 2.5)
-    d_same_conf = _conv_gamma(d_same_rep, d_same_lab)
-    @test d_same_conf.α ≈ 6.0
-    @test d_same_conf.θ ≈ 2.5
 end

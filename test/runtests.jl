@@ -1,6 +1,6 @@
 using Test
 import BVDOutbreakSize
-using BVDOutbreakSize: REPORT_SCENARIOS, expected_deaths,
+using BVDOutbreakSize: REPORT_SCENARIOS, delay_convolution,
                        summary_table, posterior_summary,
                        fit_diagnostics, diagnostics_table,
                        streams_table, comparison_table,
@@ -48,7 +48,7 @@ include("test_confirmed_cases_model.jl")
 include("test_forecast.jl")
 include("test_pooled_ascertainment.jl")
 include("test_exports_deaths.jl")
-include("test_expected_deaths.jl")
+include("test_delay_convolution.jl")
 include("test_integrate.jl")
 include("test_exports_death_timing.jl")
 include("test_exports_delay_grid.jl")

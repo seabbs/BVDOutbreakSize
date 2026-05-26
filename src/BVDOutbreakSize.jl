@@ -36,7 +36,7 @@ export REPORT_SCENARIOS,
        streams_table, comparison_table,
        nuts_sample, default_adtype,
        DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
-       integrate, expected_deaths,
+       integrate, delay_convolution,
        integrate_cumulative, integrate_exports_deaths,
        expected_exports, expected_exports_deaths,
        ExportDeathDelay, EXPORT_DELAY_GRID_POINTS,
@@ -354,51 +354,54 @@ _delay_scale(dist) = mean(dist) + DELAY_SUPPORT_K * std(dist)
 """
 $(TYPEDSIGNATURES)
 
-Expected cumulative deaths by time `T` from a single seeding case under
+Delay-convolved cumulative-incidence count by time `T` under
 exponential growth at rate `r`:
 
 ```math
-\\mathbb{E}[D_T] = \\mathrm{CFR} \\cdot
+\\text{scale} \\cdot
     \\int_0^T e^{r s}\\, f(T - s)\\, ds,
 ```
 
-with `f` the `delay_dist` onset-to-death density. The integrand returns
-zero past `T` so the convolution support is respected. Integrated with
-the clustered [`integrate`](@ref) so the quadrature nodes pack near `T`,
+with `f` the `delay_dist` density (per-event delay from incidence to
+the observed event class — e.g. onset-to-death for deaths,
+infection-to-report for suspected cases). The integrand returns zero
+past `T` so the convolution support is respected. Integrated with the
+clustered [`integrate`](@ref) so the quadrature nodes pack near `T`,
 where `f(T − s)` has mass, over a window set by the delay scale (see
 [`DELAY_SUPPORT_K`](@ref)). Uses [`DEATH_INTEGRAL_ALG`](@ref).
 """
-function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
-    scale = _delay_scale(delay_dist)
+function delay_convolution(scale, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
+    s_lo = zero(T)
+    s_scale = _delay_scale(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> begin
             d = T - s
             d <= 0 ? zero(r) : exp(r * s) * pdf(delay_dist, d)
         end
     end
-    return CFR * integrate(g, zero(T), T, scale; alg)
+    return scale * integrate(g, s_lo, T, s_scale; alg)
 end
 
 """
 $(TYPEDSIGNATURES)
 
-Expected cumulative deaths by time `T` from a single seeding case under
-exponential growth at rate `r`, using analytic result specific to the
-Gamma distribution:
+[`delay_convolution`](@ref) specialised to the Gamma family, using the
+analytic closed form
 
 ```math
-\\mathbb{E}[D_T] = \\mathrm{CFR} \\cdot
-    \\int_0^T e^{r s}\\, f(T - s)\\, ds = \\mathrm{CFR} \\cdot e^{r T} \\cdot M(-r) \\cdot F(T (1 + \\theta r)),
+\\text{scale} \\cdot
+    \\int_0^T e^{r s}\\, f(T - s)\\, ds
+  = \\text{scale} \\cdot e^{r T} \\cdot M(-r) \\cdot F(T (1 + \\theta r)),
 ```
 
-where f is the Gamma(α, θ) density, M is its moment-generating function,
-and F is its CDF. The CDF is routed through [`_gamma_cdf`](@ref) so
-Mooncake reverse-mode AD picks up a shape-parameter gradient (computed
-internally with ForwardDiff).
+where ``f`` is the Gamma(α, θ) density, ``M`` its moment-generating
+function and ``F`` its CDF. The CDF is routed through
+[`_gamma_cdf`](@ref) so Mooncake reverse-mode AD picks up a shape-
+parameter gradient (computed internally with ForwardDiff).
 """
-function expected_deaths(CFR, r, T, delay_dist::Gamma)
+function delay_convolution(scale, r, T, delay_dist::Gamma)
     α, θ = delay_dist.α, delay_dist.θ
-    return CFR * exp(r * T) * mgf(delay_dist, -r) *
+    return scale * exp(r * T) * mgf(delay_dist, -r) *
            _gamma_cdf(α, θ, T * (1 + θ * r))
 end
 
@@ -1239,37 +1242,43 @@ end
 ## both parameter and observation uncertainty.
 
 # Deaths convolution evaluated at horizon `Th = T + h`, sharing the
-# package-wide `expected_deaths` integrator.
+# package-wide `delay_convolution` integrator.
 function _forecast_deaths_mean(r, Th, α, θ, CFR; alg = DEATH_INTEGRAL_ALG)
-    return expected_deaths(CFR, r, Th, Gamma(α, θ); alg)
+    return delay_convolution(CFR, r, Th, Gamma(α, θ); alg)
 end
 
 # Reported (suspected) cases at horizon `Th`: the truth-anchored BVD
 # contribution plus the non-BVD background. The BVD contribution reuses
-# `expected_deaths` as a delay-convolved cumulative integrator at unit
+# `delay_convolution` as a delay-convolved cumulative integrator at unit
 # ascertainment to compute `∫₀^{Th} exp(r·s) · f_rep(Th-s) ds`; the
 # background contribution `λ_bg · Th` accrues with elapsed time.
 function _forecast_cases_mean(r, Th, α_rep, θ_rep, p_drc, λ_bg;
         alg = DEATH_INTEGRAL_ALG)
-    conv = expected_deaths(one(p_drc), r, Th, Gamma(α_rep, θ_rep); alg)
+    conv = delay_convolution(one(p_drc), r, Th, Gamma(α_rep, θ_rep); alg)
     return p_drc * conv + λ_bg * Th
 end
 
-# Laboratory-confirmed cases convolution at horizon `Th`: `s_test ·
-# p_drc · ∫₀^{Th} exp(r·s) · f_conf(Th - s) ds` with `f_conf` the
-# moment-matched Gamma of `f_rep ∗ f_lab` and `s_test` the PCR
-# sensitivity. Mirrors `_convolved_gamma` in analysis.jl.
+# Laboratory-confirmed cases at horizon `Th`: outer quadrature against
+# the lab-turnaround Gamma, with the inner reported-cases
+# closure `τ -> p_drc · delay_convolution(1, r, τ, f_rep)` evaluated at
+# the pushed-back cut-off `Th - u`. Same exact double integral as the
+# in-model confirmed likelihood, no moment-match.
 function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
         p_drc, s_test; alg = DEATH_INTEGRAL_ALG)
-    d_rep  = Gamma(α_rep, θ_rep)
-    d_lab  = Gamma(α_lab, θ_lab)
-    μ_d    = mean(d_rep) + mean(d_lab)
-    σ²_d   = var(d_rep)  + var(d_lab)
-    θ_conf = σ²_d / μ_d
-    α_conf = μ_d  / θ_conf
-    conv   = expected_deaths(one(p_drc), r, Th, Gamma(α_conf, θ_conf);
-                             alg)
-    return s_test * p_drc * conv
+    d_rep = Gamma(α_rep, θ_rep)
+    d_lab = Gamma(α_lab, θ_lab)
+    bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep, alg = alg
+        τ -> p_drc * delay_convolution(one(p_drc), r, τ, d_rep; alg)
+    end
+    scale = _delay_scale(d_lab)
+    g = let bvd_reported_at = bvd_reported_at, d_lab = d_lab, Th = Th
+        u -> begin
+            d = Th - u
+            d <= 0 ? zero(Th) :
+                pdf(d_lab, u) * bvd_reported_at(d)
+        end
+    end
+    return s_test * integrate(g, zero(Th), Th, scale; alg)
 end
 
 function _nb_rand(rng, k, μ)

@@ -240,8 +240,8 @@ using Random
 using Markdown
 using Dates: Date, Day, value
 using BVDOutbreakSize
-using BVDOutbreakSize: integrate_cumulative, integrate_exports_deaths,
-                       expected_deaths
+using BVDOutbreakSize: integrate, integrate_cumulative,
+                       integrate_exports_deaths, delay_convolution
 import CairoMakie
 
 ## Render figures at higher resolution so they stay crisp in the docs.
@@ -629,32 +629,23 @@ end
 #md # </details>
 #md # ```
 
-# The Gamma family is closed under convolution only when both
-# components share the same rate. We approximate $f_{\text{conf}}$ by
-# the unique Gamma whose first two moments match the sum
-# $X_{\text{rep}} + X_{\text{lab}}$:
+# We evaluate the infection-to-confirmation convolution against $C(s)$
+# as an exact double integral — outer over the lab-turnaround kernel,
+# inner the same infection-to-report convolution the reported-cases
+# likelihood already uses (see [`expected_confirmed_cases`](@ref) and
+# equation (21)):
 #
 # ```math
-# \mu_{\text{conf}} = \mu_{\text{rep}} + \mu_{\text{lab}}, \qquad
-# \sigma^2_{\text{conf}} = \sigma^2_{\text{rep}} + \sigma^2_{\text{lab}},
-# \qquad
-# \theta_{\text{conf}} = \sigma^2_{\text{conf}} / \mu_{\text{conf}}, \qquad
-# \alpha_{\text{conf}} = \mu_{\text{conf}} / \theta_{\text{conf}}. \tag{5}
+# \int_0^T e^{r s}\, f_{\text{conf}}(T - s)\, ds
+#   = \int_0^T f_{\text{lab}}(u)\,
+#       \Big[\int_0^{T-u} e^{r s'}\, f_{\text{rep}}(T-u-s')\, ds'\Big]\, du. \tag{5}
 # ```
 #
-# This keeps a single Gamma in the convolution against $C(s)$, matches
-# the mean exactly and stays close to the true mixed-Erlang density
-# when both components are unimodal with comparable scales.
-
-## Moment-matched Gamma approximation of f_rep ∗ f_lab. Matches both
-## means and the total variance; the true convolution is mixed-Erlang.
-function _convolved_gamma(d_rep::Gamma, d_lab::Gamma)
-    μ  = mean(d_rep) + mean(d_lab)
-    σ² = var(d_rep)  + var(d_lab)
-    θ  = σ² / μ
-    α  = μ  / θ
-    return Gamma(α, θ)
-end
+# The inner integral reuses [`delay_convolution`](@ref) at the
+# pushed-back cut-off $T - u$, so the Gamma analytic fast path with its
+# `_gamma_cdf` rrule applies — no moment-matching, and either kernel
+# can be swapped to another `Distribution` family without changing the
+# integrator.
 
 # ##### Case-fatality ratio
 #
@@ -1041,7 +1032,7 @@ end
 
     ## NaN-safe clamp: extreme NUTS proposals during warmup can push
     ## the expected count to NaN / Inf.
-    raw_deaths         = expected_deaths(CFR, r, T, delay_state.dist)
+    raw_deaths         = delay_convolution(CFR, r, T, delay_state.dist)
     expected_deaths_T := isfinite(raw_deaths) ?
         max(raw_deaths, eps(typeof(raw_deaths))) :
         eps(typeof(raw_deaths))
@@ -1055,7 +1046,7 @@ end
 #md # </details>
 #md # ```
 
-# ##### Cases — truth-anchored mean with an additive non-BVD background
+# ##### Reported cases
 #
 # $C(T)$ is the latent count of cases that will ultimately be
 # laboratory-confirmable. Confirmed cases anchor it directly through the
@@ -1104,18 +1095,11 @@ end
 #   identify the cumulative rate, so we keep the constant-rate
 #   parameterisation as the summary.
 # - *Outbreak-correlated background.* If suspected ascertainment is
-#   triggered by the outbreak (more testing where BVD has been seen),
-#   non-BVD admissions get sampled at a rate that tracks $C(T)$ rather
-#   than calendar time. The model treats $\lambda_{\text{bg}}$ as
-#   independent of $C(T)$, so the BVD/background split is pinned by the
-#   confirmed truth-anchor; if the two were strongly coupled in
-#   reality, $\lambda_{\text{bg}}$ would absorb some of that
-#   $C(T)$-dependent variation and the implied positivity would shift.
-#   The earlier multiplicative form (Model C, $\mu_{\text{cases}} =
-#   (p_{\text{DRC}} / \pi)\, \mu_{\text{BVD}}$) is the opposite
-#   extreme — background fully proportional to outbreak size. The
-#   additive form here is the more conservative choice when the
-#   suspected case definition admits many non-BVD presentations.
+#   triggered by the outbreak — more testing where BVD has been seen —
+#   non-BVD admissions get sampled at a rate that tracks $C(T)$. The
+#   model treats $\lambda_{\text{bg}}$ as independent of $C(T)$, so
+#   strong coupling in reality would have $\lambda_{\text{bg}}$ absorb
+#   some of that variation and shift the implied positivity.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: background_suspected_model</summary>
@@ -1132,10 +1116,10 @@ end
 #md # ```
 
 #md # ```@raw html
-#md # <details><summary>Submodel: cases_model</summary>
+#md # <details><summary>Submodel: reported_cases_model</summary>
 #md # ```
 
-@model function cases_model(
+@model function reported_cases_model(
         reported_cases::Union{Missing, Integer},
         growth_state, k::Real, p_drc::Real;
         report_delay = report_delay_model(),
@@ -1148,11 +1132,17 @@ end
     r     = growth_state.r
     T     = growth_state.T
 
-    ## Reuses the deaths convolution integrator with unit ascertainment
-    ## to evaluate ∫₀ᵀ exp(r·s)·f_rep(T-s) ds, the BVD contribution.
-    conv_rep   = expected_deaths(one(p_drc), r, T, f_rep)
-    μ_BVD_raw  = p_drc * conv_rep
-    μ_bg_raw   = λ_bg * T
+    ## BVD-suspected cumulative as a function of elapsed time τ:
+    ## reuses `delay_convolution` (i.e. ∫₀^τ exp(r·s)·f_rep(τ-s) ds)
+    ## under the unit-ascertainment convention. The confirmed-cases
+    ## submodel takes this closure directly and integrates it against
+    ## f_lab — no separate f_conf kernel needed.
+    bvd_reported_at = let r = r, p_drc = p_drc, f_rep = f_rep
+        τ -> p_drc * delay_convolution(one(p_drc), r, τ, f_rep)
+    end
+
+    μ_BVD_raw = bvd_reported_at(T)
+    μ_bg_raw  = λ_bg * T
     μ_BVD := isfinite(μ_BVD_raw) ?
         max(μ_BVD_raw, eps(typeof(μ_BVD_raw))) :
         eps(typeof(μ_BVD_raw))
@@ -1168,8 +1158,8 @@ end
 
     return (; p_drc, λ_bg,
               expected_reports, reported_cases,
-              μ_BVD, μ_bg,
-              positivity,
+              μ_BVD, μ_bg, positivity,
+              bvd_reported_at,
               report_delay_dist = f_rep)
 end
 
@@ -1177,38 +1167,51 @@ end
 #md # </details>
 #md # ```
 
-# ##### Confirmed cases — truth anchor with PCR sensitivity
+# ##### Confirmed cases
 #
 # Laboratory-confirmed counts anchor $C(T)$, picking up only BVD cases
 # that (a) have cleared both the report and lab-turnaround delays and
 # (b) returned a positive PCR. Letting $s$ denote PCR sensitivity (the
 # probability a sample from a true BVD case returns positive in the
-# lab), the infection-to-confirmation kernel is the convolution
-# $f_{\text{conf}} = f_{\text{rep}} \ast f_{\text{lab}}$ (equation
-# (5)), so
+# lab), the cumulative expectation rewrites the equation (5) double
+# integral with the BVD ascertainment and sensitivity factors out
+# front:
 #
 # ```math
 # \mu_{\text{conf}} = s \cdot p_{\text{DRC}}
-#     \int_0^T e^{r s'}\, f_{\text{conf}}(T - s')\, ds', \qquad
+#     \int_0^T f_{\text{lab}}(u)\,
+#       \Big[\int_0^{T-u} e^{r s'}\, f_{\text{rep}}(T-u-s')\, ds'\Big]\, du, \qquad
 # Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k). \tag{21}
 # ```
 #
-# Sampling the report-delay, lab-turnaround and sensitivity priors
-# separately keeps each step interpretable; the confirmed kernel is a
-# derived quantity. The dispersion $k$ is shared across all NegBinomial
+# The inner bracket is the same $\int e^{r s'}\, f_{\text{rep}}\, ds'$
+# convolution the reported-cases submodel computes (equation (18)),
+# evaluated at the pushed-back cut-off $T - u$ instead of $T$. The
+# confirmed submodel reuses that integrator directly via
+# [`expected_confirmed_cases`](@ref), so no moment-matching enters and
+# either kernel can be swapped to a different `Distribution` family
+# without changing the code path. Sampling the report-delay,
+# lab-turnaround and sensitivity priors separately keeps each step
+# interpretable. The dispersion $k$ is shared across all NegBinomial
 # likelihoods.
 #
 # Beta prior on the PCR sensitivity:
 #
 # ```math
-# s \sim \mathrm{Beta}(20,\ 2), \tag{22}
+# s \sim \mathrm{Beta}(15,\ 2), \tag{22}
 # ```
 #
-# with mean $0.91$, SD $0.06$ and a $95\%$ interval covering roughly
-# $0.75$ to $0.99$. This brackets the WHO emergency-use Ebola PCR
-# validations (~$100\%$ on reference panels) at the upper end and
-# typical field-study sensitivities ($85$-$95\%$) over the bulk. With
-# a single confirmed count, $s$ and $p_{\text{DRC}}$ are jointly
+# with mean $0.88$, SD $0.08$ and a $95\%$ interval covering roughly
+# $0.69$ to $0.99$. The Cepheid GeneXpert Ebola assay validations
+# [pinsky2016;semper2016](@cite) report $100\%$ sensitivity against the
+# Trombley reference on Sierra Leone field whole blood and on
+# virus-isolation-confirmed patient samples; the prior centre sits
+# below that to leave room for early-infection low-viral-load
+# specimens and field-handling losses, and the wide right tail still
+# covers the reference-panel value. The Bundibugyo-capable PCR run by
+# INRB is assumed comparable but with thinner published evidence than
+# for Zaire Ebola virus, which argues for the wider tail. With a
+# single confirmed count, $s$ and $p_{\text{DRC}}$ are jointly
 # identifiable only via the prior on $s$; the prior therefore
 # propagates directly into the $p_{\text{DRC}}$ posterior, and the
 # combined product $s \cdot p_{\text{DRC}}$ is what the confirmed
@@ -1219,7 +1222,7 @@ end
 #md # ```
 
 @model function test_sensitivity_model(;
-        sensitivity_prior = Beta(20.0, 2.0))
+        sensitivity_prior = Beta(15.0, 2.0))
     s_test ~ sensitivity_prior
     return (; s_test)
 end
@@ -1234,8 +1237,7 @@ end
 
 @model function confirmed_cases_model(
         confirmed_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real,
-        report_delay_dist;
+        bvd_reported_at, growth_state, k::Real;
         lab_delay       = lab_delay_model(),
         test_sensitivity = test_sensitivity_model())
 
@@ -1243,13 +1245,24 @@ end
     sensitivity_state ~ to_submodel(test_sensitivity, false)
     f_lab  = lab_state.dist
     s_test = sensitivity_state.s_test
-    f_conf = _convolved_gamma(report_delay_dist, f_lab)
-
-    r = growth_state.r
     T = growth_state.T
 
-    conv_conf = expected_deaths(one(p_drc), r, T, f_conf)
-    raw_confirmed = s_test * p_drc * conv_conf
+    ## One more integral on top of the reported-cases closure:
+    ##   μ_conf = s · ∫₀^T pdf(f_lab, u) · bvd_reported_at(T-u) du.
+    ## The `bvd_reported_at` callable carries the inner f_rep
+    ## convolution already evaluated by `reported_cases_model`, so the
+    ## confirmed likelihood is just a single outer quadrature against
+    ## f_lab — no separate f_conf kernel.
+    integrand = let bvd_reported_at = bvd_reported_at,
+                    f_lab = f_lab, T = T
+        u -> begin
+            d = T - u
+            d <= 0 ? zero(T) :
+                pdf(f_lab, u) * bvd_reported_at(d)
+        end
+    end
+    scale_lab = mean(f_lab) + 10 * std(f_lab)  ## matches DELAY_SUPPORT_K = 10
+    raw_confirmed = s_test * integrate(integrand, zero(T), T, scale_lab)
     expected_confirmed := isfinite(raw_confirmed) ?
         max(raw_confirmed, eps(typeof(raw_confirmed))) :
         eps(typeof(raw_confirmed))
@@ -1257,8 +1270,7 @@ end
     confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
 
     return (; expected_confirmed, s_test,
-              lab_delay_dist = f_lab,
-              confirmed_delay_dist = f_conf)
+              lab_delay_dist = f_lab)
 end
 
 #md # ```@raw html
@@ -1510,18 +1522,19 @@ end
 
 @model function cases_only_model(
         reported_cases::Union{Missing, Integer};
-        growth        = exponential_growth_model(),
-        cases         = cases_model,
-        dispersion    = surveillance_dispersion_model(),
-        ascertainment = pooled_ascertainment_model())
+        growth         = exponential_growth_model(),
+        reported_cases_submodel = reported_cases_model,
+        dispersion     = surveillance_dispersion_model(),
+        ascertainment  = pooled_ascertainment_model())
 
     growth_state     ~ to_submodel(growth, false)
     dispersion_state ~ to_submodel(dispersion, false)
     asc_state        ~ to_submodel(ascertainment, false)
     k = dispersion_state.k
 
-    cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, asc_state.p_drc), false)
+    reported_state ~ to_submodel(
+        reported_cases_submodel(
+            reported_cases, growth_state, k, asc_state.p_drc), false)
 
     cumulative_cases := growth_state.C_T
 end
@@ -1593,7 +1606,7 @@ end
         growth        = exponential_growth_model(),
         exports       = exports_model,
         deaths        = deaths_model,
-        cases         = cases_model,
+        reported_cases_submodel = reported_cases_model,
         confirmed     = confirmed_cases_model,
         exports_deaths_model = exports_deaths_model,
         exports_detection_timing = exports_detection_timing_model,
@@ -1623,14 +1636,14 @@ end
         exports(exported_cases, growth_state, p_uganda), false)
     deaths_state ~ to_submodel(
         deaths(total_deaths, growth_state, k), false)
-    cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, p_drc;
+    reported_state ~ to_submodel(
+        reported_cases_submodel(reported_cases, growth_state, k, p_drc;
             report_delay = report_delay,
             background   = background), false)
     if confirmed_cases !== missing
         confirmed_state ~ to_submodel(
-            confirmed(confirmed_cases, growth_state, k, p_drc,
-                cases_state.report_delay_dist;
+            confirmed(confirmed_cases,
+                reported_state.bvd_reported_at, growth_state, k;
                 lab_delay        = lab_delay,
                 test_sensitivity = test_sensitivity),
             false)
