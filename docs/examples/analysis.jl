@@ -4,19 +4,13 @@
 # Funk.
 #
 #md # ```@eval
-#md # using Dates, Markdown
-#md # Markdown.parse("**Last updated.** $(Dates.today()). This is a " *
-#md #     "live report, re-run as new data arrive, so the estimates " *
-#md #     "change between updates.")
-#md # ```
-#
-#md # ```@eval
 #md # using BVDOutbreakSize, Markdown
-#md # d = load_observations().as_of_date
-#md # Markdown.parse("**Data as of.** $(d), the release date of the " *
-#md #     "WHO AFRO External Situation Report 01 the counts are taken " *
-#md #     "from. Estimates are reported as of this date; it can lag " *
-#md #     "the update date above.")
+#md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
+#md # function block(tag)
+#md #     m = match(Regex("<!-- $(tag):START -->(.*?)<!-- $(tag):END -->", "s"), readme)
+#md #     strip(m.captures[1])
+#md # end
+#md # Markdown.parse(block("LAST_UPDATED") * "\n\n" * block("DATA_AS_OF"))
 #md # ```
 #
 # [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable/analysis)
@@ -25,30 +19,19 @@
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
-#md # m = match(r"<!-- ABSTRACT:START -->(.*?)<!-- ABSTRACT:END -->"s, readme)
-#md # Markdown.parse(strip(m.captures[1]))
+#md # function block(tag)
+#md #     m = match(Regex("<!-- $(tag):START -->(.*?)<!-- $(tag):END -->", "s"), readme)
+#md #     strip(m.captures[1])
+#md # end
+#md # Markdown.parse(block("ABSTRACT") * "\n\n" * block("SCOPE") * "\n\n" * block("USE_OF_AI"))
 #md # ```
 #
-# **Scope.** This work is motivated by adding an external view of the
-# current situation, based on our understanding of real-time infectious
-# disease dynamics and the infection process that gives rise to
-# observed epidemic surveillance counts.
-# We are actively developing it and encourage feedback, so please get
-# in touch.
-# We fully support reuse and adaptation.
-# Find out more in the [contributing guide](contributing.md).
-#
-# **Use of AI.** The model code and this analysis were drafted by a
-# language model and reviewed and revised under human oversight; the
-# named authors are responsible for that oversight (see the
-# *LLM-driven reimplementation* limitation below). The full analysis
-# code lives in the
-# [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
-# repository, where issues and suggestions are welcome. This page is
-# generated from
+# This page is generated from
 # [`docs/examples/analysis.jl`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/docs/examples/analysis.jl);
 # the model code it calls is in
 # [`src/`](https://github.com/epiforecasts/BVDOutbreakSize/tree/main/src).
+# See the *LLM-driven reimplementation* limitation below for the
+# oversight context behind the Use of AI note.
 #
 # **How the numbers differ from McCabe et al.** Our estimates differ
 # from the McCabe et al. [mccabe2026](@cite) report for two reasons.
@@ -56,16 +39,15 @@
 # all streams jointly in a single Bayesian model rather than combining
 # separate scenario analyses (see
 # [What we do differently](#What-we-do-differently-from-McCabe-et-al.)
-# below). Second, the data: our cut-off is **23 May 2026** with $1000$
-# suspected cases and $232$ suspected deaths in DRC and three
+# below). Second, the data: our cut-off is **23 May 2026** with $905$
+# suspected cases and $220$ suspected deaths in DRC and three
 # travel-related imports with one death in Uganda. The McCabe et al.
 # 18 May report used a 16 May cut-off ($336$ cases, $88$ deaths, two
-# imports); the 20 May update used 18 May ($516$ cases, $131$ deaths).
-# DRC counts come from the situation reports of the Institut National
-# de Santé Publique (INSP); Uganda imports come from WHO. The joint
-# posterior assumes a single common cut-off for every data stream, so
-# the deaths, exports and reported-case counts must all be kept in
-# sync to the same date.
+# imports); the 20 May update used 18 May ($516$ cases, $131$ deaths,
+# matching our 18 May INSP vintage exactly). The joint posterior
+# assumes a single common cut-off for every data stream, so the
+# deaths, exports and reported-case counts must all be kept in sync
+# to the same date.
 #
 # **Offline copy.** A self-contained single-file HTML version of this
 # report, built from the same run, is attached to each results release:

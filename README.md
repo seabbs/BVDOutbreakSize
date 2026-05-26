@@ -2,16 +2,20 @@
 
 **Authors:** Sam Abbott, Samuel Brand and Sebastian Funk.
 
+<!-- LAST_UPDATED:START -->
 **Last updated:** 26 May 2026. This is a live report, re-run as new
 data arrive, so the estimates change between updates.
+<!-- LAST_UPDATED:END -->
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev)
 
+<!-- DATA_AS_OF:START -->
 **Data as of:** 23 May 2026. DRC counts come from the situation reports
 of the Institut National de Santé Publique (INSP); Uganda imports come
 from WHO. Estimates are reported as of this date; it can lag the update
 date above.
+<!-- DATA_AS_OF:END -->
 
 [![DOI](https://zenodo.org/badge/1243778099.svg)](https://doi.org/10.5281/zenodo.20312758)
 
@@ -51,6 +55,7 @@ to the data as of each report version in sequence (18 May, then the
 report's approach and its original published estimates at each version.
 <!-- ABSTRACT:END -->
 
+<!-- SCOPE:START -->
 **Scope.** This work is motivated by adding an external view of the
 current situation, based on our understanding of real-time infectious
 disease dynamics and the infection process that gives rise to observed
@@ -60,10 +65,13 @@ touch.
 We fully support reuse and adaptation.
 Find out more in the
 [contributing guide](https://epiforecasts.io/BVDOutbreakSize/dev/contributing).
+<!-- SCOPE:END -->
 
+<!-- USE_OF_AI:START -->
 **Use of AI:** The model code and analysis were drafted by a language
 model and reviewed and revised under human oversight; the named authors
 are responsible for that oversight.
+<!-- USE_OF_AI:END -->
 
 **Why our numbers differ from the Imperial report.** Two reasons.
 First, the method: we fit all data streams jointly in a single

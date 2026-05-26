@@ -16,7 +16,9 @@ each push to `main` also republishes the rendered analysis and the
   [INRB-UMIE/Ebola_DRC_2026](https://github.com/INRB-UMIE/Ebola_DRC_2026).
   The INSP series gives a per-zone, per-sitrep daily vintage trajectory
   (suspected and confirmed; this analysis uses suspected). Cumulative
-  counts at 23 May: 1000 suspected DRC cases, 232 suspected DRC deaths.
+  counts at 23 May: 905 suspected DRC cases, 220 suspected DRC deaths,
+  across the 12 reporting health zones. The 18 May INSP vintage (516
+  cases, 131 deaths) matches the WHO joint sitrep 01 total exactly.
 - Updated Uganda to three travel-related imports with one death,
   reflecting the third import announced on 23 May 2026 (woman from DRC
   who travelled Arua to Entebbe to Kampala; tested positive on
