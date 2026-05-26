@@ -1,4 +1,6 @@
 """
+$(TYPEDSIGNATURES)
+
 Wrapper around `cdf(Gamma(α, θ), x)` as a 3-argument scalar
 scalar function to attach reverse-mode rule.
 
@@ -19,6 +21,8 @@ _gamma_cdf(α, θ, x) = cdf(Gamma(α, θ), x)
 
 
 """
+$(TYPEDSIGNATURES)
+
 Series sum of term derivatives for `∂_α P(α, z)`, using the
 absolutely-convergent Kummer expansion
 
@@ -39,12 +43,6 @@ division, an add and two multiplies — no per-iteration gamma or
 digamma calls. Stan's `grad_reg_inc_gamma` uses this same series as
 its small-`x` branch; the Julia formulation here is the direct port
 from EpiAware/CensoredDistributions PR #250.
-
-Convergence is absolute for all `z > 0` but the iteration count grows
-with `z/α`. Stress tested (see `test/bench/bench_gamma_cdf_partial.jl`)
-across `α ∈ [0.001, 100] × z ∈ [0.01, 200]`: worst case 316 iterations
-at the deep-tail end of that grid; `maxiter = 10_000` is comfortable
-headroom for any NUTS warmup excursion.
 """
 function _grad_p_a_series(a, z; rtol = 1e-14, maxiter = 10_000)
     z <= zero(z) && return zero(a) * zero(z) #type promotion
@@ -68,6 +66,8 @@ function _grad_p_a_series(a, z; rtol = 1e-14, maxiter = 10_000)
 end
 
 """
+$(TYPEDSIGNATURES)
+
 Compute the partial derivatives of the gamma CDF with respect to α, θ, and x.
 """
 function _gamma_cdf_partials(α, θ, x)
@@ -82,6 +82,8 @@ function _gamma_cdf_partials(α, θ, x)
 end
 
 """
+$(TYPEDSIGNATURES)
+
 ChainRulesCore rrule for the gamma CDF, using the above partials.
 
 NB: the `NoTangent()` is for the function argument itself, which is not a callable/functor.
