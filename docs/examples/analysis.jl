@@ -90,16 +90,23 @@
 #   the small-$rw$ simplification $q\cdot w\cdot C(T)$ used by McCabe et
 #   al. (and by [imai2020](@cite) before them). The two forms agree
 #   as $r \to 0$.
-# - *Numerical (not closed-form) deaths convolution.* For a gamma
-#   delay the convolution integral has an exact closed form that
-#   carries a $\gamma(\alpha, (\beta + r)T)/\Gamma(\alpha)$ factor from
-#   the finite upper limit $T$. McCabe et al. use the large-$T$
-#   simplification
+# - *Exact (not large-$T$ approximate) deaths convolution.* For a
+#   gamma delay the convolution integral has an exact closed form
+#   that carries a $\gamma(\alpha, (\beta + r)T)/\Gamma(\alpha)$
+#   factor from the finite upper limit $T$. McCabe et al. use the
+#   large-$T$ simplification
 #   $D(T) \approx \mathrm{CFR}\cdot C(T)\cdot(1 + r/\beta)^{-\alpha}$,
-#   which drops that factor and
-#   is therefore an approximation. We evaluate the integral
-#   numerically instead, which recovers the exact value and lets the
-#   onset-to-death distribution be swapped for any other family.
+#   which drops that factor and is therefore an approximation. We
+#   evaluate the gamma case in closed form via the regularized
+#   incomplete gamma function and fall back to quadrature for any
+#   other onset-to-death family.
+# - *Closed-form CDF under AD.* The Gamma CDF is differentiated
+#   through a hand-written reverse-mode derivative rule, aka "rrule",
+#   for `ChainRulesCore.jl`, and converted for use with the `Mooncake.jl`
+#   AD backend using the `Mooncake.@from_rrule` macro. The rrule is 
+#   inspired by Stan's `grad_reg_inc_gamma` implementation and uses a
+#   Kummer series for the partial derivative with respect to the shape parameter
+#   of the regularized incomplete gamma function.
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list McCabe et al. cite for their
 #   point estimates [bdbv_linelist_analysis_2026](@cite),
