@@ -2,7 +2,7 @@
 
 **Authors:** Sam Abbott, Samuel Brand and Sebastian Funk.
 
-**Last updated:** 20 May 2026. This is a live report, re-run as new
+**Last updated:** 26 May 2026. This is a live report, re-run as new
 data arrive, so the estimates change between updates.
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable)
