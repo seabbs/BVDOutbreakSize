@@ -582,8 +582,17 @@ end
 # Both delays are Gamma with priors over shape and scale, mirroring the
 # onset-to-death `delay_model`. The infection-to-report prior is
 # centred on roughly $12$ days (Ebola-class incubation around $10$ days
-# plus a few days to line listing) with wide $\alpha, \theta$ priors;
-# the lab-turnaround prior is centred on roughly $3$ days. The
+# plus a few days to line listing) with wide $\alpha, \theta$ priors.
+# The lab-turnaround prior centre is around $4$-$5$ days with a heavy
+# right tail: the Bunia provincial-lab GeneXpert was calibrated for
+# Zaire Ebola virus and returned negative on the Ituri samples
+# [africacdc_sitrep_2026](@cite), so confirmation routed through INRB
+# Kinshasa (~$1500$ km from Ituri) — sample shipment plus the rerun on
+# a Bundibugyo-capable PCR adds days to the on-site PCR turnaround.
+# No per-sample turnaround estimate has been published for this
+# outbreak; the prior is analyst judgement consistent with that
+# qualitative description and the broader Ebola PCR literature, and
+# could be tightened if INRB publishes sample-to-result data. The
 # infection-to-confirmation kernel is sampled implicitly by sampling
 # its components separately so the lab step is interpretable on its
 # own.
@@ -609,8 +618,8 @@ end
 #md # ```
 
 @model function lab_delay_model(;
-        alpha_prior = truncated(Normal(2.0, 1.0); lower = 0),
-        theta_prior = truncated(Normal(1.5, 0.75); lower = 0))
+        alpha_prior = truncated(Normal(1.5, 1.0); lower = 0),
+        theta_prior = truncated(Normal(3.0, 2.0); lower = 0))
     α_lab ~ alpha_prior
     θ_lab ~ theta_prior
     return (; α = α_lab, θ = θ_lab, dist = Gamma(α_lab, θ_lab))
