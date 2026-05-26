@@ -1,24 +1,32 @@
-## Smoke tests for the laboratory-confirmed cases likelihood. The
-## `@model` blocks live in the literate walkthrough, so we recreate the
-## minimal set here to keep the tests self-contained and avoid a
-## dependency on the doc-build pipeline. The confirmed-cases stream is a
-## binomial subset of the suspected count conditional on `π`, so the
-## suspected NegBinomial and the confirmed Binomial both appear here.
+## Smoke tests for the truth-anchored cases and confirmed-cases
+## likelihoods. C(T) is the latent eventually-confirmed pool; reported
+## counts are inflated above it by 1/π and convolved through the
+## infection-to-report delay; confirmed counts anchor it via the
+## infection-to-confirmation delay f_conf = f_rep ∗ f_lab. The `@model`
+## blocks live in the literate walkthrough, so we recreate the minimal
+## set here.
 
-using Distributions: Beta, Binomial, NegativeBinomial, truncated, Normal,
+using Distributions: Beta, Gamma, NegativeBinomial, truncated, Normal,
                      mean, var
 using Turing: Turing, @model, sample, Prior, to_submodel
 import FlexiChains
+using BVDOutbreakSize: expected_deaths
 
-## Mirrors the production `safe_nbinomial` helper in analysis.jl: clamps
-## the success probability so extreme NUTS proposals during warmup do
-## not trip the distribution domain check.
 function _safe_nbinomial(k, μ)
     p_raw = k / (k + max(μ, eps(typeof(μ))))
     p = isfinite(p_raw) ?
         clamp(p_raw, eps(typeof(k)), one(k) - eps(typeof(k))) :
         eps(typeof(k))
     return NegativeBinomial(k, p)
+end
+
+## Moment-matched Gamma mirroring `_convolved_gamma` in analysis.jl.
+function _conv_gamma(d_rep::Gamma, d_lab::Gamma)
+    μ  = mean(d_rep) + mean(d_lab)
+    σ² = var(d_rep)  + var(d_lab)
+    θ  = σ² / μ
+    α  = μ  / θ
+    return Gamma(α, θ)
 end
 
 @model function _confirmed_test_growth()
@@ -28,8 +36,7 @@ end
     r   := log(2) / τ
     T   := m * τ
     C_T := 2.0 ^ m
-    cumulative = s -> exp(r * s)
-    return (; log_τ, τ, r, m, T, C_T, cumulative)
+    return (; log_τ, τ, r, m, T, C_T)
 end
 
 @model function _confirmed_test_positivity(;
@@ -49,11 +56,27 @@ end
     return (; p_drc)
 end
 
-@model function _confirmed_test_cases(
+@model function _confirmed_test_report_delay()
+    α_rep ~ truncated(Normal(4.0, 1.5); lower = 0)
+    θ_rep ~ truncated(Normal(3.0, 1.0); lower = 0)
+    return (; α = α_rep, θ = θ_rep, dist = Gamma(α_rep, θ_rep))
+end
+
+@model function _confirmed_test_lab_delay()
+    α_lab ~ truncated(Normal(2.0, 1.0); lower = 0)
+    θ_lab ~ truncated(Normal(1.5, 0.75); lower = 0)
+    return (; α = α_lab, θ = θ_lab, dist = Gamma(α_lab, θ_lab))
+end
+
+@model function _confirmed_test_reported(
         reported_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real)
-    C_T = growth_state.C_T
-    raw_reports        = p_drc * C_T
+        growth_state, k::Real, p_drc::Real,
+        π::Real, f_rep::Gamma)
+    r = growth_state.r
+    T = growth_state.T
+    conv_rep = expected_deaths(one(p_drc), r, T, f_rep)
+    π_safe = max(π, eps(typeof(π)))
+    raw_reports = (p_drc / π_safe) * conv_rep
     expected_reports := isfinite(raw_reports) ?
         max(raw_reports, eps(typeof(raw_reports))) :
         eps(typeof(raw_reports))
@@ -61,54 +84,67 @@ end
     return (; expected_reports, reported_cases)
 end
 
-@model function _confirmed_test_likelihood(
+@model function _confirmed_test_confirmed(
         confirmed_cases::Union{Missing, Integer},
-        reported_cases::Integer;
-        positivity = _confirmed_test_positivity())
-    positivity_state ~ to_submodel(positivity, false)
-    π = positivity_state.positivity
-    confirmed_cases ~ Binomial(Int(reported_cases), π)
-    return (; positivity = π, reported_cases)
+        growth_state, k::Real, p_drc::Real, f_rep::Gamma, f_lab::Gamma)
+    f_conf = _conv_gamma(f_rep, f_lab)
+    r = growth_state.r
+    T = growth_state.T
+    conv_conf = expected_deaths(one(p_drc), r, T, f_conf)
+    raw_confirmed = p_drc * conv_conf
+    expected_confirmed := isfinite(raw_confirmed) ?
+        max(raw_confirmed, eps(typeof(raw_confirmed))) :
+        eps(typeof(raw_confirmed))
+    confirmed_cases ~ _safe_nbinomial(k, expected_confirmed)
+    return (; expected_confirmed)
 end
 
 @model function _confirmed_test_only(
         reported_cases::Union{Missing, Integer},
         confirmed_cases::Union{Missing, Integer};
         growth        = _confirmed_test_growth(),
-        cases         = _confirmed_test_cases,
-        confirmed     = _confirmed_test_likelihood,
+        positivity    = _confirmed_test_positivity(),
+        report_delay  = _confirmed_test_report_delay(),
+        lab_delay     = _confirmed_test_lab_delay(),
         dispersion    = _confirmed_test_dispersion(),
         ascertainment = _confirmed_test_ascertainment())
     growth_state     ~ to_submodel(growth, false)
+    positivity_state ~ to_submodel(positivity, false)
+    report_state     ~ to_submodel(report_delay, false)
+    lab_state        ~ to_submodel(lab_delay, false)
     dispersion_state ~ to_submodel(dispersion, false)
     asc_state        ~ to_submodel(ascertainment, false)
     k     = dispersion_state.k
     p_drc = asc_state.p_drc
-    cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, p_drc), false)
+    π     = positivity_state.positivity
+    f_rep = report_state.dist
+    f_lab = lab_state.dist
+    reported_state ~ to_submodel(
+        _confirmed_test_reported(
+            reported_cases, growth_state, k, p_drc, π, f_rep), false)
     confirmed_state ~ to_submodel(
-        confirmed(confirmed_cases, cases_state.reported_cases), false)
+        _confirmed_test_confirmed(
+            confirmed_cases, growth_state, k, p_drc, f_rep, f_lab), false)
     cumulative_cases := growth_state.C_T
 end
 
-@testset "confirmed_cases_model prior draws are bounded by reported" begin
+@testset "truth-anchored streams: prior draws are finite and non-negative" begin
     m = _confirmed_test_only(missing, missing)
     chn = sample(m, Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
     rc = vec(Array(chn[:reported_cases]))
     cc = vec(Array(chn[:confirmed_cases]))
     @test length(cc) == 200
+    @test all(isfinite, rc)
     @test all(isfinite, cc)
+    @test all(rc .>= 0)
     @test all(cc .>= 0)
-    ## Binomial(n, π) confirmed counts can never exceed the n it
-    ## conditioned on.
-    @test all(cc .<= rc)
 
-    positivity = vec(Array(chn[:positivity]))
-    @test all(0 .<= positivity .<= 1)
+    π = vec(Array(chn[:positivity]))
+    @test all(0 .<= π .<= 1)
 end
 
-@testset "confirmed_cases_model with both observations" begin
+@testset "truth-anchored streams: fit with both observations" begin
     chn = sample(_confirmed_test_only(516, 33), Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
     C = vec(Array(chn[:cumulative_cases]))
@@ -117,13 +153,18 @@ end
     @test all(C .> 0)
 end
 
-@testset "Binomial(n, π) matches the analytic mean and variance" begin
-    ## Sanity check on the likelihood shape that the model relies on:
-    ## E[Y] = n·π, Var[Y] = n·π(1-π). Use a large reference sample so the
-    ## empirical estimates are tight.
-    n = 516
-    π = 0.064
-    d = Binomial(n, π)
-    @test mean(d) ≈ n * π
-    @test var(d)  ≈ n * π * (1 - π)
+@testset "convolved Gamma matches the moments of the sum" begin
+    ## E[X+Y] = E[X] + E[Y] and Var[X+Y] = Var[X] + Var[Y] by
+    ## independence; `_conv_gamma` matches both by construction.
+    d_rep = Gamma(4.0, 3.0)
+    d_lab = Gamma(2.0, 1.5)
+    d_conf = _conv_gamma(d_rep, d_lab)
+    @test mean(d_conf) ≈ mean(d_rep) + mean(d_lab)
+    @test var(d_conf)  ≈ var(d_rep)  + var(d_lab)
+    ## Same-rate special case: the convolution is exactly Gamma.
+    d_same_rep = Gamma(4.0, 2.5)
+    d_same_lab = Gamma(2.0, 2.5)
+    d_same_conf = _conv_gamma(d_same_rep, d_same_lab)
+    @test d_same_conf.α ≈ 6.0
+    @test d_same_conf.θ ≈ 2.5
 end

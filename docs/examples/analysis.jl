@@ -558,6 +558,85 @@ end
 #md # </details>
 #md # ```
 
+# ##### Surveillance delays
+#
+# Reported (suspected) and laboratory-confirmed counts sit at the end
+# of two reporting chains and so see the growth curve through two
+# different kernels. The infection-to-report delay $f_{\text{rep}}$
+# governs the time from infection to a case appearing on the suspected
+# line list. The lab-turnaround delay $f_{\text{lab}}$ adds the
+# further lag from that report to the case being confirmed. The
+# infection-to-confirmation delay is then the convolution
+# $f_{\text{conf}} = f_{\text{rep}} \ast f_{\text{lab}}$.
+#
+# Both delays are Gamma with priors over shape and scale, mirroring the
+# onset-to-death `delay_model`. The infection-to-report prior is
+# centred on roughly $12$ days (Ebola-class incubation around $10$ days
+# plus a few days to line listing) with wide $\alpha, \theta$ priors;
+# the lab-turnaround prior is centred on roughly $3$ days. The
+# infection-to-confirmation kernel is sampled implicitly by sampling
+# its components separately so the lab step is interpretable on its
+# own.
+
+#md # ```@raw html
+#md # <details><summary>Submodel: report_delay_model</summary>
+#md # ```
+
+@model function report_delay_model(;
+        alpha_prior = truncated(Normal(4.0, 1.5); lower = 0),
+        theta_prior = truncated(Normal(3.0, 1.0); lower = 0))
+    α_rep ~ alpha_prior
+    θ_rep ~ theta_prior
+    return (; α = α_rep, θ = θ_rep, dist = Gamma(α_rep, θ_rep))
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+#md # ```@raw html
+#md # <details><summary>Submodel: lab_delay_model</summary>
+#md # ```
+
+@model function lab_delay_model(;
+        alpha_prior = truncated(Normal(2.0, 1.0); lower = 0),
+        theta_prior = truncated(Normal(1.5, 0.75); lower = 0))
+    α_lab ~ alpha_prior
+    θ_lab ~ theta_prior
+    return (; α = α_lab, θ = θ_lab, dist = Gamma(α_lab, θ_lab))
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# The Gamma family is closed under convolution only when both
+# components share the same rate. We approximate $f_{\text{conf}}$ by
+# the unique Gamma whose first two moments match the sum
+# $X_{\text{rep}} + X_{\text{lab}}$:
+#
+# ```math
+# \mu_{\text{conf}} = \mu_{\text{rep}} + \mu_{\text{lab}}, \qquad
+# \sigma^2_{\text{conf}} = \sigma^2_{\text{rep}} + \sigma^2_{\text{lab}},
+# \qquad
+# \theta_{\text{conf}} = \sigma^2_{\text{conf}} / \mu_{\text{conf}}, \qquad
+# \alpha_{\text{conf}} = \mu_{\text{conf}} / \theta_{\text{conf}}. \tag{5}
+# ```
+#
+# This keeps a single Gamma in the convolution against $C(s)$, matches
+# the mean exactly and stays close to the true mixed-Erlang density
+# when both components are unimodal with comparable scales.
+
+## Moment-matched Gamma approximation of f_rep ∗ f_lab. Matches both
+## means and the total variance; the true convolution is mixed-Erlang.
+function _convolved_gamma(d_rep::Gamma, d_lab::Gamma)
+    μ  = mean(d_rep) + mean(d_lab)
+    σ² = var(d_rep)  + var(d_lab)
+    θ  = σ² / μ
+    α  = μ  / θ
+    return Gamma(α, θ)
+end
+
 # ##### Case-fatality ratio
 #
 # The US Centers for Disease Control and Prevention (CDC) summary for
@@ -957,76 +1036,40 @@ end
 #md # </details>
 #md # ```
 
-# ##### Cases — ascertainment extension
-# Methods 1 and 2 use exports and deaths only. Reported
-# suspected cases from the same passive-surveillance system carry
-# information about $C(T)$ once the DRC ascertainment fraction $p_{\text{DRC}}$
-# (equation (11)) is introduced:
+# ##### Cases — truth-anchored ascertainment with positivity downweighting
+#
+# We treat $C(T)$ as the latent count of cases that will ultimately
+# be laboratory-confirmable — the eventual-confirmed pool, not the
+# broader suspected pool. The two surveillance streams then enter as
+# delay-convolved views of $C(T)$ with different ascertainment
+# factors. Laboratory-confirmed counts pick up only the cases that have
+# already cleared both the report and the lab-turnaround delays, while
+# suspected (reported) counts include test-negative referrals as well
+# and so over-count $C(T)$. The two streams are tied by the
+# test-positivity rate $\pi$, the eventual fraction of suspected
+# reports that ever return a positive laboratory result:
 #
 # ```math
-# \mu_c = p_{\text{DRC}} \cdot C(T),
-# \qquad
-# Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_c,\ k). \tag{18}
+# \mu_{\text{cases}} = \frac{p_{\text{DRC}}}{\pi}
+#     \int_0^T e^{r s}\, f_{\text{rep}}(T - s)\, ds, \qquad
+# Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_{\text{cases}},\ k). \tag{18}
 # ```
 #
-# The dispersion $k$ (equation (9)) is shared with the deaths
-# likelihood; both are sampled once by the composer.
-
-#md # ```@raw html
-#md # <details><summary>Submodel: cases_model</summary>
-#md # ```
-
-@model function cases_model(
-        reported_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real)
-
-    C_T = growth_state.C_T
-
-    raw_reports        = p_drc * C_T
-    expected_reports := isfinite(raw_reports) ?
-        max(raw_reports, eps(typeof(raw_reports))) :
-        eps(typeof(raw_reports))
-
-    reported_cases ~ safe_nbinomial(k, expected_reports)
-
-    return (; p_drc, expected_reports, reported_cases)
-end
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-# ##### Confirmed cases — testing extension
-#
-# Reported suspected cases are the surveillance gate; a subset is sent to
-# the laboratory and only a fraction returns positive. We model the
-# laboratory-confirmed count as a binomial subset of the reported
-# (suspected) count, with $\pi$ the suspected-to-confirmed rate that
-# combines per-test positivity and the fraction of suspected ever tested
-# by the cut-off:
-#
-# ```math
-# Y_{\text{conf}} \mid Y_{\text{sus}} \sim
-#     \mathrm{Binomial}(Y_{\text{sus}},\ \pi). \tag{21}
-# ```
-#
-# Conditioning directly on $Y_{\text{sus}}$ reads $\pi$ off the observed
-# confirmed-to-suspected ratio (about $0.06$ at the 18 May cut-off)
-# without passing it through a growth-rate-and-delay correction, which
-# would be prior-dominated given a single cumulative count per stream.
-# When the suspected count is missing (prior- or posterior-predictive
-# checks) the cases submodel samples a latent $Y_{\text{sus}}$ from the
-# equation (18) NegBinomial and the binomial uses that draw.
+# The convolution against $f_{\text{rep}}$ accounts for cases not yet
+# reported by $T$; dividing by $\pi$ inflates the expected reports
+# relative to truth so suspected counts can exceed $C(T)$. The
+# dispersion $k$ (equation (9)) is shared with the deaths likelihood.
 #
 # The prior on $\pi$ covers the INSP per-test positivity figure (about
-# $45\%$) and the lower bundled rates implied by limited testing coverage:
+# $45\%$) and the lower bundled rates implied by limited testing
+# coverage:
 #
 # ```math
-# \pi \sim \mathrm{Beta}(2,\ 4), \tag{22}
+# \pi \sim \mathrm{Beta}(2,\ 4), \tag{19}
 # ```
 #
-# with mean $0.33$, SD $0.18$ and a 90% interval covering roughly $0.05$
-# to $0.66$.
+# with mean $0.33$, SD $0.18$ and a $90\%$ interval covering roughly
+# $0.05$ to $0.66$.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_positivity_model</summary>
@@ -1043,20 +1086,91 @@ end
 #md # ```
 
 #md # ```@raw html
+#md # <details><summary>Submodel: cases_model</summary>
+#md # ```
+
+@model function cases_model(
+        reported_cases::Union{Missing, Integer},
+        growth_state, k::Real, p_drc::Real;
+        report_delay = report_delay_model(),
+        positivity   = test_positivity_model())
+
+    report_state     ~ to_submodel(report_delay, false)
+    positivity_state ~ to_submodel(positivity, false)
+    π     = positivity_state.positivity
+    f_rep = report_state.dist
+    r     = growth_state.r
+    T     = growth_state.T
+
+    ## Reuses the deaths convolution integrator with unit ascertainment
+    ## to evaluate ∫₀ᵀ exp(r·s)·f_rep(T-s) ds. The (p_drc / π) factor
+    ## inflates expected suspected reports above C(T): π is the eventual
+    ## confirmed fraction, so 1/π is the suspected-per-truth multiplier.
+    conv_rep = expected_deaths(one(p_drc), r, T, f_rep)
+    π_safe = max(π, eps(typeof(π)))
+    raw_reports = (p_drc / π_safe) * conv_rep
+    expected_reports := isfinite(raw_reports) ?
+        max(raw_reports, eps(typeof(raw_reports))) :
+        eps(typeof(raw_reports))
+
+    reported_cases ~ safe_nbinomial(k, expected_reports)
+
+    return (; p_drc, positivity = π,
+              expected_reports, reported_cases,
+              report_delay_dist = f_rep)
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+# ##### Confirmed cases — truth anchor via the lab-turnaround delay
+#
+# Laboratory-confirmed counts anchor $C(T)$ directly: there is no
+# positivity downweighting, only the longer delay from infection to a
+# returned positive result. The infection-to-confirmation kernel is the
+# convolution $f_{\text{conf}} = f_{\text{rep}} \ast f_{\text{lab}}$
+# (equation (5)), so
+#
+# ```math
+# \mu_{\text{conf}} = p_{\text{DRC}}
+#     \int_0^T e^{r s}\, f_{\text{conf}}(T - s)\, ds, \qquad
+# Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k). \tag{20}
+# ```
+#
+# Sampling the report-delay and lab-turnaround priors separately keeps
+# the lab step interpretable; the confirmed kernel is a derived
+# quantity. The dispersion $k$ is shared across all NegBinomial
+# likelihoods.
+
+#md # ```@raw html
 #md # <details><summary>Submodel: confirmed_cases_model</summary>
 #md # ```
 
 @model function confirmed_cases_model(
         confirmed_cases::Union{Missing, Integer},
-        reported_cases::Integer;
-        positivity = test_positivity_model())
+        growth_state, k::Real, p_drc::Real,
+        report_delay_dist;
+        lab_delay = lab_delay_model())
 
-    positivity_state ~ to_submodel(positivity, false)
-    π = positivity_state.positivity
+    lab_state ~ to_submodel(lab_delay, false)
+    f_lab  = lab_state.dist
+    f_conf = _convolved_gamma(report_delay_dist, f_lab)
 
-    confirmed_cases ~ Binomial(Int(reported_cases), π)
+    r = growth_state.r
+    T = growth_state.T
 
-    return (; positivity = π, reported_cases)
+    conv_conf = expected_deaths(one(p_drc), r, T, f_conf)
+    raw_confirmed = p_drc * conv_conf
+    expected_confirmed := isfinite(raw_confirmed) ?
+        max(raw_confirmed, eps(typeof(raw_confirmed))) :
+        eps(typeof(raw_confirmed))
+
+    confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
+
+    return (; expected_confirmed,
+              lab_delay_dist = f_lab,
+              confirmed_delay_dist = f_conf)
 end
 
 #md # ```@raw html
@@ -1398,6 +1512,8 @@ end
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
         positivity    = test_positivity_model(),
+        report_delay  = report_delay_model(),
+        lab_delay     = lab_delay_model(),
         genetic       = nothing,
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
@@ -1419,11 +1535,14 @@ end
     deaths_state ~ to_submodel(
         deaths(total_deaths, growth_state, k), false)
     cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, p_drc), false)
+        cases(reported_cases, growth_state, k, p_drc;
+            report_delay = report_delay,
+            positivity   = positivity), false)
     if confirmed_cases !== missing
         confirmed_state ~ to_submodel(
-            confirmed(confirmed_cases, cases_state.reported_cases;
-                positivity = positivity),
+            confirmed(confirmed_cases, growth_state, k, p_drc,
+                cases_state.report_delay_dist;
+                lab_delay = lab_delay),
             false)
     end
     exports_deaths_state ~ to_submodel(
