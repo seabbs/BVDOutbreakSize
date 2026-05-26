@@ -1046,49 +1046,53 @@ end
 #md # </details>
 #md # ```
 
-# ##### Cases — truth-anchored ascertainment with positivity downweighting
+# ##### Cases — truth-anchored mean with an additive non-BVD background
 #
-# We treat $C(T)$ as the latent count of cases that will ultimately
-# be laboratory-confirmable — the eventual-confirmed pool, not the
-# broader suspected pool. The two surveillance streams then enter as
-# delay-convolved views of $C(T)$ with different ascertainment
-# factors. Laboratory-confirmed counts pick up only the cases that have
-# already cleared both the report and the lab-turnaround delays, while
-# suspected (reported) counts include test-negative referrals as well
-# and so over-count $C(T)$. The two streams are tied by the
-# test-positivity rate $\pi$, the eventual fraction of suspected
-# reports that ever return a positive laboratory result:
+# $C(T)$ is the latent count of cases that will ultimately be
+# laboratory-confirmable. Confirmed cases anchor it directly through the
+# infection-to-confirmation convolution. Suspected reports include
+# test-negative referrals — clinical look-alikes such as malaria or
+# other febrile illness — whose rate is set by background prevalence
+# and surveillance intensity, not by BVD growth. We therefore model the
+# suspected stream as the sum of a BVD-driven component and a non-BVD
+# background that accrues with elapsed surveillance time:
 #
 # ```math
-# \mu_{\text{cases}} = \frac{p_{\text{DRC}}}{\pi}
+# \mu_{\text{BVD}} = p_{\text{DRC}}
 #     \int_0^T e^{r s}\, f_{\text{rep}}(T - s)\, ds, \qquad
-# Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_{\text{cases}},\ k). \tag{18}
+# \mu_{\text{bg}} = \lambda_{\text{bg}}\, T, \tag{18}
 # ```
-#
-# The convolution against $f_{\text{rep}}$ accounts for cases not yet
-# reported by $T$; dividing by $\pi$ inflates the expected reports
-# relative to truth so suspected counts can exceed $C(T)$. The
-# dispersion $k$ (equation (9)) is shared with the deaths likelihood.
-#
-# The prior on $\pi$ covers the INSP per-test positivity figure (about
-# $45\%$) and the lower bundled rates implied by limited testing
-# coverage:
 #
 # ```math
-# \pi \sim \mathrm{Beta}(2,\ 4), \tag{19}
+# \mu_{\text{cases}} = \mu_{\text{BVD}} + \mu_{\text{bg}}, \qquad
+# Y_{\text{cases}} \sim \mathrm{NegBinomial}(\mu_{\text{cases}},\ k). \tag{19}
 # ```
 #
-# with mean $0.33$, SD $0.18$ and a $90\%$ interval covering roughly
-# $0.05$ to $0.66$.
+# $\lambda_{\text{bg}}$ is the expected non-BVD suspected reports per
+# day. The implied test-positivity at the cut-off is
+# $\pi = \mu_{\text{BVD}} / \mu_{\text{cases}}$ — a derived quantity
+# checked against the sitrep figure (about $45\%$) rather than a free
+# parameter. Half-Normal prior:
+#
+# ```math
+# \lambda_{\text{bg}} \sim \mathrm{Normal}^{+}(0,\ 10)\ \text{per day}. \tag{20}
+# ```
+#
+# This is broad on the scale of the observed counts: with $T$ of order
+# $80$ days the prior covers a background contribution from near zero up
+# to ~$1600$ non-BVD suspected by the cut-off, comfortably bracketing
+# the $516 - 33 \approx 483$ shortfall between the suspected and
+# confirmed counts. The dispersion $k$ (equation (9)) is shared with the
+# deaths and confirmed likelihoods.
 
 #md # ```@raw html
-#md # <details><summary>Submodel: test_positivity_model</summary>
+#md # <details><summary>Submodel: background_suspected_model</summary>
 #md # ```
 
-@model function test_positivity_model(;
-        positivity_prior = Beta(2.0, 4.0))
-    positivity ~ positivity_prior
-    return (; positivity)
+@model function background_suspected_model(;
+        lambda_prior = truncated(Normal(0.0, 10.0); lower = 0))
+    λ_bg ~ lambda_prior
+    return (; λ_bg)
 end
 
 #md # ```@raw html
@@ -1103,30 +1107,37 @@ end
         reported_cases::Union{Missing, Integer},
         growth_state, k::Real, p_drc::Real;
         report_delay = report_delay_model(),
-        positivity   = test_positivity_model())
+        background   = background_suspected_model())
 
     report_state     ~ to_submodel(report_delay, false)
-    positivity_state ~ to_submodel(positivity, false)
-    π     = positivity_state.positivity
+    background_state ~ to_submodel(background, false)
+    λ_bg  = background_state.λ_bg
     f_rep = report_state.dist
     r     = growth_state.r
     T     = growth_state.T
 
     ## Reuses the deaths convolution integrator with unit ascertainment
-    ## to evaluate ∫₀ᵀ exp(r·s)·f_rep(T-s) ds. The (p_drc / π) factor
-    ## inflates expected suspected reports above C(T): π is the eventual
-    ## confirmed fraction, so 1/π is the suspected-per-truth multiplier.
-    conv_rep = expected_deaths(one(p_drc), r, T, f_rep)
-    π_safe = max(π, eps(typeof(π)))
-    raw_reports = (p_drc / π_safe) * conv_rep
-    expected_reports := isfinite(raw_reports) ?
-        max(raw_reports, eps(typeof(raw_reports))) :
-        eps(typeof(raw_reports))
+    ## to evaluate ∫₀ᵀ exp(r·s)·f_rep(T-s) ds, the BVD contribution.
+    conv_rep   = expected_deaths(one(p_drc), r, T, f_rep)
+    μ_BVD_raw  = p_drc * conv_rep
+    μ_bg_raw   = λ_bg * T
+    μ_BVD := isfinite(μ_BVD_raw) ?
+        max(μ_BVD_raw, eps(typeof(μ_BVD_raw))) :
+        eps(typeof(μ_BVD_raw))
+    μ_bg  := isfinite(μ_bg_raw) ?
+        max(μ_bg_raw, eps(typeof(μ_bg_raw))) :
+        eps(typeof(μ_bg_raw))
+    expected_reports := μ_BVD + μ_bg
+    ## Implied per-suspected positivity at the cut-off. Exposed as a
+    ## derived quantity so it can be checked against the sitrep figure.
+    positivity := μ_BVD / expected_reports
 
     reported_cases ~ safe_nbinomial(k, expected_reports)
 
-    return (; p_drc, positivity = π,
+    return (; p_drc, λ_bg,
               expected_reports, reported_cases,
+              μ_BVD, μ_bg,
+              positivity,
               report_delay_dist = f_rep)
 end
 
@@ -1521,7 +1532,7 @@ end
         exports_detection_timing = exports_detection_timing_model,
         dispersion    = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
-        positivity    = test_positivity_model(),
+        background    = background_suspected_model(),
         report_delay  = report_delay_model(),
         lab_delay     = lab_delay_model(),
         genetic       = nothing,
@@ -1547,7 +1558,7 @@ end
     cases_state ~ to_submodel(
         cases(reported_cases, growth_state, k, p_drc;
             report_delay = report_delay,
-            positivity   = positivity), false)
+            background   = background), false)
     if confirmed_cases !== missing
         confirmed_state ~ to_submodel(
             confirmed(confirmed_cases, growth_state, k, p_drc,

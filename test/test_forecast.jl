@@ -20,7 +20,7 @@ import FlexiChains
     k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
     α_rep      ~ truncated(Normal(4.0, 0.5); lower = 0.5)
     θ_rep      ~ truncated(Normal(3.0, 0.3); lower = 0.2)
-    positivity ~ Beta(2.0, 4.0)
+    λ_bg       ~ truncated(Normal(0.0, 10.0); lower = 0)
     if include_lab
         α_lab ~ truncated(Normal(2.0, 0.5); lower = 0.5)
         θ_lab ~ truncated(Normal(1.5, 0.3); lower = 0.2)

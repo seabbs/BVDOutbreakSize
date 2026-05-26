@@ -39,10 +39,10 @@ end
     return (; log_τ, τ, r, m, T, C_T)
 end
 
-@model function _confirmed_test_positivity(;
-        positivity_prior = Beta(2.0, 4.0))
-    positivity ~ positivity_prior
-    return (; positivity)
+@model function _confirmed_test_background(;
+        lambda_prior = truncated(Normal(0.0, 10.0); lower = 0))
+    λ_bg ~ lambda_prior
+    return (; λ_bg)
 end
 
 @model function _confirmed_test_dispersion()
@@ -71,17 +71,22 @@ end
 @model function _confirmed_test_reported(
         reported_cases::Union{Missing, Integer},
         growth_state, k::Real, p_drc::Real,
-        π::Real, f_rep::Gamma)
+        λ_bg::Real, f_rep::Gamma)
     r = growth_state.r
     T = growth_state.T
     conv_rep = expected_deaths(one(p_drc), r, T, f_rep)
-    π_safe = max(π, eps(typeof(π)))
-    raw_reports = (p_drc / π_safe) * conv_rep
-    expected_reports := isfinite(raw_reports) ?
-        max(raw_reports, eps(typeof(raw_reports))) :
-        eps(typeof(raw_reports))
+    μ_BVD_raw = p_drc * conv_rep
+    μ_bg_raw  = λ_bg * T
+    μ_BVD := isfinite(μ_BVD_raw) ?
+        max(μ_BVD_raw, eps(typeof(μ_BVD_raw))) :
+        eps(typeof(μ_BVD_raw))
+    μ_bg  := isfinite(μ_bg_raw) ?
+        max(μ_bg_raw, eps(typeof(μ_bg_raw))) :
+        eps(typeof(μ_bg_raw))
+    expected_reports := μ_BVD + μ_bg
+    positivity := μ_BVD / expected_reports
     reported_cases ~ _safe_nbinomial(k, expected_reports)
-    return (; expected_reports, reported_cases)
+    return (; expected_reports, reported_cases, positivity)
 end
 
 @model function _confirmed_test_confirmed(
@@ -103,25 +108,25 @@ end
         reported_cases::Union{Missing, Integer},
         confirmed_cases::Union{Missing, Integer};
         growth        = _confirmed_test_growth(),
-        positivity    = _confirmed_test_positivity(),
+        background    = _confirmed_test_background(),
         report_delay  = _confirmed_test_report_delay(),
         lab_delay     = _confirmed_test_lab_delay(),
         dispersion    = _confirmed_test_dispersion(),
         ascertainment = _confirmed_test_ascertainment())
     growth_state     ~ to_submodel(growth, false)
-    positivity_state ~ to_submodel(positivity, false)
+    background_state ~ to_submodel(background, false)
     report_state     ~ to_submodel(report_delay, false)
     lab_state        ~ to_submodel(lab_delay, false)
     dispersion_state ~ to_submodel(dispersion, false)
     asc_state        ~ to_submodel(ascertainment, false)
     k     = dispersion_state.k
     p_drc = asc_state.p_drc
-    π     = positivity_state.positivity
+    λ_bg  = background_state.λ_bg
     f_rep = report_state.dist
     f_lab = lab_state.dist
     reported_state ~ to_submodel(
         _confirmed_test_reported(
-            reported_cases, growth_state, k, p_drc, π, f_rep), false)
+            reported_cases, growth_state, k, p_drc, λ_bg, f_rep), false)
     confirmed_state ~ to_submodel(
         _confirmed_test_confirmed(
             confirmed_cases, growth_state, k, p_drc, f_rep, f_lab), false)

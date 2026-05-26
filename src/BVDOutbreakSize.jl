@@ -1244,16 +1244,15 @@ function _forecast_deaths_mean(r, Th, α, θ, CFR; alg = DEATH_INTEGRAL_ALG)
     return expected_deaths(CFR, r, Th, Gamma(α, θ); alg)
 end
 
-# Reported (suspected) cases convolution at horizon `Th`: the
-# truth-anchored expectation `(p_drc / π) · ∫₀^{Th} exp(r·s) ·
-# f_rep(Th - s) ds`, with `f_rep = Gamma(α_rep, θ_rep)`. Reuses
-# `expected_deaths` as a generic delay-convolved cumulative integrator
-# (unit ascertainment).
-function _forecast_cases_mean(r, Th, α_rep, θ_rep, p_drc, π;
+# Reported (suspected) cases at horizon `Th`: the truth-anchored BVD
+# contribution plus the non-BVD background. The BVD contribution reuses
+# `expected_deaths` as a delay-convolved cumulative integrator at unit
+# ascertainment to compute `∫₀^{Th} exp(r·s) · f_rep(Th-s) ds`; the
+# background contribution `λ_bg · Th` accrues with elapsed time.
+function _forecast_cases_mean(r, Th, α_rep, θ_rep, p_drc, λ_bg;
         alg = DEATH_INTEGRAL_ALG)
-    π_safe = max(π, eps(typeof(π)))
     conv = expected_deaths(one(p_drc), r, Th, Gamma(α_rep, θ_rep); alg)
-    return (p_drc / π_safe) * conv
+    return p_drc * conv + λ_bg * Th
 end
 
 # Laboratory-confirmed cases convolution at horizon `Th`: `p_drc ·
@@ -1298,9 +1297,10 @@ per draw and columns:
   when the chain carries the lab-turnaround delay (`:α_lab`, `:θ_lab`)
   and `obs_confirmed` is supplied. Otherwise these columns are absent.
 
-DRC reported cases follow the truth-anchored expectation
-`(p_drc / π) · ∫₀^{T+h} exp(r·s) · f_rep(T+h-s) ds` with `f_rep =
-Gamma(α_rep, θ_rep)` and `π = positivity`. Laboratory-confirmed cases
+DRC reported cases follow the additive expectation
+`p_drc · ∫₀^{T+h} exp(r·s) · f_rep(T+h-s) ds + λ_bg · (T+h)`, with
+`f_rep = Gamma(α_rep, θ_rep)` for the BVD-driven contribution and
+`λ_bg` the per-day non-BVD background. Laboratory-confirmed cases
 follow `p_drc · ∫₀^{T+h} exp(r·s) · f_conf(T+h-s) ds`, with `f_conf`
 the moment-matched Gamma of `f_rep ∗ f_lab`. Exports use `p_uganda · q`
 with `q = daily_travellers / source_population`. Assumes growth
@@ -1327,7 +1327,7 @@ function forecast_reported(chn;
     k     = _draws(chn, :k)
     α_rep = _draws(chn, :α_rep)
     θ_rep = _draws(chn, :θ_rep)
-    π     = _draws(chn, :positivity)
+    λ_bg  = _draws(chn, :λ_bg)
     ## Lab-turnaround draws live on the joint chain only; their absence
     ## drops the confirmed-cases columns from the forecast frame.
     has_lab = all(haskey_chain(chn, n) for n in (:α_lab, :θ_lab)) &&
@@ -1345,9 +1345,10 @@ function forecast_reported(chn;
 
     @inbounds for i in 1:n
         Th = T[i] + horizon
-        ## DRC reported cases: (p_drc / π) · ∫₀^{T+h} exp(r·s) · f_rep(T+h-s) ds.
+        ## DRC reported cases: p_drc · ∫₀^{T+h} exp(r·s) · f_rep(T+h-s) ds
+        ## + λ_bg · (T+h).
         μ_cases = _forecast_cases_mean(r[i], Th, α_rep[i], θ_rep[i],
-                                       pr[i], π[i]; alg)
+                                       pr[i], λ_bg[i]; alg)
         cases_cum[i] = _nb_rand(rng, k[i], μ_cases)
         ## DRC deaths: CFR · ∫_0^{T+h} exp(r·s) f(T+h−s) ds.
         μ_deaths = _forecast_deaths_mean(r[i], Th, α[i], θ[i], CFR[i]; alg)
