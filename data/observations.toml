@@ -5,8 +5,9 @@
 #
 # DRC counts (reported_cases, total_deaths, reported_case_history) are
 # sourced from the INRB-UMIE/Ebola_DRC_2026 transcription of the INSP
-# (DRC Institut National de Santé Publique) Mpox Operations Department
-# situation reports, summed across health zones at each sitrep date.
+# (DRC Institut National de Santé Publique) situation reports for the
+# 17th Ebola epidemic (https://insp.cd/ebola-17eme-epidemie/), summed
+# across health zones at each sitrep date.
 # Source: https://github.com/INRB-UMIE/Ebola_DRC_2026 (MIT licence;
 # manually transcribed from INSP PDFs). The 23 May 2026 cut-off is the
 # last INSP sitrep with a clean cumulative (the 24 May vintage drops
