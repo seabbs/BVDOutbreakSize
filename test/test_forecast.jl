@@ -22,8 +22,9 @@ import FlexiChains
     θ_rep      ~ truncated(Normal(3.0, 0.3); lower = 0.2)
     λ_bg       ~ truncated(Normal(0.0, 10.0); lower = 0)
     if include_lab
-        α_lab ~ truncated(Normal(2.0, 0.5); lower = 0.5)
-        θ_lab ~ truncated(Normal(1.5, 0.3); lower = 0.2)
+        α_lab  ~ truncated(Normal(2.0, 0.5); lower = 0.5)
+        θ_lab  ~ truncated(Normal(1.5, 0.3); lower = 0.2)
+        s_test ~ Beta(20.0, 2.0)
     end
     return nothing
 end

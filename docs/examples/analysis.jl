@@ -1177,24 +1177,56 @@ end
 #md # </details>
 #md # ```
 
-# ##### Confirmed cases — truth anchor via the lab-turnaround delay
+# ##### Confirmed cases — truth anchor with PCR sensitivity
 #
-# Laboratory-confirmed counts anchor $C(T)$ directly: there is no
-# positivity downweighting, only the longer delay from infection to a
-# returned positive result. The infection-to-confirmation kernel is the
-# convolution $f_{\text{conf}} = f_{\text{rep}} \ast f_{\text{lab}}$
-# (equation (5)), so
+# Laboratory-confirmed counts anchor $C(T)$, picking up only BVD cases
+# that (a) have cleared both the report and lab-turnaround delays and
+# (b) returned a positive PCR. Letting $s$ denote PCR sensitivity (the
+# probability a sample from a true BVD case returns positive in the
+# lab), the infection-to-confirmation kernel is the convolution
+# $f_{\text{conf}} = f_{\text{rep}} \ast f_{\text{lab}}$ (equation
+# (5)), so
 #
 # ```math
-# \mu_{\text{conf}} = p_{\text{DRC}}
-#     \int_0^T e^{r s}\, f_{\text{conf}}(T - s)\, ds, \qquad
-# Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k). \tag{20}
+# \mu_{\text{conf}} = s \cdot p_{\text{DRC}}
+#     \int_0^T e^{r s'}\, f_{\text{conf}}(T - s')\, ds', \qquad
+# Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k). \tag{21}
 # ```
 #
-# Sampling the report-delay and lab-turnaround priors separately keeps
-# the lab step interpretable; the confirmed kernel is a derived
-# quantity. The dispersion $k$ is shared across all NegBinomial
+# Sampling the report-delay, lab-turnaround and sensitivity priors
+# separately keeps each step interpretable; the confirmed kernel is a
+# derived quantity. The dispersion $k$ is shared across all NegBinomial
 # likelihoods.
+#
+# Beta prior on the PCR sensitivity:
+#
+# ```math
+# s \sim \mathrm{Beta}(20,\ 2), \tag{22}
+# ```
+#
+# with mean $0.91$, SD $0.06$ and a $95\%$ interval covering roughly
+# $0.75$ to $0.99$. This brackets the WHO emergency-use Ebola PCR
+# validations (~$100\%$ on reference panels) at the upper end and
+# typical field-study sensitivities ($85$-$95\%$) over the bulk. With
+# a single confirmed count, $s$ and $p_{\text{DRC}}$ are jointly
+# identifiable only via the prior on $s$; the prior therefore
+# propagates directly into the $p_{\text{DRC}}$ posterior, and the
+# combined product $s \cdot p_{\text{DRC}}$ is what the confirmed
+# stream actually pins down.
+
+#md # ```@raw html
+#md # <details><summary>Submodel: test_sensitivity_model</summary>
+#md # ```
+
+@model function test_sensitivity_model(;
+        sensitivity_prior = Beta(20.0, 2.0))
+    s_test ~ sensitivity_prior
+    return (; s_test)
+end
+
+#md # ```@raw html
+#md # </details>
+#md # ```
 
 #md # ```@raw html
 #md # <details><summary>Submodel: confirmed_cases_model</summary>
@@ -1204,24 +1236,27 @@ end
         confirmed_cases::Union{Missing, Integer},
         growth_state, k::Real, p_drc::Real,
         report_delay_dist;
-        lab_delay = lab_delay_model())
+        lab_delay       = lab_delay_model(),
+        test_sensitivity = test_sensitivity_model())
 
-    lab_state ~ to_submodel(lab_delay, false)
+    lab_state         ~ to_submodel(lab_delay, false)
+    sensitivity_state ~ to_submodel(test_sensitivity, false)
     f_lab  = lab_state.dist
+    s_test = sensitivity_state.s_test
     f_conf = _convolved_gamma(report_delay_dist, f_lab)
 
     r = growth_state.r
     T = growth_state.T
 
     conv_conf = expected_deaths(one(p_drc), r, T, f_conf)
-    raw_confirmed = p_drc * conv_conf
+    raw_confirmed = s_test * p_drc * conv_conf
     expected_confirmed := isfinite(raw_confirmed) ?
         max(raw_confirmed, eps(typeof(raw_confirmed))) :
         eps(typeof(raw_confirmed))
 
     confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
 
-    return (; expected_confirmed,
+    return (; expected_confirmed, s_test,
               lab_delay_dist = f_lab,
               confirmed_delay_dist = f_conf)
 end
@@ -1567,6 +1602,7 @@ end
         background    = background_suspected_model(),
         report_delay  = report_delay_model(),
         lab_delay     = lab_delay_model(),
+        test_sensitivity = test_sensitivity_model(),
         genetic       = nothing,
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
@@ -1595,7 +1631,8 @@ end
         confirmed_state ~ to_submodel(
             confirmed(confirmed_cases, growth_state, k, p_drc,
                 cases_state.report_delay_dist;
-                lab_delay = lab_delay),
+                lab_delay        = lab_delay,
+                test_sensitivity = test_sensitivity),
             false)
     end
     exports_deaths_state ~ to_submodel(

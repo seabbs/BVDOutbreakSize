@@ -68,6 +68,11 @@ end
     return (; α = α_lab, θ = θ_lab, dist = Gamma(α_lab, θ_lab))
 end
 
+@model function _confirmed_test_sensitivity()
+    s_test ~ Beta(20.0, 2.0)
+    return (; s_test)
+end
+
 @model function _confirmed_test_reported(
         reported_cases::Union{Missing, Integer},
         growth_state, k::Real, p_drc::Real,
@@ -91,12 +96,13 @@ end
 
 @model function _confirmed_test_confirmed(
         confirmed_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real, f_rep::Gamma, f_lab::Gamma)
+        growth_state, k::Real, p_drc::Real, s_test::Real,
+        f_rep::Gamma, f_lab::Gamma)
     f_conf = _conv_gamma(f_rep, f_lab)
     r = growth_state.r
     T = growth_state.T
     conv_conf = expected_deaths(one(p_drc), r, T, f_conf)
-    raw_confirmed = p_drc * conv_conf
+    raw_confirmed = s_test * p_drc * conv_conf
     expected_confirmed := isfinite(raw_confirmed) ?
         max(raw_confirmed, eps(typeof(raw_confirmed))) :
         eps(typeof(raw_confirmed))
@@ -107,29 +113,33 @@ end
 @model function _confirmed_test_only(
         reported_cases::Union{Missing, Integer},
         confirmed_cases::Union{Missing, Integer};
-        growth        = _confirmed_test_growth(),
-        background    = _confirmed_test_background(),
-        report_delay  = _confirmed_test_report_delay(),
-        lab_delay     = _confirmed_test_lab_delay(),
-        dispersion    = _confirmed_test_dispersion(),
-        ascertainment = _confirmed_test_ascertainment())
-    growth_state     ~ to_submodel(growth, false)
-    background_state ~ to_submodel(background, false)
-    report_state     ~ to_submodel(report_delay, false)
-    lab_state        ~ to_submodel(lab_delay, false)
-    dispersion_state ~ to_submodel(dispersion, false)
-    asc_state        ~ to_submodel(ascertainment, false)
-    k     = dispersion_state.k
-    p_drc = asc_state.p_drc
-    λ_bg  = background_state.λ_bg
-    f_rep = report_state.dist
-    f_lab = lab_state.dist
+        growth           = _confirmed_test_growth(),
+        background       = _confirmed_test_background(),
+        report_delay     = _confirmed_test_report_delay(),
+        lab_delay        = _confirmed_test_lab_delay(),
+        test_sensitivity = _confirmed_test_sensitivity(),
+        dispersion       = _confirmed_test_dispersion(),
+        ascertainment    = _confirmed_test_ascertainment())
+    growth_state      ~ to_submodel(growth, false)
+    background_state  ~ to_submodel(background, false)
+    report_state      ~ to_submodel(report_delay, false)
+    lab_state         ~ to_submodel(lab_delay, false)
+    sensitivity_state ~ to_submodel(test_sensitivity, false)
+    dispersion_state  ~ to_submodel(dispersion, false)
+    asc_state         ~ to_submodel(ascertainment, false)
+    k      = dispersion_state.k
+    p_drc  = asc_state.p_drc
+    λ_bg   = background_state.λ_bg
+    s_test = sensitivity_state.s_test
+    f_rep  = report_state.dist
+    f_lab  = lab_state.dist
     reported_state ~ to_submodel(
         _confirmed_test_reported(
             reported_cases, growth_state, k, p_drc, λ_bg, f_rep), false)
     confirmed_state ~ to_submodel(
         _confirmed_test_confirmed(
-            confirmed_cases, growth_state, k, p_drc, f_rep, f_lab), false)
+            confirmed_cases, growth_state, k, p_drc, s_test,
+            f_rep, f_lab), false)
     cumulative_cases := growth_state.C_T
 end
 

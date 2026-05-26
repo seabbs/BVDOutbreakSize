@@ -1255,12 +1255,12 @@ function _forecast_cases_mean(r, Th, α_rep, θ_rep, p_drc, λ_bg;
     return p_drc * conv + λ_bg * Th
 end
 
-# Laboratory-confirmed cases convolution at horizon `Th`: `p_drc ·
-# ∫₀^{Th} exp(r·s) · f_conf(Th - s) ds` with `f_conf` the
-# moment-matched Gamma of `f_rep ∗ f_lab`. Mirrors `_convolved_gamma`
-# in analysis.jl.
+# Laboratory-confirmed cases convolution at horizon `Th`: `s_test ·
+# p_drc · ∫₀^{Th} exp(r·s) · f_conf(Th - s) ds` with `f_conf` the
+# moment-matched Gamma of `f_rep ∗ f_lab` and `s_test` the PCR
+# sensitivity. Mirrors `_convolved_gamma` in analysis.jl.
 function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
-        p_drc; alg = DEATH_INTEGRAL_ALG)
+        p_drc, s_test; alg = DEATH_INTEGRAL_ALG)
     d_rep  = Gamma(α_rep, θ_rep)
     d_lab  = Gamma(α_lab, θ_lab)
     μ_d    = mean(d_rep) + mean(d_lab)
@@ -1269,7 +1269,7 @@ function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
     α_conf = μ_d  / θ_conf
     conv   = expected_deaths(one(p_drc), r, Th, Gamma(α_conf, θ_conf);
                              alg)
-    return p_drc * conv
+    return s_test * p_drc * conv
 end
 
 function _nb_rand(rng, k, μ)
@@ -1301,10 +1301,11 @@ DRC reported cases follow the additive expectation
 `p_drc · ∫₀^{T+h} exp(r·s) · f_rep(T+h-s) ds + λ_bg · (T+h)`, with
 `f_rep = Gamma(α_rep, θ_rep)` for the BVD-driven contribution and
 `λ_bg` the per-day non-BVD background. Laboratory-confirmed cases
-follow `p_drc · ∫₀^{T+h} exp(r·s) · f_conf(T+h-s) ds`, with `f_conf`
-the moment-matched Gamma of `f_rep ∗ f_lab`. Exports use `p_uganda · q`
-with `q = daily_travellers / source_population`. Assumes growth
-continues unchanged over the horizon (no interventions, no saturation).
+follow `s_test · p_drc · ∫₀^{T+h} exp(r·s) · f_conf(T+h-s) ds`, with
+`f_conf` the moment-matched Gamma of `f_rep ∗ f_lab` and `s_test` the
+PCR sensitivity. Exports use `p_uganda · q` with
+`q = daily_travellers / source_population`. Assumes growth continues
+unchanged over the horizon (no interventions, no saturation).
 """
 function forecast_reported(chn;
         horizon::Real          = 7,
@@ -1328,12 +1329,13 @@ function forecast_reported(chn;
     α_rep = _draws(chn, :α_rep)
     θ_rep = _draws(chn, :θ_rep)
     λ_bg  = _draws(chn, :λ_bg)
-    ## Lab-turnaround draws live on the joint chain only; their absence
-    ## drops the confirmed-cases columns from the forecast frame.
-    has_lab = all(haskey_chain(chn, n) for n in (:α_lab, :θ_lab)) &&
+    ## Lab-turnaround and PCR sensitivity draws live on the joint chain
+    ## only; their absence drops the confirmed-cases columns.
+    has_lab = all(haskey_chain(chn, n) for n in (:α_lab, :θ_lab, :s_test)) &&
               obs_confirmed !== missing
-    α_lab = has_lab ? _draws(chn, :α_lab) : nothing
-    θ_lab = has_lab ? _draws(chn, :θ_lab) : nothing
+    α_lab  = has_lab ? _draws(chn, :α_lab)  : nothing
+    θ_lab  = has_lab ? _draws(chn, :θ_lab)  : nothing
+    s_test = has_lab ? _draws(chn, :s_test) : nothing
 
     rng = MersenneTwister(seed)
     n = length(r)
@@ -1360,7 +1362,8 @@ function forecast_reported(chn;
         exports_cum[i] = rand(rng, Poisson(max(μ_exports, eps(μ_exports))))
         if has_lab
             μ_confirmed = _forecast_confirmed_mean(r[i], Th,
-                α_rep[i], θ_rep[i], α_lab[i], θ_lab[i], pr[i]; alg)
+                α_rep[i], θ_rep[i], α_lab[i], θ_lab[i], pr[i],
+                s_test[i]; alg)
             confirmed_cum[i] = _nb_rand(rng, k[i], μ_confirmed)
         end
     end
