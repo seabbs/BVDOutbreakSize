@@ -125,8 +125,9 @@ Fields returned:
 - `total_deaths::Int`
 - `reported_cases::Int` — DRC suspected cumulative case count.
 - `confirmed_cases::Union{Int, Missing}` — DRC laboratory-confirmed
-  cumulative case count, the lagged subset of `reported_cases` after
-  testing; `missing` when no `confirmed_cases` block is present.
+  cumulative case count, the truth-anchor on the latent
+  eventually-confirmable pool ``C(T)`` (reported counts are an inflated
+  view); `missing` when no `confirmed_cases` block is present.
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
@@ -1191,6 +1192,35 @@ function _forecast_deaths_mean(r, Th, α, θ, CFR; alg = DEATH_INTEGRAL_ALG)
     return expected_deaths(CFR, r, Th, Gamma(α, θ); alg)
 end
 
+# Reported (suspected) cases convolution at horizon `Th`: the
+# truth-anchored expectation `(p_drc / π) · ∫₀^{Th} exp(r·s) ·
+# f_rep(Th - s) ds`, with `f_rep = Gamma(α_rep, θ_rep)`. Reuses
+# `expected_deaths` as a generic delay-convolved cumulative integrator
+# (unit ascertainment).
+function _forecast_cases_mean(r, Th, α_rep, θ_rep, p_drc, π;
+        alg = DEATH_INTEGRAL_ALG)
+    π_safe = max(π, eps(typeof(π)))
+    conv = expected_deaths(one(p_drc), r, Th, Gamma(α_rep, θ_rep); alg)
+    return (p_drc / π_safe) * conv
+end
+
+# Laboratory-confirmed cases convolution at horizon `Th`: `p_drc ·
+# ∫₀^{Th} exp(r·s) · f_conf(Th - s) ds` with `f_conf` the
+# moment-matched Gamma of `f_rep ∗ f_lab`. Mirrors `_convolved_gamma`
+# in analysis.jl.
+function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
+        p_drc; alg = DEATH_INTEGRAL_ALG)
+    d_rep  = Gamma(α_rep, θ_rep)
+    d_lab  = Gamma(α_lab, θ_lab)
+    μ_d    = mean(d_rep) + mean(d_lab)
+    σ²_d   = var(d_rep)  + var(d_lab)
+    θ_conf = σ²_d / μ_d
+    α_conf = μ_d  / θ_conf
+    conv   = expected_deaths(one(p_drc), r, Th, Gamma(α_conf, θ_conf);
+                             alg)
+    return p_drc * conv
+end
+
 function _nb_rand(rng, k, μ)
     μs = max(μ, eps(typeof(μ)))
     p = clamp(k / (k + μs), eps(typeof(k)), one(k) - eps(typeof(k)))
@@ -1199,7 +1229,8 @@ end
 
 """
     forecast_reported(chn; horizon = 7, daily_travellers, source_population,
-                      obs_cases, obs_deaths, obs_exports, seed = 20260520)
+                      obs_cases, obs_deaths, obs_exports,
+                      obs_confirmed = missing, seed = 20260520)
 
 One-week-ahead (default `horizon = 7` days) posterior-predictive
 forecast. For each draw, continue exponential growth to `T + horizon`
@@ -1211,12 +1242,17 @@ per draw and columns:
 - `:cases_new`, `:deaths_new`, `:exports_new` — new counts over the
   coming week (`*_cum` minus the corresponding observed count at `T`,
   floored at zero).
+- `:confirmed_cum`, `:confirmed_new` — laboratory-confirmed counterparts
+  when the chain carries the lab-turnaround delay (`:α_lab`, `:θ_lab`)
+  and `obs_confirmed` is supplied. Otherwise these columns are absent.
 
-Reads `:r, :T, :CFR, :α, :θ, :w, :p_drc, :p_uganda, :k` from `chn`. DRC
-reported cases use the DRC ascertainment fraction `p_drc`; exports use
-`p_uganda · q` with `q = daily_travellers / source_population`. Assumes
-growth continues unchanged over the horizon (no interventions, no
-saturation).
+DRC reported cases follow the truth-anchored expectation
+`(p_drc / π) · ∫₀^{T+h} exp(r·s) · f_rep(T+h-s) ds` with `f_rep =
+Gamma(α_rep, θ_rep)` and `π = positivity`. Laboratory-confirmed cases
+follow `p_drc · ∫₀^{T+h} exp(r·s) · f_conf(T+h-s) ds`, with `f_conf`
+the moment-matched Gamma of `f_rep ∗ f_lab`. Exports use `p_uganda · q`
+with `q = daily_travellers / source_population`. Assumes growth
+continues unchanged over the horizon (no interventions, no saturation).
 """
 function forecast_reported(chn;
         horizon::Real          = 7,
@@ -1225,29 +1261,41 @@ function forecast_reported(chn;
         obs_cases::Real,
         obs_deaths::Real,
         obs_exports::Real,
+        obs_confirmed::Union{Real, Missing} = missing,
         seed::Integer          = 20260520,
         alg                    = DEATH_INTEGRAL_ALG)
-    r   = _draws(chn, :r)
-    T   = _draws(chn, :T)
-    CFR = _draws(chn, :CFR)
-    α   = _draws(chn, :α)
-    θ   = _draws(chn, :θ)
-    w   = _draws(chn, :w)
-    pr  = _draws(chn, :p_drc)
-    pu  = _draws(chn, :p_uganda)
-    k   = _draws(chn, :k)
+    r     = _draws(chn, :r)
+    T     = _draws(chn, :T)
+    CFR   = _draws(chn, :CFR)
+    α     = _draws(chn, :α)
+    θ     = _draws(chn, :θ)
+    w     = _draws(chn, :w)
+    pr    = _draws(chn, :p_drc)
+    pu    = _draws(chn, :p_uganda)
+    k     = _draws(chn, :k)
+    α_rep = _draws(chn, :α_rep)
+    θ_rep = _draws(chn, :θ_rep)
+    π     = _draws(chn, :positivity)
+    ## Lab-turnaround draws live on the joint chain only; their absence
+    ## drops the confirmed-cases columns from the forecast frame.
+    has_lab = all(haskey_chain(chn, n) for n in (:α_lab, :θ_lab)) &&
+              obs_confirmed !== missing
+    α_lab = has_lab ? _draws(chn, :α_lab) : nothing
+    θ_lab = has_lab ? _draws(chn, :θ_lab) : nothing
 
     rng = MersenneTwister(seed)
     n = length(r)
     q = daily_travellers / source_population
-    cases_cum   = Vector{Int}(undef, n)
-    deaths_cum  = Vector{Int}(undef, n)
-    exports_cum = Vector{Int}(undef, n)
+    cases_cum     = Vector{Int}(undef, n)
+    deaths_cum    = Vector{Int}(undef, n)
+    exports_cum   = Vector{Int}(undef, n)
+    confirmed_cum = has_lab ? Vector{Int}(undef, n) : nothing
 
     @inbounds for i in 1:n
         Th = T[i] + horizon
-        ## DRC reported cases: p_drc · C(T+h).
-        μ_cases = pr[i] * exp(r[i] * Th)
+        ## DRC reported cases: (p_drc / π) · ∫₀^{T+h} exp(r·s) · f_rep(T+h-s) ds.
+        μ_cases = _forecast_cases_mean(r[i], Th, α_rep[i], θ_rep[i],
+                                       pr[i], π[i]; alg)
         cases_cum[i] = _nb_rand(rng, k[i], μ_cases)
         ## DRC deaths: CFR · ∫_0^{T+h} exp(r·s) f(T+h−s) ds.
         μ_deaths = _forecast_deaths_mean(r[i], Th, α[i], θ[i], CFR[i]; alg)
@@ -1257,10 +1305,15 @@ function forecast_reported(chn;
         lo = max(Th - w[i], zero(Th))
         μ_exports = pu[i] * q * (exp(r[i] * Th) - exp(r[i] * lo)) / r[i]
         exports_cum[i] = rand(rng, Poisson(max(μ_exports, eps(μ_exports))))
+        if has_lab
+            μ_confirmed = _forecast_confirmed_mean(r[i], Th,
+                α_rep[i], θ_rep[i], α_lab[i], θ_lab[i], pr[i]; alg)
+            confirmed_cum[i] = _nb_rand(rng, k[i], μ_confirmed)
+        end
     end
 
     _new(cum, obs) = max.(cum .- round(Int, obs), 0)
-    return DataFrame(
+    df = DataFrame(
         cases_cum    = cases_cum,
         deaths_cum   = deaths_cum,
         exports_cum  = exports_cum,
@@ -1268,6 +1321,23 @@ function forecast_reported(chn;
         deaths_new   = _new(deaths_cum,  obs_deaths),
         exports_new  = _new(exports_cum, obs_exports),
     )
+    if has_lab
+        df.confirmed_cum = confirmed_cum
+        df.confirmed_new = _new(confirmed_cum, obs_confirmed)
+    end
+    return df
+end
+
+## Best-effort presence check for a chain key across the FlexiChains /
+## MCMCChains containers in use. Avoids loading the FlexiChains type
+## just to dispatch.
+function haskey_chain(chn, name::Symbol)
+    try
+        chn[name]
+        return true
+    catch
+        return false
+    end
 end
 
 """
