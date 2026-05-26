@@ -6,6 +6,27 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
+## Unreleased
+
+### Data
+
+- Moved the cut-off to 23 May 2026 and switched the DRC source from
+  the WHO AFRO joint sitrep to the INSP situation reports transcribed
+  by [INRB-UMIE/Ebola_DRC_2026](https://github.com/INRB-UMIE/Ebola_DRC_2026).
+  The INSP series gives a per-zone, per-sitrep daily vintage trajectory
+  (suspected and confirmed; this analysis uses suspected). Cumulative
+  counts at 23 May: 1000 suspected DRC cases, 232 suspected DRC deaths.
+- Updated Uganda to three travel-related imports with one death,
+  reflecting the third import announced on 23 May 2026 (woman from DRC
+  who travelled Arua to Entebbe to Kampala; tested positive on
+  follow-up). Two further Uganda-confirmed cases announced the same
+  day (a driver and a healthcare worker) are domestic contacts of the
+  first import and are excluded from `exported_cases` because the
+  model treats Uganda as imports only.
+- Added a `reported_case_history` block in `data/observations.toml`
+  with eight INSP sitrep vintages (14 May to 23 May 2026), ready for
+  the cumulative-trajectory likelihood once it merges.
+
 ## v1.1.0
 
 ### Modelling

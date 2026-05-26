@@ -56,15 +56,17 @@
 # all streams jointly in a single Bayesian model rather than combining
 # separate scenario analyses (see
 # [What we do differently](#What-we-do-differently-from-McCabe-et-al.)
-# below). Second, the data: results are reported as of the cut-off
-# date in `data/observations.toml` (currently **2026-05-18**), using
-# the reported counts in the data table below. These match the 20 May
-# report's deaths and cases ($131$ and $516$) and are more recent than
-# the 16 May 2026 figures the 18 May report used (e.g. $88$ suspected
-# deaths). The joint
-# posterior assumes a single common
-# cut-off for every data stream, so the deaths, exports and reported-
-# case counts must all be kept in sync to the same date.
+# below). Second, the data: our cut-off is **23 May 2026** with $1000$
+# suspected cases and $232$ suspected deaths in DRC and three
+# travel-related imports with one death in Uganda. The McCabe et al.
+# 18 May report used a 16 May cut-off ($336$ cases, $88$ deaths, two
+# imports); the 20 May update used 18 May ($516$ cases, $131$ deaths).
+# We draw the DRC counts from the per-zone INSP situation-report series
+# via the INRB-UMIE Ebola_DRC_2026 transcription, which gives a daily
+# vintage trajectory; the underlying source is the same INSP sitreps
+# the WHO joint sitrep aggregates from. The joint posterior assumes a
+# single common cut-off for every data stream, so the deaths, exports
+# and reported-case counts must all be kept in sync to the same date.
 #
 # **Offline copy.** A self-contained single-file HTML version of this
 # report, built from the same run, is attached to each results release:

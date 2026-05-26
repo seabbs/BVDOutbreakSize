@@ -2,32 +2,63 @@
 # Each entry pairs a numeric value with a short source citation;
 # both are loaded by `load_observations` and printed in the
 # walkthrough.
+#
+# DRC counts (reported_cases, total_deaths, reported_case_history) are
+# sourced from the INRB-UMIE/Ebola_DRC_2026 transcription of the INSP
+# (DRC Institut National de Santé Publique) Mpox Operations Department
+# situation reports, summed across health zones at each sitrep date.
+# Source: https://github.com/INRB-UMIE/Ebola_DRC_2026 (MIT licence;
+# manually transcribed from INSP PDFs). The 23 May 2026 cut-off is the
+# last INSP sitrep with a clean cumulative (the 24 May vintage drops
+# below 23 May for cases because several zones reported ND, indicating
+# incomplete backfill on that sitrep day).
+#
+# Note: INSP cumulative suspected cases on 18 May 2026 are 623, higher
+# than the WHO AFRO joint sitrep 01 figure of 516 for the same date
+# (deaths match exactly at 131). We use the INSP series here because it
+# is the per-zone, per-sitrep source the joint sitrep aggregates from
+# and gives a daily vintage trajectory. The model uses suspected counts;
+# a separate PR fits confirmed cases via test positivity (#113, #115).
 
-as_of_date = "2026-05-18"
+as_of_date = "2026-05-23"
 
 [exported_cases]
-value  = 2
-source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — two confirmed imported cases in Kampala, Uganda"
+value  = 3
+source = "WHO DON 2026-DON602, 2026-DON603, and WHO Director-General Ministerial Briefing 25 May 2026 — three travel-related (DRC) cases imported into Uganda: (i) elderly man admitted Kampala 11 May 2026, died 14 May; (ii) second import confirmed 16 May 2026 in Kampala with no apparent link to the first; (iii) woman from DRC who travelled Arua to Entebbe to Kampala with mild symptoms, tested positive on follow-up, announced 23 May 2026 (https://www.aljazeera.com/news/2026/5/23/uganda-confirms-three-new-ebola-cases-bringing-total-to-five). Two additional Uganda confirmed cases announced 23 May (a driver and a healthcare worker) are domestic contacts of import #1 and are excluded — this model treats Uganda as imports only."
 
 [exports_deaths]
 value  = 1
-source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — one death among the two Uganda imported cases"
+source = "WHO DON 2026-DON602 — one death (import #1, died 14 May 2026). No deaths reported among imports #2 or #3 as of the 23 May 2026 cut-off."
 
 [first_export_detection_date]
 value  = "2026-05-11"
-source = "WHO DON 2026-DON602 — first Uganda export hospital-admitted 11 May 2026 (point-of-entry/hospital detection date). Used as a one-sided timing bound on T."
+source = "WHO DON 2026-DON602 — import #1 hospital-admitted 11 May 2026 (point-of-entry/hospital detection date). Used as a one-sided timing bound on T. Detection dates for imports #2 (confirmed 16 May) and #3 (announced 23 May; underlying detection date not published) are not used by the model: only the earliest detection enters the timing term."
 
 [export_death_dates]
 value  = ["2026-05-14"]
-source = "WHO DON 2026-DON602 — the fatal Uganda export was hospital-admitted 11 May 2026 and died 14 May 2026 (hospital-recorded death date). A list of dated export deaths; loaded as a daily series and fitted with a binned-Poisson likelihood that bounds T."
+source = "WHO DON 2026-DON602 — the fatal Uganda export (import #1) was hospital-admitted 11 May 2026 and died 14 May 2026 (hospital-recorded death date). A list of dated export deaths; loaded as a daily series and fitted with a binned-Poisson likelihood that bounds T."
 
 [total_deaths]
-value  = 131
-source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — DRC suspected deaths"
+value  = 232
+source = "INRB-UMIE/Ebola_DRC_2026 transcription of INSP SitRep 010 (data as of 23 May 2026) — DRC cumulative suspected deaths, summed across health zones from insp_sitrep__cumulative_suspected_deaths__daily.csv."
 
 [reported_cases]
-value  = 516
-source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — DRC suspected cases"
+value  = 1000
+source = "INRB-UMIE/Ebola_DRC_2026 transcription of INSP SitRep 010 (data as of 23 May 2026) — DRC cumulative suspected cases, summed across health zones from insp_sitrep__cumulative_suspected_cases__daily.csv."
+
+# Cumulative reported-case totals across INSP situation-report vintages.
+# We trust each vintage's cumulative-at-date count but not the per-case
+# timing (heavy backfill at the zone level; the INSP `date` is the
+# sitrep publication date, not symptom onset or specimen collection),
+# so the model fits the between-vintage increments rather than the
+# nested cumulative totals. Values are cumulative DRC suspected cases
+# summed across health zones at each INSP sitrep date. The cut-off
+# vintage (23 May) matches `reported_cases`.
+[reported_case_history]
+dates  = ["2026-05-14", "2026-05-15", "2026-05-18", "2026-05-19",
+          "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23"]
+values = [246, 326, 623, 676, 747, 869, 972, 1000]
+source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP SitReps 001-010 published 14-23 May 2026. Values are cumulative DRC suspected cases summed across reporting health zones at each sitrep date. SitRep 003 (16 May) is absent from the INSP series. The 24 May vintage is omitted because several zones reported ND on that sitrep, giving a cumulative sum that drops below the 23 May figure."
 
 [daily_outbound_travellers]
 value  = 1871
