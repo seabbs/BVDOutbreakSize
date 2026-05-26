@@ -1,0 +1,9 @@
+[deps]
+BVDOutbreakSize = "7c2a1f8e-9d4b-4a16-bf3e-1f5c8c3a90e2"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+
+[compat]
+JET = "0.10, 0.11"
+
+[sources]
+BVDOutbreakSize = {path = "../.."}

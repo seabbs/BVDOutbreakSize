@@ -22,15 +22,6 @@
     @test analytic ≈ numerical rtol = 1e-6
 end
 
-# Found type-stability issue in `_gamma_cdf` and left here
-# to check against future regressions.
-@testitem "_gamma_cdf is type stable" tags=[:ad] begin
-    using JET: test_opt
-    using BVDOutbreakSize
-    test_opt(BVDOutbreakSize._gamma_cdf, (Float64, Float64, Float64);
-             target_modules = (BVDOutbreakSize,))
-end
-
 @testitem "_gamma_cdf Mooncake rule at reference point" tags=[:ad] begin
     using Mooncake: Mooncake
     using Random: MersenneTwister
