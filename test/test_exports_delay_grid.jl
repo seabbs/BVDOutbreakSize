@@ -3,13 +3,9 @@
 ## reference in value and gradient, and pin the gradient finite (the build
 ## must avoid the density at 0, whose Gamma shape derivative is NaN).
 
-import BVDOutbreakSize
-using BVDOutbreakSize: ExportDeathDelay, integrate_exports_deaths,
-                       expected_exports_deaths
-using Distributions: Gamma
-using Mooncake: Mooncake
-
-@testset "ExportDeathDelay matches the distribution integral" begin
+@testitem "ExportDeathDelay matches the distribution integral" tags=[:ad] begin
+    using Distributions: Gamma
+    using BVDOutbreakSize: ExportDeathDelay, integrate_exports_deaths
     cumulative = s -> exp(0.05 * s)
     w, T       = 15.0, 90.0
     lo         = max(T - w, 0.0)
@@ -22,7 +18,9 @@ using Mooncake: Mooncake
     end
 end
 
-@testset "ExportDeathDelay dispatches through expected_exports_deaths" begin
+@testitem "ExportDeathDelay dispatches through expected_exports_deaths" tags=[:ad] begin
+    using Distributions: Gamma
+    using BVDOutbreakSize: ExportDeathDelay, expected_exports_deaths
     cumulative = s -> exp(0.05 * s)
     dist       = Gamma(4.3, 2.6)
     CFR, p, q  = 0.30, 0.25, 1871 / 4_392_200
@@ -34,7 +32,10 @@ end
     @test fast > 0
 end
 
-@testset "ExportDeathDelay CDF is monotone and bounded" begin
+@testitem "ExportDeathDelay CDF is monotone and bounded" tags=[:ad] begin
+    using Distributions: Gamma
+    using BVDOutbreakSize: ExportDeathDelay
+    using BVDOutbreakSize
     ed = ExportDeathDelay(Gamma(4.3, 2.6), 20.0)
     F  = [BVDOutbreakSize._cdf_to(ed, y) for y in 0.0:0.5:25.0]
     @test all(diff(F) .>= -1e-12)            # non-decreasing
@@ -42,7 +43,11 @@ end
     @test F[end] < 1.0                       # CDF below 1 within window
 end
 
-@testset "ExportDeathDelay gradient is finite and matches the reference" begin
+@testitem "ExportDeathDelay gradient is finite and matches the reference" tags=[:ad] begin
+    using Distributions: Gamma
+    using Mooncake: Mooncake
+    using BVDOutbreakSize: ExportDeathDelay, integrate_exports_deaths
+
     cumulative = s -> exp(0.05 * s)
     w, T = 15.0, 90.0
     lo   = max(T - w, 0.0)

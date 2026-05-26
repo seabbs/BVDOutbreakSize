@@ -1,7 +1,8 @@
 ## Tests for load_observations: returns the documented fields from
 ## the bundled data/observations.toml file.
 
-@testset "load_observations returns the documented fields" begin
+@testitem "load_observations returns the documented fields" begin
+    using BVDOutbreakSize: load_observations
     obs = load_observations()
     @test obs isa NamedTuple
     @test obs.exported_cases isa Integer
@@ -45,25 +46,23 @@
     @test !isempty(obs.sources.genetic_tmrca)
 end
 
-## Export deaths are loaded as a daily series from the earliest dated
-## death to the cut-off (entry i = day at offset n-i+1). Exercise the
-## construction on synthetic dates rather than asserting the bundled
-## data's value, and check the date-absent path returns an empty vector.
-function _write_obs(io; as_of, death_dates = nothing)
-    write(io, "as_of_date = \"$as_of\"\n")
-    death_dates === nothing || begin
-        quoted = join(("\"$d\"" for d in death_dates), ", ")
-        write(io, "[export_death_dates]\nvalue = [$quoted]\n",
-              "source = \"x\"\n")
-    end
-    for k in ("exported_cases", "exports_deaths", "total_deaths",
-              "reported_cases", "daily_outbound_travellers",
-              "daily_outbound_travellers_sd", "source_population")
-        write(io, "[$k]\nvalue = 1\nsource = \"x\"\n")
-    end
-end
+@testitem "export_deaths_daily is a daily series to the cut-off" begin
+    using BVDOutbreakSize: load_observations
 
-@testset "export_deaths_daily is a daily series to the cut-off" begin
+    function _write_obs(io; as_of, death_dates = nothing)
+        write(io, "as_of_date = \"$as_of\"\n")
+        death_dates === nothing || begin
+            quoted = join(("\"$d\"" for d in death_dates), ", ")
+            write(io, "[export_death_dates]\nvalue = [$quoted]\n",
+                  "source = \"x\"\n")
+        end
+        for k in ("exported_cases", "exports_deaths", "total_deaths",
+                  "reported_cases", "daily_outbound_travellers",
+                  "daily_outbound_travellers_sd", "source_population")
+            write(io, "[$k]\nvalue = 1\nsource = \"x\"\n")
+        end
+    end
+
     mktempdir() do dir
         path = joinpath(dir, "obs.toml")
         open(io -> _write_obs(io; as_of = "2026-05-18",
@@ -80,7 +79,23 @@ end
     end
 end
 
-@testset "export_deaths_daily is empty when no dates are present" begin
+@testitem "export_deaths_daily is empty when no dates are present" begin
+    using BVDOutbreakSize: load_observations
+
+    function _write_obs(io; as_of, death_dates = nothing)
+        write(io, "as_of_date = \"$as_of\"\n")
+        death_dates === nothing || begin
+            quoted = join(("\"$d\"" for d in death_dates), ", ")
+            write(io, "[export_death_dates]\nvalue = [$quoted]\n",
+                  "source = \"x\"\n")
+        end
+        for k in ("exported_cases", "exports_deaths", "total_deaths",
+                  "reported_cases", "daily_outbound_travellers",
+                  "daily_outbound_travellers_sd", "source_population")
+            write(io, "[$k]\nvalue = 1\nsource = \"x\"\n")
+        end
+    end
+
     mktempdir() do dir
         path = joinpath(dir, "obs.toml")
         open(io -> _write_obs(io; as_of = "2026-05-18"), path, "w")

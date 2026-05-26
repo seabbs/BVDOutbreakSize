@@ -1,7 +1,10 @@
 ## Tests for streams_table: one row per stream with the documented
 ## column order.
 
-@testset "streams_table returns expected columns and row count" begin
+@testitem "streams_table returns expected columns and row count" begin
+    using DataFrames: DataFrame, nrow
+    using Random: MersenneTwister
+    using BVDOutbreakSize: streams_table
     rng = MersenneTwister(1)
     a = randn(rng, 500) .* 50 .+ 400
     b = randn(rng, 500) .* 80 .+ 600

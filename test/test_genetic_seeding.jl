@@ -4,15 +4,15 @@
 ## upper-censored, noisy reading of the seeding time `T`: a soft one-
 ## sided bound, flat above the TMRCA `g` and decaying below it.
 
-using Distributions: Normal, logcdf, censored, truncated
-using Turing: Turing, @model, sample, Prior, to_submodel, logjoint
+@testitem "genetic_seeding adds the soft lower-bound log density" begin
+    using Distributions: Normal, logcdf, censored
+    using Turing: @model, logjoint
 
-@model function _genetic_seeding(T, tmrca_days::Real; tmrca_days_sd::Real)
-    tmrca_days ~ censored(Normal(T, tmrca_days_sd); upper = tmrca_days)
-    return (; tmrca_days, tmrca_days_sd)
-end
+    @model function _genetic_seeding(T, tmrca_days::Real; tmrca_days_sd::Real)
+        tmrca_days ~ censored(Normal(T, tmrca_days_sd); upper = tmrca_days)
+        return (; tmrca_days, tmrca_days_sd)
+    end
 
-@testset "genetic_seeding adds the soft lower-bound log density" begin
     ## g is the molecular-clock TMRCA in days before the cut-off; sd is
     ## the SD on the floor's location, not a bound on how old T can be.
     ## Synthetic values here just exercise the submodel mechanics.
@@ -30,17 +30,25 @@ end
     @test at(200.0) - at(160.0) < at(40.0) - at(20.0)
 end
 
-@model function _seed_growth(genetic)
-    m ~ truncated(Normal(7.0, 2.5); lower = 0, upper = 13.0)
-    τ := 14.0
-    T := m * τ
-    if genetic !== nothing
-        genetic_state ~ to_submodel(genetic(T), false)
-    end
-    return (; T)
-end
+@testitem "genetic_seeding composes into a growth model via to_submodel" tags=[:slow] begin
+    using Distributions: Normal, censored, truncated
+    using Turing: @model, sample, Prior, to_submodel
 
-@testset "genetic_seeding composes into a growth model via to_submodel" begin
+    @model function _genetic_seeding(T, tmrca_days::Real; tmrca_days_sd::Real)
+        tmrca_days ~ censored(Normal(T, tmrca_days_sd); upper = tmrca_days)
+        return (; tmrca_days, tmrca_days_sd)
+    end
+
+    @model function _seed_growth(genetic)
+        m ~ truncated(Normal(7.0, 2.5); lower = 0, upper = 13.0)
+        τ := 14.0
+        T := m * τ
+        if genetic !== nothing
+            genetic_state ~ to_submodel(genetic(T), false)
+        end
+        return (; T)
+    end
+
     seed = T -> _genetic_seeding(T, 80.0; tmrca_days_sd = 20.0)
     chn = sample(_seed_growth(seed), Prior(), 50; progress = false)
     T_draws = vec(Array(chn[:T]))

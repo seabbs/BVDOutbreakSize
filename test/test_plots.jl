@@ -1,13 +1,16 @@
-## Smoke tests for the three plotting functions. We do not compare
+## Smoke tests for the plotting functions. We do not compare
 ## pixels — we only check that each call returns a renderable object
-## without throwing. CairoMakie is activated headless in runtests.jl.
+## without throwing. CairoMakie is activated headless via the
+## HeadlessMakie testsnippet.
 
-@model function _plot_model()
-    a ~ Normal(0.0, 1.0)
-    b ~ Normal(2.0, 0.5)
+@testsnippet HeadlessMakie begin
+    using CairoMakie
+    CairoMakie.activate!(type = "png")
 end
 
-@testset "plot_cumulative_cases returns a figure-grid" begin
+@testitem "plot_cumulative_cases returns a figure-grid" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    using BVDOutbreakSize: plot_cumulative_cases
     rng = MersenneTwister(4)
     a = randn(rng, 300) .* 50 .+ 400
     b = randn(rng, 300) .* 80 .+ 600
@@ -17,7 +20,9 @@ end
     @test fg.figure isa CairoMakie.Makie.Figure
 end
 
-@testset "plot_density_overlay returns a figure-grid" begin
+@testitem "plot_density_overlay returns a figure-grid" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    using BVDOutbreakSize: plot_density_overlay
     rng = MersenneTwister(14)
     a = randn(rng, 300) .* 5 .+ 50
     b = randn(rng, 300) .* 5 .+ 40
@@ -27,7 +32,9 @@ end
     @test fg.figure isa CairoMakie.Makie.Figure
 end
 
-@testset "plot_posterior_predictive returns a Makie figure" begin
+@testitem "plot_posterior_predictive returns a Makie figure" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    using BVDOutbreakSize: plot_posterior_predictive
     rng = MersenneTwister(5)
     pp_exports = rand(rng, 0:10, 500)
     pp_deaths = rand(rng, 0:5, 500)
@@ -35,7 +42,9 @@ end
     @test fig isa CairoMakie.Makie.Figure
 end
 
-@testset "plot_posterior_predictive lays out four streams" begin
+@testitem "plot_posterior_predictive lays out four streams" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    using BVDOutbreakSize: plot_posterior_predictive
     rng = MersenneTwister(15)
     fig = plot_posterior_predictive(
         rand(rng, 0:10, 400), rand(rng, 0:60, 400), 3, 40;
@@ -44,7 +53,9 @@ end
     @test fig isa CairoMakie.Makie.Figure
 end
 
-@testset "plot_prior_predictive returns a Makie figure" begin
+@testitem "plot_prior_predictive returns a Makie figure" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    using BVDOutbreakSize: plot_prior_predictive
     rng = MersenneTwister(6)
     pp_exports = rand(rng, 0:10, 500)
     pp_deaths = rand(rng, 0:5, 500)
@@ -52,7 +63,9 @@ end
     @test fig isa CairoMakie.Makie.Figure
 end
 
-@testset "plot_posterior_predictive_grid lays out four columns" begin
+@testitem "plot_posterior_predictive_grid lays out four columns" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    using BVDOutbreakSize
     rng = MersenneTwister(17)
     streams = (; exports        = rand(rng, 0:10, 300),
                  exports_deaths = rand(rng, 0:3, 300),
@@ -65,21 +78,42 @@ end
     @test fig isa CairoMakie.Makie.Figure
 end
 
-@testset "plot_pair returns a renderable object" begin
+@testitem "plot_pair returns a renderable object" setup=[HeadlessMakie] begin
+    using Distributions: Normal
+    using Turing: @model, sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: plot_pair
+
+    @model function _plot_model()
+        a ~ Normal(0.0, 1.0)
+        b ~ Normal(2.0, 0.5)
+    end
+
     chn = sample(_plot_model(), Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
     obj = plot_pair(chn, [:a, :b]; thin = 4)
     @test obj !== nothing
 end
 
-@testset "plot_pair overlays a prior series" begin
+@testitem "plot_pair overlays a prior series" setup=[HeadlessMakie] begin
+    using Distributions: Normal
+    using Turing: @model, sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: plot_pair
+
+    @model function _plot_model()
+        a ~ Normal(0.0, 1.0)
+        b ~ Normal(2.0, 0.5)
+    end
+
     chn = sample(_plot_model(), Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
     obj = plot_pair(chn, [:a, :b]; thin = 4, prior = chn)
     @test obj !== nothing
 end
 
-@testset "plot_estimate_comparison returns a Makie figure" begin
+@testitem "plot_estimate_comparison returns a Makie figure" setup=[HeadlessMakie] begin
+    using BVDOutbreakSize: plot_estimate_comparison
     rows = [
         ("Source A", 313, 39, 870),
         ("Source B", 501, 402, 612),
@@ -89,7 +123,10 @@ end
     @test fig isa CairoMakie.Makie.Figure
 end
 
-@testset "plot_start_date_pair returns a Makie figure" begin
+@testitem "plot_start_date_pair returns a Makie figure" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    import FlexiChains
+    using BVDOutbreakSize: plot_start_date_pair
     rng = MersenneTwister(16)
     n = 200
     vals = hcat(abs.(randn(rng, n)) .+ 7, abs.(randn(rng, n)) .* 30)

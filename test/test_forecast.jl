@@ -2,26 +2,31 @@
 ## synthetic chain carrying the parameters `forecast_reported` reads,
 ## then checks the returned DataFrame contract.
 
-using DataFrames: DataFrame, nrow
-using Distributions: Normal, Gamma, Beta, truncated
-using Turing: Turing, @model, sample, Prior
-import FlexiChains
+@testsnippet ForecastFixtures begin
+    using Distributions: Normal, Beta, truncated
+    using Turing: @model
 
-@model function _forecast_test()
-    r          ~ truncated(Normal(0.05, 0.01); lower = 1e-3)
-    T          ~ truncated(Normal(100.0, 10.0); lower = 1.0)
-    CFR        ~ Beta(6.0, 14.0)
-    α          ~ truncated(Normal(4.3, 0.5); lower = 0.5)
-    θ          ~ truncated(Normal(2.6, 0.3); lower = 0.2)
-    w          ~ truncated(Normal(15.0, 2.0); lower = 1.0)
-    p_drc      ~ Beta(2.0, 6.0)
-    p_uganda   ~ Beta(2.0, 6.0)
-    inv_sqrt_k ~ truncated(Normal(0.0, 1.0); lower = 1e-3)
-    k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
-    return nothing
+    @model function _forecast_test()
+        r          ~ truncated(Normal(0.05, 0.01); lower = 1e-3)
+        T          ~ truncated(Normal(100.0, 10.0); lower = 1.0)
+        CFR        ~ Beta(6.0, 14.0)
+        α          ~ truncated(Normal(4.3, 0.5); lower = 0.5)
+        θ          ~ truncated(Normal(2.6, 0.3); lower = 0.2)
+        w          ~ truncated(Normal(15.0, 2.0); lower = 1.0)
+        p_drc      ~ Beta(2.0, 6.0)
+        p_uganda   ~ Beta(2.0, 6.0)
+        inv_sqrt_k ~ truncated(Normal(0.0, 1.0); lower = 1e-3)
+        k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
+        return nothing
+    end
 end
 
-@testset "forecast_reported returns the documented columns" begin
+@testitem "forecast_reported returns the documented columns" tags=[:slow] setup=[ForecastFixtures] begin
+    using DataFrames: DataFrame, nrow
+    using Turing: sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: forecast_reported
+
     chn = sample(_forecast_test(), Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
 
@@ -48,7 +53,12 @@ end
     @test all(fc.deaths_new .<= fc.deaths_cum)
 end
 
-@testset "forecast_table and plot_forecast" begin
+@testitem "forecast_table and plot_forecast" tags=[:slow] setup=[ForecastFixtures, HeadlessMakie] begin
+    using DataFrames: DataFrame, nrow
+    using Turing: sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: forecast_reported, forecast_table, plot_forecast
+
     chn = sample(_forecast_test(), Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
     fc = forecast_reported(chn;
@@ -70,7 +80,12 @@ end
     @test fig !== nothing
 end
 
-@testset "forecast_vs_truth compares cumulative forecast to observed" begin
+@testitem "forecast_vs_truth compares cumulative forecast to observed" tags=[:slow] setup=[ForecastFixtures, HeadlessMakie] begin
+    using DataFrames: DataFrame, nrow
+    using Turing: sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: forecast_reported, forecast_vs_truth, plot_forecast_vs_truth
+
     chn = sample(_forecast_test(), Prior(), 200;
                  chain_type = FlexiChains.VNChain, progress = false)
     fc = forecast_reported(chn;

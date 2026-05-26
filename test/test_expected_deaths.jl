@@ -1,6 +1,5 @@
 ## Tests for the analytic Gamma method of `expected_deaths`.
 
-
 # Reference parameter values. α, θ match the Gamma onset-to-death
 # prior means; CFR, r, T are mid-run state. x_cdf is the CDF argument
 # that expected_deaths(::Gamma) actually feeds to `_gamma_cdf`,
@@ -9,23 +8,36 @@
 #
 # For α = 4.3, we do not have numerical stability issues in the α-derivative,
 # see below for stronger tests on just the analytic form.
-let α = 4.3, θ = 2.6, CFR = 0.3, r = 0.05, T = 30.0,
-    x_cdf = T * (1 + θ * r)
 
-    @testset "expected_deaths Gamma analytic matches integration" begin
-        dist = Gamma(α, θ)
-        analytic = expected_deaths(CFR, r, T, dist)
-        numerical = invoke(expected_deaths,
-                           Tuple{Any, Any, Any, Any},
-                           CFR, r, T, dist) #avoid the analytic method dispatch
-        @test analytic ≈ numerical rtol = 1e-6
-    end
+@testitem "expected_deaths Gamma analytic matches integration" tags=[:ad] begin
+    using Distributions: Gamma
+    using BVDOutbreakSize: expected_deaths
 
-    # Found type-stability issue in `_gamma_cdf` and left here
-    # to check against future regressions.
+    α, θ, CFR, r, T = 4.3, 2.6, 0.3, 0.05, 30.0
+    dist = Gamma(α, θ)
+    analytic = expected_deaths(CFR, r, T, dist)
+    numerical = invoke(expected_deaths,
+                       Tuple{Any, Any, Any, Any},
+                       CFR, r, T, dist) #avoid the analytic method dispatch
+    @test analytic ≈ numerical rtol = 1e-6
+end
+
+# Found type-stability issue in `_gamma_cdf` and left here
+# to check against future regressions.
+@testitem "_gamma_cdf is type stable" tags=[:ad] begin
+    using JET: test_opt
+    using BVDOutbreakSize
     test_opt(BVDOutbreakSize._gamma_cdf, (Float64, Float64, Float64);
              target_modules = (BVDOutbreakSize,))
+end
 
+@testitem "_gamma_cdf Mooncake rule at reference point" tags=[:ad] begin
+    using Mooncake: Mooncake
+    using Random: MersenneTwister
+    using BVDOutbreakSize
+
+    α, θ, r, T = 4.3, 2.6, 0.05, 30.0
+    x_cdf = T * (1 + θ * r)
     Mooncake.TestUtils.test_rule(
         MersenneTwister(20260520),
         BVDOutbreakSize._gamma_cdf, α, θ, x_cdf;
@@ -44,7 +56,12 @@ end
 # α ≥ 5 (Stan's `(9, 10)` case). Each case is run through
 # `Mooncake.TestUtils.test_rule`, which compares the lifted rrule
 # against Richardson-extrapolated finite differences.
-let θ = 1.0
+@testitem "_gamma_cdf Mooncake rule across (α, z) grid" tags=[:ad] begin
+    using Mooncake: Mooncake
+    using Random: MersenneTwister
+    using BVDOutbreakSize
+
+    θ = 1.0
     cases = [
         # (α,    z,      atol)
         (0.3,  13.04, 1e-8),  # small α, deep tail — NUTS warmup risk
