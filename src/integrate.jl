@@ -8,8 +8,6 @@
 _integrate_kernel(u, p) = p.f(p.halfwidth * (u + 1) + p.lo)
 
 """
-$(TYPEDSIGNATURES)
-
 Integrate a scalar function `f` over `[lo, hi]` by Gauss-Legendre
 quadrature. The reference domain `[-1, 1]` is mapped onto `[lo, hi]`,
 so any forward integral in the package can share one integrator. Returns
@@ -36,8 +34,6 @@ _clustered_kernel(u, p) = begin
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Integrate a scalar function `f` over `[lo, hi]` by Gauss-Legendre
 quadrature with the nodes clustered towards `hi`, resolving features of
 size `scale` near that limit. Use for onset-to-death convolutions, whose
@@ -71,8 +67,6 @@ end
 _delay_scale(dist) = mean(dist) + DELAY_SUPPORT_K * std(dist)
 
 """
-$(TYPEDSIGNATURES)
-
 Integrate a cumulative-incidence trajectory `cumulative` (a callable
 `C(s)`) over `[lo, hi]`. Backs the at-risk person-time export integral
 ``\\int_{T-w}^{T} C(s)\\, ds``. Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
@@ -82,8 +76,6 @@ function integrate_cumulative(cumulative, lo, hi; alg = CUMULATIVE_INTEGRAL_ALG)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Deaths-among-exports convolution
 ``\\int_{lo}^{hi} C(s)\\, F_d(T - s)\\, ds`` with `F_d` the `delay_dist`
 onset-to-death CDF. The CDF is itself written as the inner integral of
@@ -103,8 +95,6 @@ function integrate_exports_deaths(cumulative, delay_dist, lo, hi, T;
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Deaths-among-exports convolution specialised for `Gamma` delay
 distributions. Same expression as the generic method —
 ``\\int_{lo}^{hi} C(s)\\, F_d(T - s)\\, ds`` — but the onset-to-death
@@ -126,8 +116,6 @@ function integrate_exports_deaths(cumulative, delay_dist::Gamma, lo, hi, T;
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Onset-to-death delay carrying its CDF `F_d` precomputed on an evenly
 spaced grid over `[0, gmax]`, built once and reused across every outer
 node and bin edge of the deaths-among-exports convolution rather than
@@ -177,8 +165,6 @@ end
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Deaths-among-exports convolution using a precomputed [`ExportDeathDelay`](@ref):
 ``\\int_{lo}^{hi} C(s)\\, F_d(T - s)\\, ds`` with `F_d` interpolated off the
 grid rather than re-integrated at each node. Mathematically identical to

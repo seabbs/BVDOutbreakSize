@@ -19,9 +19,6 @@ function _committed_deaths_one(r, T, α, θ, CFR;
 end
 
 """
-    predict_no_onward_deaths(chn; obs_deaths,
-                             alg = GaussLegendre(n = 64))
-
 Per-draw projection of cumulative deaths under the counterfactual
 that every onward transmission stops at time `T`. Reads `:r, :T, :α,
 :θ, :CFR` from the posterior `chn` and integrates

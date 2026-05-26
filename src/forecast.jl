@@ -19,9 +19,6 @@ function _nb_rand(rng, k, μ)
 end
 
 """
-    forecast_reported(chn; horizon = 7, daily_travellers, source_population,
-                      obs_cases, obs_deaths, obs_exports, seed = 20260520)
-
 One-week-ahead (default `horizon = 7` days) posterior-predictive
 forecast. For each draw, continue exponential growth to `T + horizon`
 and apply the observation models, returning a `DataFrame` with one row
@@ -92,8 +89,6 @@ function forecast_reported(chn;
 end
 
 """
-    forecast_table(fc::DataFrame; digits = 0)
-
 Summarise a [`forecast_reported`](@ref) result into a `DataFrame` with
 one row per stream (cases, deaths, exports) and quantity (cumulative
 total by `T + 7`, or new this week), reporting the same equal-tailed
@@ -120,8 +115,6 @@ function forecast_table(fc::DataFrame; digits::Integer = 0)
 end
 
 """
-    forecast_vs_truth(fc::DataFrame; cases, deaths, exports, digits = 0)
-
 Validate a [`forecast_reported`](@ref) projection against the counts
 that were later observed. `cases`, `deaths` and `exports` are the
 observed cumulative DRC reported cases, DRC deaths and Uganda exports at

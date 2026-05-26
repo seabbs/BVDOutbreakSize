@@ -16,7 +16,8 @@ import SpecialFunctions
 using Turing
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
-using DocStringExtensions
+using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
+                           TYPEDFIELDS, TYPEDSIGNATURES
 using Distributions: Distribution, Gamma, cdf, ccdf, mgf, pdf, Poisson, NegativeBinomial
 using Integrals: IntegralProblem, GaussLegendre, QuadGKJL, solve
 import FastGaussQuadrature
@@ -47,6 +48,7 @@ export REPORT_SCENARIOS,
        forecast_reported, forecast_table, plot_forecast,
        forecast_vs_truth, plot_forecast_vs_truth
 
+include("docstrings.jl")
 include("constants.jl")
 include("data.jl")
 include("sampling.jl")

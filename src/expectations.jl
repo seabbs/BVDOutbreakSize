@@ -3,8 +3,6 @@
 # expected deaths-among-exports.
 
 """
-$(TYPEDSIGNATURES)
-
 Expected cumulative deaths by time `T` from a single seeding case under
 exponential growth at rate `r`:
 
@@ -31,8 +29,6 @@ function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Expected cumulative deaths by time `T` from a single seeding case under
 exponential growth at rate `r`, using analytic result specific to the
 Gamma distribution:
@@ -54,8 +50,6 @@ function expected_deaths(CFR, r, T, delay_dist::Gamma)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Expected cumulative detected exports by elapsed time `t`, clamped to be
 strictly positive and finite:
 
@@ -79,8 +73,6 @@ function expected_exports(cumulative, p, q, t, window;
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Expected cumulative deaths among detected exports by elapsed time `t`,
 clamped to be strictly positive and finite:
 

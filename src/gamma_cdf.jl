@@ -1,6 +1,4 @@
 """
-$(TYPEDSIGNATURES)
-
 Wrapper around `cdf(Gamma(α, θ), x)` as a 3-argument scalar
 scalar function to attach reverse-mode rule.
 
@@ -21,8 +19,6 @@ _gamma_cdf(α, θ, x) = cdf(Gamma(α, θ), x)
 
 
 """
-$(TYPEDSIGNATURES)
-
 Series sum of term derivatives for `∂_α P(α, z)`, using the
 absolutely-convergent Kummer expansion
 
@@ -66,8 +62,6 @@ function _grad_p_a_series(a, z; rtol = 1e-14, maxiter = 10_000)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Compute the partial derivatives of the gamma CDF with respect to α, θ, and x.
 """
 function _gamma_cdf_partials(α, θ, x)
@@ -82,8 +76,6 @@ function _gamma_cdf_partials(α, θ, x)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 ChainRulesCore rrule for the gamma CDF, using the above partials.
 
 NB: the `NoTangent()` is for the function argument itself, which is not a callable/functor.

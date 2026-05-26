@@ -2,16 +2,12 @@
 # to fit every Turing model.
 
 """
-$(TYPEDSIGNATURES)
-
 Mooncake reverse-mode AD with default `Mooncake.Config()`. Used as
 the NUTS `adtype` keyword.
 """
 default_adtype() = AutoMooncake(; config = Mooncake.Config())
 
 """
-$(TYPEDSIGNATURES)
-
 NUTS on `model`, parallel chains via `MCMCThreads`. Chains
 initialise from the prior to keep the sampler away from the
 boundary of constrained variables.

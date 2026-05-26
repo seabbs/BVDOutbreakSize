@@ -3,8 +3,6 @@
 # `NamedTuple` consumed by the analysis pipeline.
 
 """
-$(TYPEDSIGNATURES)
-
 Load the observation block from `data/observations.toml` and return
 it as a `NamedTuple`. Each observation in the TOML is a subtable
 with `value = …` and `source = "…"`; this function returns both the

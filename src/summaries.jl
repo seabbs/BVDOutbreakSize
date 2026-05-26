@@ -5,8 +5,6 @@
 _draws(chn, name::Symbol) = vec(Array(chn[name]))
 
 """
-$(TYPEDSIGNATURES)
-
 Return `(lo90, lo60, lo30, hi30, hi60, hi90)` equal-tailed credible
 interval endpoints from a vector of draws.
 """
@@ -42,8 +40,6 @@ _prettify(df::DataFrame) =
     rename(df, [n => get(_PRETTY_COLS, n, n) for n in names(df)])
 
 """
-$(TYPEDSIGNATURES)
-
 `DataFrame` with one row per posterior parameter and the columns
 `Quantity, Lower 90%, Lower 60%, Lower 30%, Upper 30%, Upper 60%,
 Upper 90%` giving the lower and upper endpoints of the equal-tailed
@@ -101,8 +97,6 @@ function _num_divergences(chn)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 NUTS fit-quality summary for one chain: the worst (maximum) R-hat and
 the smallest bulk effective sample size across parameters, and the
 number of divergent transitions.
@@ -116,8 +110,6 @@ function fit_diagnostics(chn)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 `DataFrame` of fit-quality diagnostics with one row per fit. Pass each
 fit as `"label" => chain`. Columns `:fit, :max_rhat, :min_ess_bulk,
 :divergences`.
@@ -134,8 +126,6 @@ function diagnostics_table(fits::Pair{String}...)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Side-by-side credible intervals for `C_T` from several fits. Pass
 each fit as `"label" => draws_vector`.
 """
@@ -152,8 +142,6 @@ function streams_table(streams::Pair{String, <:AbstractVector}...;
 end
 
 """
-$(TYPEDSIGNATURES)
-
 For each published `C_T` scenario, the narrowest joint posterior
 credible interval (30, 60 or 90%) that contains it, or "outside
 90%".

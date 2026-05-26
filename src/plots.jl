@@ -4,8 +4,6 @@
 # densities, and the one-week-ahead forecast figures.
 
 """
-$(TYPEDSIGNATURES)
-
 Overlaid posterior densities of `C_T` from one or more fits, built
 through AlgebraOfGraphics. The 15 published scenario point estimates
 are drawn as faint dashed Makie `vlines` on top of the AoG figure.
@@ -46,8 +44,6 @@ function plot_cumulative_cases(
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Overlaid posterior densities of an arbitrary scalar quantity from one
 or more fits, built through AlgebraOfGraphics. Pass each fit as
 `"label" => draws`; `xlabel` and `title` set the axis text.
@@ -142,8 +138,6 @@ _panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior") = begin
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Posterior predictive histogram with one panel per supplied data
 stream. Pass `pp_exports`/`pp_deaths` as `nothing` to suppress
 either of the first two panels, and supply `pp_cases` and/or
@@ -196,8 +190,6 @@ function plot_posterior_predictive(
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Two-row × four-column comparison of posterior-predictive
 distributions. Top row: replicates from the per-stream fits. Bottom
 row: replicates from the joint fit, conditioning on all observed
@@ -230,8 +222,6 @@ function plot_posterior_predictive_grid(;
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Prior predictive variant of `plot_posterior_predictive`, with the
 panel labels switched to "Prior".
 """
@@ -248,8 +238,6 @@ function plot_prior_predictive(
 end
 
 """
-$(TYPEDSIGNATURES)
-
 PairPlots.jl corner plot over the named posterior parameters,
 thinned by `thin`. Pass `prior` (another chain holding the same
 parameters) to overlay the prior as a second series with a legend,
@@ -270,8 +258,6 @@ function plot_pair(chn, params::AbstractVector{Symbol};
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Horizontal point-and-interval comparison of cumulative-case estimates
 from several sources. `rows` is a vector of
 `(label, central, lower, upper)` tuples, drawn top to bottom with the
@@ -307,8 +293,6 @@ function plot_estimate_comparison(
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Density of a prior over the case-fatality ratio (CFR) on `[0, 1]`,
 plotted on the sub-range `[0, 0.7]`. The CDC central estimate of
 55/169 ≈ 0.33 is drawn as a solid vertical rule, and the report's 26%
@@ -335,8 +319,6 @@ function plot_cfr_prior(prior::Distribution)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 One-row, two-panel figure summarising when the outbreak began. The
 left panel is the posterior density of the outbreak start date,
 obtained by rescaling the days-since-seeding `T` to a calendar date
@@ -374,8 +356,6 @@ function plot_start_date_pair(chn;
 end
 
 """
-    plot_no_onward_deaths(df; obs_deaths)
-
 Two-panel density of the no-onward-transmission counterfactual from
 [`predict_no_onward_deaths`](@ref). The left panel shows the *still
 expected* deaths (`:delta_deaths`, the future deaths in cases already
@@ -407,8 +387,6 @@ function plot_no_onward_deaths(df::DataFrame; obs_deaths::Real)
 end
 
 """
-    plot_forecast(fc::DataFrame)
-
 Three-panel histogram of the new-this-week forecast counts (cases,
 deaths, exports) from [`forecast_reported`](@ref).
 """
@@ -430,10 +408,6 @@ function plot_forecast(fc::DataFrame)
 end
 
 """
-    plot_forecast_vs_truth(fc::DataFrame; cases, deaths, exports,
-                           baseline_cases = 0, baseline_deaths = 0,
-                           baseline_exports = 0)
-
 Validation figure for a [`forecast_reported`](@ref) projection, laid out
 as a 2×3 grid. The top row shows the cumulative forecast distribution per
 stream (DRC reported cases, DRC deaths, Uganda exports); the bottom row
