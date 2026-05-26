@@ -1203,7 +1203,7 @@ end
 #
 # with mean $0.88$, SD $0.08$ and a $95\%$ interval covering roughly
 # $0.69$ to $0.99$. The Cepheid GeneXpert Ebola assay validations
-# [pinsky2016;semper2016](@cite) report $100\%$ sensitivity against the
+# [pinsky2015;semper2016](@cite) report $100\%$ sensitivity against the
 # Trombley reference on Sierra Leone field whole blood and on
 # virus-isolation-confirmed patient samples; the prior centre sits
 # below that to leave room for early-infection low-viral-load
