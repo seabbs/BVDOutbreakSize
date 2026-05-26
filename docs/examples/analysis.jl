@@ -506,6 +506,10 @@ end
     return (; tmrca_days, tmrca_days_sd)
 end
 
+#md # ```@raw html
+#md # </details>
+#md # ```
+
 # Observing $g$ (`tmrca_days`) at the upper censoring point of
 # $\mathrm{Normal}(T, \sigma)$ contributes the log probability of the
 # censored upper tail, which is the soft bound of Eq. (3a):
@@ -515,10 +519,6 @@ end
 #   = 1 - \Phi\!\left(\frac{g - T}{\sigma}\right)
 #   = \Phi\!\left(\frac{T - g}{\sigma}\right).
 # ```
-
-#md # ```@raw html
-#md # </details>
-#md # ```
 
 # ##### Onset-to-death delay
 #
@@ -1682,6 +1682,7 @@ summary_ranges = let
     sτ = posterior_summary(τd)
     sr = posterior_summary(rd)
 
+    start_central  = Date(obs.as_of_date) - Day(round(Int, med(Td)))
     start_earliest = Date(obs.as_of_date) - Day(round(Int, sT.hi90))
     start_latest   = Date(obs.as_of_date) - Day(round(Int, sT.lo90))
     f_lo = round(sC.lo90 / obs.reported_cases; digits = 1)
@@ -1700,9 +1701,9 @@ summary_ranges = let
       reported to date, so most infections are not yet reported. This
       multiplier is one over the DRC reporting fraction; see
       [what the reporting fraction means](#Joint-model-estimates).
-    - **Time since seeding:** we estimate $(ints_i(sT)) days, placing the
-      start of sustained transmission between $(start_earliest) and
-      $(start_latest).
+    - **Time since seeding:** we estimate $(ints_i(sT)) days, placing
+      the start of sustained transmission around $(start_central) (90%
+      credible interval $(start_earliest) to $(start_latest)).
     - **Doubling time and growth rate:** we estimate a doubling time of
       $(ints_f(sτ, 1)) days, and an implied growth rate of
       $(ints_f(sr, 3)) per day.
@@ -2364,7 +2365,7 @@ cumulative_density_fig #hide
 # ### Comparison with McCabe et al.
 #
 # Our joint fit against the McCabe et al. estimates and our Method 2
-# reproduction: point estimates with 90% intervals. We step through
+# reproduction: point estimates with 95% intervals. We step through
 # both report versions in turn — the 18 May version [mccabe2026](@cite)
 # and the 20 May version [mccabe2026update](@cite) — and end with our
 # joint fit to the current data.
@@ -2411,50 +2412,40 @@ posterior_C_imperial_20may =
 #md # ```
 
 # The plot places each estimate of $C(T)$ on one axis: the central
-# estimate as a point, the 90% interval as a bar. Rows are grouped by
+# estimate as a point, the 95% interval as a bar. Rows are grouped by
 # report version. For each version the first two rows are McCabe et
 # al.'s published Method 1 and Method 2 headline scenarios with their
-# reported intervals, followed by our Method 2 reproduction and our
-# joint fit to that version's data. The final row is our joint fit to
-# the current data.
+# reported 95% confidence intervals, followed by our Method 2
+# reproduction and our joint fit to that version's data, both as 95%
+# credible intervals. The final row is our joint fit to the current
+# data.
 
 #md # ```@raw html
 #md # <details><summary>Build the comparison</summary>
 #md # ```
 
-joint_C_credibles        = posterior_summary(posterior_C_joint)
-joint_report_C_credibles = posterior_summary(posterior_C_joint_report)
-joint_report_20may_C_credibles =
-    posterior_summary(posterior_C_joint_report_20may)
-imperial_C_credibles     = posterior_summary(posterior_C_imperial)
-imperial_20may_C_credibles =
-    posterior_summary(posterior_C_imperial_20may)
+## Our model rows use 95% equal-tailed credible intervals, matching the
+## 95% confidence intervals McCabe et al. report for both methods.
+ci95(xs) = (round(Int, quantile(xs, 0.5)),
+            round(Int, quantile(xs, 0.025)),
+            round(Int, quantile(xs, 0.975)))
+
+joint_ci              = ci95(posterior_C_joint)
+joint_report_ci       = ci95(posterior_C_joint_report)
+joint_report_20may_ci = ci95(posterior_C_joint_report_20may)
+imperial_ci           = ci95(posterior_C_imperial)
+imperial_20may_ci     = ci95(posterior_C_imperial_20may)
 
 comparison_rows = [
     ("18 May: McCabe Method 1 (Ituri, w=15 d)",   313, 39, 870),
     ("18 May: McCabe Method 2 (τ=14 d, CFR 30%)", 501, 402, 612),
-    ("18 May: Our Method 2 reproduction",
-        round(Int, quantile(posterior_C_imperial, 0.5)),
-        round(Int, imperial_C_credibles.lo90),
-        round(Int, imperial_C_credibles.hi90)),
-    ("18 May: Our joint (report data)",
-        round(Int, quantile(posterior_C_joint_report, 0.5)),
-        round(Int, joint_report_C_credibles.lo90),
-        round(Int, joint_report_C_credibles.hi90)),
+    ("18 May: Our Method 2 reproduction",   imperial_ci...),
+    ("18 May: Our joint (report data)",     joint_report_ci...),
     ("20 May: McCabe Method 1 (Ituri, w=15 d)",   313, 39, 870),
     ("20 May: McCabe Method 2 (τ=14 d, CFR 33%)", 678, 568, 800),
-    ("20 May: Our Method 2 reproduction",
-        round(Int, quantile(posterior_C_imperial_20may, 0.5)),
-        round(Int, imperial_20may_C_credibles.lo90),
-        round(Int, imperial_20may_C_credibles.hi90)),
-    ("20 May: Our joint (report data)",
-        round(Int, quantile(posterior_C_joint_report_20may, 0.5)),
-        round(Int, joint_report_20may_C_credibles.lo90),
-        round(Int, joint_report_20may_C_credibles.hi90)),
-    ("Our joint (current data)",
-        round(Int, quantile(posterior_C_joint, 0.5)),
-        round(Int, joint_C_credibles.lo90),
-        round(Int, joint_C_credibles.hi90)),
+    ("20 May: Our Method 2 reproduction",   imperial_20may_ci...),
+    ("20 May: Our joint (report data)",     joint_report_20may_ci...),
+    ("Our joint (current data)",            joint_ci...),
 ]
 
 comparison_fig = plot_estimate_comparison(comparison_rows);
@@ -2498,8 +2489,8 @@ main_comparison = DataFrame(
     "Report version"   => comparison_version,
     "Source"           => [r[1] for r in comparison_rows],
     "Central estimate" => [r[2] for r in comparison_rows],
-    "Lower 90%"        => [r[3] for r in comparison_rows],
-    "Upper 90%"        => [r[4] for r in comparison_rows],
+    "Lower 95%"        => [r[3] for r in comparison_rows],
+    "Upper 95%"        => [r[4] for r in comparison_rows],
 );
 
 #md # ```@raw html
@@ -2507,6 +2498,36 @@ main_comparison = DataFrame(
 #md # ```
 
 main_comparison #hide
+
+# Both Method 2 reproductions land on McCabe et al.'s reported Method 2
+# central estimates: the 18 May reproduction against their reported
+# $501$ ($88$ deaths, CFR $30\%$) and the 20 May reproduction against
+# their reported $678$ ($131$ deaths, CFR $33\%$).
+
+#md # ```@raw html
+#md # <details><summary>Reproductions vs McCabe et al. Method 2</summary>
+#md # ```
+
+imperial_sense_check = let
+    rep, lo, hi    = imperial_ci
+    rep2, lo2, hi2 = imperial_20may_ci
+    delta  = round(100 * (rep  - 501) / 501; digits = 1)
+    delta2 = round(100 * (rep2 - 678) / 678; digits = 1)
+    Markdown.parse("""
+    18 May reproduction: **$(rep) cases** (95% CrI $(lo)–$(hi)) against
+    McCabe et al.'s reported **501** — a difference of $(delta)%.
+
+    20 May reproduction: **$(rep2) cases** (95% CrI $(lo2)–$(hi2))
+    against McCabe et al.'s reported **678** — a difference of
+    $(delta2)%.
+    """)
+end;
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+imperial_sense_check #hide
 
 # Joint posterior coverage of all 15 published McCabe et al. scenarios
 # — for each scenario, the narrowest joint credible interval that
@@ -2542,59 +2563,6 @@ imperial_density_fig = plot_cumulative_cases(
 #md # ```
 
 imperial_density_fig #hide
-
-# ### McCabe et al. report sense check
-#
-# Whether each reproduction lands on McCabe et al.'s reported Method 2
-# central estimate: the 18 May reproduction against their reported
-# $501$ ($88$ deaths, CFR $30\%$) and the 20 May reproduction against
-# their reported $678$ ($131$ deaths, CFR $33\%$).
-
-#md # ```@raw html
-#md # <details><summary>Reproductions vs McCabe et al. Method 2</summary>
-#md # ```
-
-imperial_sense_check = let
-    rep = round(Int, quantile(posterior_C_imperial, 0.5))
-    lo  = round(Int, imperial_C_credibles.lo90)
-    hi  = round(Int, imperial_C_credibles.hi90)
-    delta = round(100 * (rep - 501) / 501; digits = 1)
-    rep2 = round(Int, quantile(posterior_C_imperial_20may, 0.5))
-    lo2  = round(Int, imperial_20may_C_credibles.lo90)
-    hi2  = round(Int, imperial_20may_C_credibles.hi90)
-    delta2 = round(100 * (rep2 - 678) / 678; digits = 1)
-    Markdown.parse("""
-    18 May reproduction: **$(rep) cases** (90% CrI $(lo)–$(hi)) against
-    McCabe et al.'s reported **501** — a difference of $(delta)%.
-
-    20 May reproduction: **$(rep2) cases** (90% CrI $(lo2)–$(hi2))
-    against McCabe et al.'s reported **678** — a difference of
-    $(delta2)%.
-    """)
-end;
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-imperial_sense_check #hide
-
-#md # ```@raw html
-#md # <details><summary>Sense-check summary tables</summary>
-#md # ```
-
-imperial_summary = summary_table(chn_imperial,
-    [:m, :T, :cumulative_cases]; digits = 1);
-imperial_summary_20may = summary_table(chn_imperial_20may,
-    [:m, :T, :cumulative_cases]; digits = 1);
-
-#md # ```@raw html
-#md # </details>
-#md # ```
-
-imperial_summary #hide
-
-imperial_summary_20may #hide
 
 # ## Saving results
 #
