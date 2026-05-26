@@ -232,7 +232,7 @@ observations_table = DataFrame(
         "reported_cases",
         "daily_outbound_travellers",
         "daily_outbound_travellers_sd",
-        "source_population",
+        "source_population"
     ],
     value = [
         obs.exported_cases,
@@ -241,7 +241,7 @@ observations_table = DataFrame(
         obs.reported_cases,
         obs.daily_outbound_travellers,
         obs.daily_outbound_travellers_sd,
-        obs.source_population,
+        obs.source_population
     ],
     source = [
         obs.sources.exported_cases,
@@ -250,14 +250,14 @@ observations_table = DataFrame(
         obs.sources.reported_cases,
         obs.sources.daily_outbound_travellers,
         obs.sources.daily_outbound_travellers_sd,
-        obs.sources.source_population,
-    ],
+        obs.sources.source_population
+    ]
 );
 
-const ITURI_POPULATION    = obs.source_population
-const ITURI_DAILY_TRAVEL  = obs.daily_outbound_travellers
-const EXPORTED_CASES      = obs.exported_cases
-const EXPORTS_DEATHS      = obs.exports_deaths
+const ITURI_POPULATION = obs.source_population
+const ITURI_DAILY_TRAVEL = obs.daily_outbound_travellers
+const EXPORTED_CASES = obs.exported_cases
+const EXPORTS_DEATHS = obs.exports_deaths
 
 #md # ```@raw html
 #md # </details>
@@ -1149,7 +1149,7 @@ cfr_prior_fig #hide
 #md # ```
 
 prior_chn = sample(bvd_joint(missing, missing, missing, Int[]),
-                   Prior(), 2_000; progress = false);
+    Prior(), 2_000; progress = false);
 
 prior_C_table = summary_table(prior_chn, [:cumulative_cases]; digits = 0);
 
@@ -1168,7 +1168,7 @@ prior_C_table #hide
 
 prior_pair_fig = plot_pair(prior_chn,
     [:τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k, :k,
-     :p_drc, :p_uganda, :τ_logit]);
+        :p_drc, :p_uganda, :τ_logit]);
 
 #md # ```@raw html
 #md # </details>
@@ -1195,22 +1195,21 @@ genetic_seeding = T -> genetic_seeding_model(T, obs.genetic_tmrca_days;
 
 chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
-              obs.reported_cases, obs.export_deaths_daily;
-              first_export_detection_delta = obs.first_export_detection_delta,
-              genetic = genetic_seeding));
+    obs.reported_cases, obs.export_deaths_daily;
+    first_export_detection_delta = obs.first_export_detection_delta,
+    genetic = genetic_seeding));
 
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
-chn_deaths  = nuts_sample(deaths_only_model(obs.total_deaths));
-chn_cases   = nuts_sample(cases_only_model(obs.reported_cases));
+chn_deaths = nuts_sample(deaths_only_model(obs.total_deaths));
+chn_cases = nuts_sample(cases_only_model(obs.reported_cases));
 chn_exports_deaths = nuts_sample(
     exports_deaths_only_model(obs.export_deaths_daily));
 
-posterior_C_joint   = vec(Array(chn_joint[:cumulative_cases]));
+posterior_C_joint = vec(Array(chn_joint[:cumulative_cases]));
 posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]));
-posterior_C_deaths  = vec(Array(chn_deaths[:cumulative_cases]));
-posterior_C_cases   = vec(Array(chn_cases[:cumulative_cases]));
-posterior_C_exports_deaths =
-    vec(Array(chn_exports_deaths[:cumulative_cases]));
+posterior_C_deaths = vec(Array(chn_deaths[:cumulative_cases]));
+posterior_C_cases = vec(Array(chn_cases[:cumulative_cases]));
+posterior_C_exports_deaths = vec(Array(chn_exports_deaths[:cumulative_cases]));
 
 #md # ```@raw html
 #md # </details>
@@ -1376,25 +1375,25 @@ summary_ranges = let
     iqr(x) = quantile(x, 0.75) - quantile(x, 0.25)
     ## Posterior-minus-prior shift in units of the parameter's prior
     ## IQR, reusing the prior draws so nothing is respecified here.
-    shift(post, prior) =
-        round((med(post) - med(prior)) / iqr(prior); digits = 2)
+    shift(post, prior) = round((med(post) - med(prior)) / iqr(prior); digits = 2)
     ints_i(s) = string(
         "30% ", round(Int, s.lo30), "–", round(Int, s.hi30),
         ", 60% ", round(Int, s.lo60), "–", round(Int, s.hi60),
         ", 90% ", round(Int, s.lo90), "–", round(Int, s.hi90))
-    ints_f(s, d) = string(
+    ints_f(s,
+        d) = string(
         "30% ", round(s.lo30; digits = d), "–", round(s.hi30; digits = d),
         ", 60% ", round(s.lo60; digits = d), "–", round(s.hi60; digits = d),
         ", 90% ", round(s.lo90; digits = d), "–", round(s.hi90; digits = d))
     ## Seeding-start dates derived from the T posterior. Higher T means
     ## earlier seeding, so the start-date range flips the lo/hi labels.
-    start_from(t)  = Date(obs.as_of_date) - Day(round(Int, t))
+    start_from(t) = Date(obs.as_of_date) - Day(round(Int, t))
     ints_d(s) = string(
         "30% ", start_from(s.hi30), "–", start_from(s.lo30),
         ", 60% ", start_from(s.hi60), "–", start_from(s.lo60),
         ", 90% ", start_from(s.hi90), "–", start_from(s.lo90))
 
-    C  = posterior_C_joint
+    C = posterior_C_joint
     Td = vec(Array(chn_joint[:T]))
     τd = vec(Array(chn_joint[:τ]))
     rd = vec(Array(chn_joint[:r]))
@@ -1405,10 +1404,10 @@ summary_ranges = let
     f_lo = round(sC.lo90 / obs.reported_cases; digits = 1)
     f_hi = round(sC.hi90 / obs.reported_cases; digits = 1)
 
-    moves = ["cumulative case load" => shift(C,  vec(Array(
-                 prior_chn[:cumulative_cases]))),
-             "time since seeding"   => shift(Td, vec(Array(prior_chn[:T]))),
-             "doubling time"        => shift(τd, vec(Array(prior_chn[:τ])))]
+    moves = ["cumulative case load" => shift(C, vec(Array(
+            prior_chn[:cumulative_cases]))),
+        "time since seeding" => shift(Td, vec(Array(prior_chn[:T]))),
+        "doubling time" => shift(τd, vec(Array(prior_chn[:τ])))]
     biggest = argmax(p -> abs(p.second), moves)
 
     Markdown.parse("""
@@ -1525,7 +1524,7 @@ start_date_fig #hide
 
 joint_summary = summary_table(chn_joint,
     [:r, :m, :T, :CFR, :p_drc, :p_uganda, :τ_logit,
-     :inv_sqrt_k, :k, :cumulative_cases]; digits = 2);
+        :inv_sqrt_k, :k, :cumulative_cases]; digits = 2);
 
 #md # ```@raw html
 #md # </details>
@@ -1543,7 +1542,7 @@ joint_summary #hide
 
 posterior_pair_fig = plot_pair(chn_joint,
     [:τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k, :k,
-     :p_drc, :p_uganda, :τ_logit];
+        :p_drc, :p_uganda, :τ_logit];
     prior = prior_chn);
 
 #md # ```@raw html
@@ -1572,17 +1571,17 @@ posterior_pair_fig #hide
 #md # <details><summary>Joint posterior predictive plot</summary>
 #md # ```
 
-pp_joint   = predict(
+pp_joint = predict(
     bvd_joint(missing, missing, missing,
-              fill(missing, length(obs.export_deaths_daily));
-              pre_start_deaths = missing,
-              pre_detection_exports = missing,
-              first_export_detection_delta = obs.first_export_detection_delta,
-              genetic = genetic_seeding),
+        fill(missing, length(obs.export_deaths_daily));
+        pre_start_deaths = missing,
+        pre_detection_exports = missing,
+        first_export_detection_delta = obs.first_export_detection_delta,
+        genetic = genetic_seeding),
     chn_joint);
-pp_exports        = vec(Array(pp_joint[:exported_cases]));
-pp_deaths         = vec(Array(pp_joint[:total_deaths]));
-pp_cases          = vec(Array(pp_joint[:reported_cases]));
+pp_exports = vec(Array(pp_joint[:exported_cases]));
+pp_deaths = vec(Array(pp_joint[:total_deaths]));
+pp_cases = vec(Array(pp_joint[:reported_cases]));
 ## Export deaths are a per-day series held as one vector-valued variable
 ## in the FlexiChains predictive; sum each draw's daily counts for the
 ## total-count posterior predictive.
@@ -1591,9 +1590,9 @@ pp_exports_deaths = vec(sum.(pp_joint[@varname(export_deaths_daily)]));
 joint_ppc_fig = plot_posterior_predictive(
     pp_exports, pp_deaths,
     obs.exported_cases, obs.total_deaths;
-    pp_cases           = pp_cases,
-    obs_cases          = obs.reported_cases,
-    pp_exports_deaths  = pp_exports_deaths,
+    pp_cases = pp_cases,
+    obs_cases = obs.reported_cases,
+    pp_exports_deaths = pp_exports_deaths,
     obs_exports_deaths = obs.exports_deaths);
 
 #md # ```@raw html
@@ -1652,12 +1651,12 @@ no_onward_fig #hide
 #md # ```
 
 forecast = forecast_reported(chn_joint;
-    horizon           = 7,
-    daily_travellers  = ITURI_DAILY_TRAVEL,
+    horizon = 7,
+    daily_travellers = ITURI_DAILY_TRAVEL,
     source_population = ITURI_POPULATION,
-    obs_cases         = obs.reported_cases,
-    obs_deaths        = obs.total_deaths,
-    obs_exports       = EXPORTED_CASES);
+    obs_cases = obs.reported_cases,
+    obs_deaths = obs.total_deaths,
+    obs_exports = EXPORTED_CASES);
 forecast_summary = forecast_table(forecast);
 
 #md # ```@raw html
@@ -1698,26 +1697,24 @@ obs_report = load_observations(
 
 chn_joint_report = nuts_sample(
     bvd_joint(obs_report.exported_cases, obs_report.total_deaths,
-              obs_report.reported_cases, obs_report.export_deaths_daily;
-              first_export_detection_delta =
-                  obs_report.first_export_detection_delta));
-posterior_C_joint_report =
-    vec(Array(chn_joint_report[:cumulative_cases]));
+    obs_report.reported_cases, obs_report.export_deaths_daily;
+    first_export_detection_delta =
+    obs_report.first_export_detection_delta));
+posterior_C_joint_report = vec(Array(chn_joint_report[:cumulative_cases]));
 
-validation_horizon =
-    value(Date(obs.as_of_date) - Date(obs_report.as_of_date))
+validation_horizon = value(Date(obs.as_of_date) - Date(obs_report.as_of_date))
 
 forecast_validation = forecast_reported(chn_joint_report;
-    horizon           = validation_horizon,
-    daily_travellers  = ITURI_DAILY_TRAVEL,
+    horizon = validation_horizon,
+    daily_travellers = ITURI_DAILY_TRAVEL,
     source_population = ITURI_POPULATION,
-    obs_cases         = obs_report.reported_cases,
-    obs_deaths        = obs_report.total_deaths,
-    obs_exports       = obs_report.exported_cases);
+    obs_cases = obs_report.reported_cases,
+    obs_deaths = obs_report.total_deaths,
+    obs_exports = obs_report.exported_cases);
 
 forecast_validation_table = forecast_vs_truth(forecast_validation;
-    cases   = obs.reported_cases,
-    deaths  = obs.total_deaths,
+    cases = obs.reported_cases,
+    deaths = obs.total_deaths,
     exports = obs.exported_cases);
 
 #md # ```@raw html
@@ -1749,11 +1746,11 @@ forecast_validation_table #hide
 #md # ```
 
 forecast_validation_fig = plot_forecast_vs_truth(forecast_validation;
-    cases            = obs.reported_cases,
-    deaths           = obs.total_deaths,
-    exports          = obs.exported_cases,
-    baseline_cases   = obs_report.reported_cases,
-    baseline_deaths  = obs_report.total_deaths,
+    cases = obs.reported_cases,
+    deaths = obs.total_deaths,
+    exports = obs.exported_cases,
+    baseline_cases = obs_report.reported_cases,
+    baseline_deaths = obs_report.total_deaths,
     baseline_exports = obs_report.exported_cases);
 
 #md # ```@raw html
@@ -1777,12 +1774,12 @@ community_delay = delay_model(;
 
 chn_joint_community = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
-              obs.reported_cases, obs.export_deaths_daily;
-              first_export_detection_delta = obs.first_export_detection_delta,
-              genetic = genetic_seeding,
-              deaths = (total_deaths, growth_state, k) ->
-                  deaths_model(total_deaths, growth_state, k;
-                               delay = community_delay)));
+    obs.reported_cases, obs.export_deaths_daily;
+    first_export_detection_delta = obs.first_export_detection_delta,
+    genetic = genetic_seeding,
+    deaths = (total_deaths, growth_state,
+        k) -> deaths_model(total_deaths, growth_state, k;
+        delay = community_delay)));
 
 posterior_C_community = vec(Array(chn_joint_community[:cumulative_cases]));
 
@@ -1810,8 +1807,8 @@ diagnostics_table( #hide
 #md # ```
 
 delay_sensitivity_table = streams_table(
-    "joint (baseline delay)"        => posterior_C_joint,
-    "joint (community-only delay)"  => posterior_C_community);
+    "joint (baseline delay)" => posterior_C_joint,
+    "joint (community-only delay)" => posterior_C_community);
 
 #md # ```@raw html
 #md # </details>
@@ -1827,7 +1824,7 @@ delay_sensitivity_table #hide
 #md # ```
 
 delay_sensitivity_fig = plot_cumulative_cases(
-    "baseline delay"       => posterior_C_joint,
+    "baseline delay" => posterior_C_joint,
     "community-only delay" => posterior_C_community;
     scenarios = []);
 
@@ -1858,9 +1855,9 @@ genetic_seeding_clock19 = T -> genetic_seeding_model(T,
 
 chn_joint_clock19 = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
-              obs.reported_cases, obs.export_deaths_daily;
-              first_export_detection_delta = obs.first_export_detection_delta,
-              genetic = genetic_seeding_clock19));
+    obs.reported_cases, obs.export_deaths_daily;
+    first_export_detection_delta = obs.first_export_detection_delta,
+    genetic = genetic_seeding_clock19));
 
 posterior_C_clock19 = vec(Array(chn_joint_clock19[:cumulative_cases]));
 
@@ -2007,9 +2004,9 @@ clock_sensitivity_r_fig #hide
 streams_C_table = streams_table(
     "exports (cases)" => posterior_C_exports,
     "exports (deaths)" => posterior_C_exports_deaths,
-    "deaths (DRC)"  => posterior_C_deaths,
-    "cases (DRC)"   => posterior_C_cases,
-    "joint"        => posterior_C_joint);
+    "deaths (DRC)" => posterior_C_deaths,
+    "cases (DRC)" => posterior_C_cases,
+    "joint" => posterior_C_joint);
 
 #md # ```@raw html
 #md # </details>
@@ -2028,10 +2025,10 @@ streams_C_table #hide
 
 pp_exports_only = vec(Array(predict(
     exports_only_model(missing), chn_exports)[:exported_cases]));
-pp_deaths_only  = vec(Array(predict(
-    deaths_only_model(missing),  chn_deaths )[:total_deaths]));
-pp_cases_only   = vec(Array(predict(
-    cases_only_model(missing),   chn_cases  )[:reported_cases]));
+pp_deaths_only = vec(Array(predict(
+    deaths_only_model(missing), chn_deaths)[:total_deaths]));
+pp_cases_only = vec(Array(predict(
+    cases_only_model(missing), chn_cases)[:reported_cases]));
 pp_exports_deaths_only = vec(sum.(predict(
     exports_deaths_only_model(fill(missing, length(obs.export_deaths_daily));
         pre_start_deaths = missing),
@@ -2039,17 +2036,17 @@ pp_exports_deaths_only = vec(sum.(predict(
 
 ppc_grid_fig = plot_posterior_predictive_grid(;
     individual = (; exports = pp_exports_only,
-                    exports_deaths = pp_exports_deaths_only,
-                    deaths  = pp_deaths_only,
-                    cases   = pp_cases_only),
-    joint      = (; exports = pp_exports,
-                    exports_deaths = pp_exports_deaths,
-                    deaths  = pp_deaths,
-                    cases   = pp_cases),
-    observed   = (; exports = obs.exported_cases,
-                    exports_deaths = obs.exports_deaths,
-                    deaths  = obs.total_deaths,
-                    cases   = obs.reported_cases),
+        exports_deaths = pp_exports_deaths_only,
+        deaths = pp_deaths_only,
+        cases = pp_cases_only),
+    joint = (; exports = pp_exports,
+        exports_deaths = pp_exports_deaths,
+        deaths = pp_deaths,
+        cases = pp_cases),
+    observed = (; exports = obs.exported_cases,
+        exports_deaths = obs.exports_deaths,
+        deaths = obs.total_deaths,
+        cases = obs.reported_cases)
 );
 
 #md # ```@raw html
@@ -2067,9 +2064,9 @@ ppc_grid_fig #hide
 cumulative_density_fig = plot_cumulative_cases(
     "exports (cases)" => posterior_C_exports,
     "exports (deaths)" => posterior_C_exports_deaths,
-    "deaths (DRC)"  => posterior_C_deaths,
-    "cases (DRC)"   => posterior_C_cases,
-    "joint"        => posterior_C_joint;
+    "deaths (DRC)" => posterior_C_deaths,
+    "cases (DRC)" => posterior_C_cases,
+    "joint" => posterior_C_joint;
     scenarios = []);
 
 #md # ```@raw html
@@ -2094,22 +2091,21 @@ cumulative_density_fig #hide
 ## loaded and fitted earlier, in the forecast-validation section.
 obs_report_20may = load_observations(
     joinpath(pkgdir(BVDOutbreakSize), "data",
-             "report-snapshot-20may.toml"));
+    "report-snapshot-20may.toml"));
 
 chn_joint_report_20may = nuts_sample(
     bvd_joint(obs_report_20may.exported_cases,
-              obs_report_20may.total_deaths,
-              obs_report_20may.reported_cases,
-              obs_report_20may.export_deaths_daily;
-              first_export_detection_delta =
-                  obs_report_20may.first_export_detection_delta));
-posterior_C_joint_report_20may =
-    vec(Array(chn_joint_report_20may[:cumulative_cases]));
+    obs_report_20may.total_deaths,
+    obs_report_20may.reported_cases,
+    obs_report_20may.export_deaths_daily;
+    first_export_detection_delta =
+    obs_report_20may.first_export_detection_delta));
+posterior_C_joint_report_20may = vec(Array(chn_joint_report_20may[:cumulative_cases]));
 
 imperial_fixed = Turing.fix(
     imperial_only_model(missing, 88),       # exports missing → pure Method 2
     (τ = 14.0, CFR = 0.30, α = 4.42, θ = 1/0.388,
-     inv_sqrt_k = 1e-3),
+        inv_sqrt_k = 1e-3)
 )
 chn_imperial = nuts_sample(imperial_fixed);
 posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
@@ -2117,11 +2113,10 @@ posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 imperial_fixed_20may = Turing.fix(
     imperial_only_model(missing, 131),      # exports missing → pure Method 2
     (τ = 14.0, CFR = 0.33, α = 4.42, θ = 1/0.388,
-     inv_sqrt_k = 1e-3),
+        inv_sqrt_k = 1e-3)
 )
 chn_imperial_20may = nuts_sample(imperial_fixed_20may);
-posterior_C_imperial_20may =
-    vec(Array(chn_imperial_20may[:cumulative_cases]));
+posterior_C_imperial_20may = vec(Array(chn_imperial_20may[:cumulative_cases]));
 
 #md # ```@raw html
 #md # </details>
@@ -2142,26 +2137,28 @@ posterior_C_imperial_20may =
 
 ## Our model rows use 95% equal-tailed credible intervals, matching the
 ## 95% confidence intervals McCabe et al. report for both methods.
-ci95(xs) = (round(Int, quantile(xs, 0.5)),
-            round(Int, quantile(xs, 0.025)),
-            round(Int, quantile(xs, 0.975)))
+function ci95(xs)
+    (round(Int, quantile(xs, 0.5)),
+        round(Int, quantile(xs, 0.025)),
+        round(Int, quantile(xs, 0.975)))
+end
 
-joint_ci              = ci95(posterior_C_joint)
-joint_report_ci       = ci95(posterior_C_joint_report)
+joint_ci = ci95(posterior_C_joint)
+joint_report_ci = ci95(posterior_C_joint_report)
 joint_report_20may_ci = ci95(posterior_C_joint_report_20may)
-imperial_ci           = ci95(posterior_C_imperial)
-imperial_20may_ci     = ci95(posterior_C_imperial_20may)
+imperial_ci = ci95(posterior_C_imperial)
+imperial_20may_ci = ci95(posterior_C_imperial_20may)
 
 comparison_rows = [
-    ("18 May: McCabe Method 1 (Ituri, w=15 d)",   313, 39, 870),
+    ("18 May: McCabe Method 1 (Ituri, w=15 d)", 313, 39, 870),
     ("18 May: McCabe Method 2 (τ=14 d, CFR 30%)", 501, 402, 612),
-    ("18 May: Our Method 2 reproduction",   imperial_ci...),
-    ("18 May: Our joint (report data)",     joint_report_ci...),
-    ("20 May: McCabe Method 1 (Ituri, w=15 d)",   313, 39, 870),
+    ("18 May: Our Method 2 reproduction", imperial_ci...),
+    ("18 May: Our joint (report data)", joint_report_ci...),
+    ("20 May: McCabe Method 1 (Ituri, w=15 d)", 313, 39, 870),
     ("20 May: McCabe Method 2 (τ=14 d, CFR 33%)", 678, 568, 800),
-    ("20 May: Our Method 2 reproduction",   imperial_20may_ci...),
-    ("20 May: Our joint (report data)",     joint_report_20may_ci...),
-    ("Our joint (current data)",            joint_ci...),
+    ("20 May: Our Method 2 reproduction", imperial_20may_ci...),
+    ("20 May: Our joint (report data)", joint_report_20may_ci...),
+    ("Our joint (current data)", joint_ci...)
 ]
 
 comparison_fig = plot_estimate_comparison(comparison_rows);
@@ -2198,15 +2195,15 @@ diagnostics_table( #hide
 comparison_version = [
     "18 May", "18 May", "18 May", "18 May",
     "20 May", "20 May", "20 May", "20 May",
-    "current",
+    "current"
 ]
 
 main_comparison = DataFrame(
-    "Report version"   => comparison_version,
-    "Source"           => [r[1] for r in comparison_rows],
+    "Report version" => comparison_version,
+    "Source" => [r[1] for r in comparison_rows],
     "Central estimate" => [r[2] for r in comparison_rows],
-    "Lower 95%"        => [r[3] for r in comparison_rows],
-    "Upper 95%"        => [r[4] for r in comparison_rows],
+    "Lower 95%" => [r[3] for r in comparison_rows],
+    "Upper 95%" => [r[4] for r in comparison_rows]
 );
 
 #md # ```@raw html
@@ -2225,9 +2222,9 @@ main_comparison #hide
 #md # ```
 
 imperial_sense_check = let
-    rep, lo, hi    = imperial_ci
+    rep, lo, hi = imperial_ci
     rep2, lo2, hi2 = imperial_20may_ci
-    delta  = round(100 * (rep  - 501) / 501; digits = 1)
+    delta = round(100 * (rep - 501) / 501; digits = 1)
     delta2 = round(100 * (rep2 - 678) / 678; digits = 1)
     Markdown.parse("""
     18 May reproduction: **$(rep) cases** (95% CrI $(lo)–$(hi)) against
@@ -2270,9 +2267,9 @@ coverage_table #hide
 #md # ```
 
 imperial_density_fig = plot_cumulative_cases(
-    "joint (current data)"   => posterior_C_joint,
-    "joint (18 May report)"  => posterior_C_joint_report,
-    "joint (20 May report)"  => posterior_C_joint_report_20may);
+    "joint (current data)" => posterior_C_joint,
+    "joint (18 May report)" => posterior_C_joint_report,
+    "joint (20 May report)" => posterior_C_joint_report_20may);
 
 #md # ```@raw html
 #md # </details>
@@ -2300,33 +2297,33 @@ imperial_density_fig #hide
 ## to redirect them, e.g. when running from a read-only package
 ## install.
 output_dir = get(ENV, "BVD_OUTPUT_DIR",
-                 joinpath(pkgdir(BVDOutbreakSize), "output"))
+    joinpath(pkgdir(BVDOutbreakSize), "output"))
 mkpath(output_dir)
 
 CSV.write(joinpath(output_dir, "posterior_summary.csv"), joint_summary)
 CSV.write(joinpath(output_dir, "cumulative_cases_by_stream.csv"),
-          streams_C_table)
+    streams_C_table)
 CSV.write(joinpath(output_dir, "imperial_comparison.csv"), main_comparison)
 CSV.write(joinpath(output_dir, "scenario_coverage.csv"), coverage_table)
 CSV.write(joinpath(output_dir, "forecast_validation.csv"),
-          forecast_validation_table)
+    forecast_validation_table)
 
 ## Copy the input data so the release records what produced these
 ## results.
 cp(joinpath(pkgdir(BVDOutbreakSize), "data", "observations.toml"),
-   joinpath(output_dir, "observations.toml"); force = true)
+    joinpath(output_dir, "observations.toml"); force = true)
 
 ## Thinned posterior draws of the key joint parameters (every 10th
 ## draw) so downstream users can recompute their own summaries.
 posterior_draws = DataFrame(
-    τ                = vec(Array(chn_joint[:τ])),
-    r                = vec(Array(chn_joint[:r])),
-    m                = vec(Array(chn_joint[:m])),
-    T                = vec(Array(chn_joint[:T])),
-    CFR              = vec(Array(chn_joint[:CFR])),
-    p_drc            = vec(Array(chn_joint[:p_drc])),
-    p_uganda         = vec(Array(chn_joint[:p_uganda])),
-    cumulative_cases = vec(Array(chn_joint[:cumulative_cases])),
+    τ = vec(Array(chn_joint[:τ])),
+    r = vec(Array(chn_joint[:r])),
+    m = vec(Array(chn_joint[:m])),
+    T = vec(Array(chn_joint[:T])),
+    CFR = vec(Array(chn_joint[:CFR])),
+    p_drc = vec(Array(chn_joint[:p_drc])),
+    p_uganda = vec(Array(chn_joint[:p_uganda])),
+    cumulative_cases = vec(Array(chn_joint[:cumulative_cases]))
 )[1:10:end, :]
 CSV.write(joinpath(output_dir, "posterior_draws.csv"), posterior_draws);
 

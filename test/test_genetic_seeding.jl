@@ -31,7 +31,7 @@ end
 
     seed = T -> genetic_seeding_model(T, 80.0; tmrca_days_sd = 20.0)
     chn = sample(bvd_joint(missing, missing; genetic = seed),
-                 Prior(), 50; progress = false)
+        Prior(), 50; progress = false)
     T_draws = vec(Array(chn[:T]))
     @test length(T_draws) == 50
     @test all(isfinite, T_draws)

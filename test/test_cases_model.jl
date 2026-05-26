@@ -6,7 +6,7 @@
     import FlexiChains
     using BVDOutbreakSize: cases_only_model
     chn = sample(cases_only_model(missing), Prior(), 200;
-                 chain_type = FlexiChains.VNChain, progress = false)
+        chain_type = FlexiChains.VNChain, progress = false)
     rc = vec(Array(chn[:reported_cases]))
     @test length(rc) == 200
     @test all(isfinite, rc)
@@ -21,7 +21,7 @@ end
     import FlexiChains
     using BVDOutbreakSize: cases_only_model
     chn = sample(cases_only_model(50), Prior(), 200;
-                 chain_type = FlexiChains.VNChain, progress = false)
+        chain_type = FlexiChains.VNChain, progress = false)
     C = vec(Array(chn[:cumulative_cases]))
     @test length(C) == 200
     @test all(isfinite, C)

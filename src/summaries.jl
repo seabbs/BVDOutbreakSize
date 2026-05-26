@@ -15,7 +15,7 @@ function posterior_summary(xs)
         lo30 = quantile(xs, 0.35),
         hi30 = quantile(xs, 0.65),
         hi60 = quantile(xs, 0.80),
-        hi90 = quantile(xs, 0.95),
+        hi90 = quantile(xs, 0.95)
     )
 end
 
@@ -23,21 +23,20 @@ end
 ## column keys stay machine-friendly; this maps them to nice labels at
 ## the point each table is returned.
 const _PRETTY_COLS = Dict(
-    "quantity"           => "Quantity",
-    "stream"             => "Stream",
-    "scenario"           => "Scenario",
-    "central_estimate"   => "Central estimate",
-    "reported_cases"     => "Reported cases",
+    "quantity" => "Quantity",
+    "stream" => "Stream",
+    "scenario" => "Scenario",
+    "central_estimate" => "Central estimate",
+    "reported_cases" => "Reported cases",
     "narrowest_interval" => "Narrowest interval",
-    "observed"           => "Observed",
-    "within_90"          => "Within 90% PI",
+    "observed" => "Observed",
+    "within_90" => "Within 90% PI",
     "lower_90" => "Lower 90%", "lower_60" => "Lower 60%",
     "lower_30" => "Lower 30%", "upper_30" => "Upper 30%",
-    "upper_60" => "Upper 60%", "upper_90" => "Upper 90%",
+    "upper_60" => "Upper 60%", "upper_90" => "Upper 90%"
 )
 
-_prettify(df::DataFrame) =
-    rename(df, [n => get(_PRETTY_COLS, n, n) for n in names(df)])
+_prettify(df::DataFrame) = rename(df, [n => get(_PRETTY_COLS, n, n) for n in names(df)])
 
 """
 `DataFrame` with one row per posterior parameter and the columns
@@ -48,18 +47,19 @@ Upper 90%` giving the lower and upper endpoints of the equal-tailed
 function summary_table(chn, params::AbstractVector{Symbol};
         digits::Integer = 2)
     df = @chain DataFrame(
-            quantity = String[],
-            lower_90 = Float64[], lower_60 = Float64[],
-            lower_30 = Float64[], upper_30 = Float64[],
-            upper_60 = Float64[], upper_90 = Float64[],
-        ) begin
+        quantity = String[],
+        lower_90 = Float64[], lower_60 = Float64[],
+        lower_30 = Float64[], upper_30 = Float64[],
+        upper_60 = Float64[], upper_90 = Float64[]
+    ) begin
         let df = _
             for p in params
                 s = posterior_summary(_draws(chn, p))
-                push!(df, (string(p),
-                           round(s.lo90; digits), round(s.lo60; digits),
-                           round(s.lo30; digits), round(s.hi30; digits),
-                           round(s.hi60; digits), round(s.hi90; digits)))
+                push!(df,
+                    (string(p),
+                        round(s.lo90; digits), round(s.lo60; digits),
+                        round(s.lo30; digits), round(s.hi30; digits),
+                        round(s.hi60; digits), round(s.hi90; digits)))
             end
             df
         end
@@ -104,9 +104,9 @@ number of divergent transitions.
 function fit_diagnostics(chn)
     rhats = _scalar_stats(FlexiChains.rhat(chn))
     esses = _scalar_stats(FlexiChains.ess(chn; kind = :bulk))
-    return (max_rhat     = maximum(rhats),
-            min_ess_bulk = minimum(esses),
-            n_divergent  = _num_divergences(chn))
+    return (max_rhat = maximum(rhats),
+        min_ess_bulk = minimum(esses),
+        n_divergent = _num_divergences(chn))
 end
 
 """
@@ -117,10 +117,10 @@ fit as `"label" => chain`. Columns `:fit, :max_rhat, :min_ess_bulk,
 function diagnostics_table(fits::Pair{String}...)
     rows = map(fits) do (label, chn)
         d = fit_diagnostics(chn)
-        (fit          = label,
-         max_rhat     = round(d.max_rhat; digits = 3),
-         min_ess_bulk = round(d.min_ess_bulk; digits = 0),
-         divergences  = d.n_divergent)
+        (fit = label,
+            max_rhat = round(d.max_rhat; digits = 3),
+            min_ess_bulk = round(d.min_ess_bulk; digits = 0),
+            divergences = d.n_divergent)
     end
     return DataFrame(rows)
 end
@@ -134,9 +134,9 @@ function streams_table(streams::Pair{String, <:AbstractVector}...;
     rows = map(streams) do (label, draws)
         s = posterior_summary(draws)
         (stream = label,
-         lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
-         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
-         upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
+            lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
+            lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+            upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
     end
     return _prettify(DataFrame(rows))
 end
@@ -160,7 +160,7 @@ function comparison_table(C_draws::AbstractVector;
             "outside 90%"
         end
         (scenario = label, reported_cases = val,
-         narrowest_interval = crI)
+            narrowest_interval = crI)
     end
     return _prettify(DataFrame(rows))
 end

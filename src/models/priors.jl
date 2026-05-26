@@ -12,11 +12,11 @@ deterministics for downstream submodels.
 """
 @model function exponential_growth_model(;
         tau_prior = LogNormal(log(14), 0.4),
-        m_prior   = truncated(Normal(7.0, 2.5); lower = 0))
+        m_prior = truncated(Normal(7.0, 2.5); lower = 0))
     τ ~ tau_prior
     m ~ m_prior
-    r   := log(2) / τ
-    T   := m * τ
+    r := log(2) / τ
+    T := m * τ
     C_T := 2.0 ^ m
     cumulative = s -> exp(r * s)
     return (; τ, r, m, T, C_T, cumulative)
@@ -82,7 +82,7 @@ Uganda. Default centred on `ITURI_DAILY_TRAVEL` with SD
 """
 @model function traveller_volume_model(;
         mean::Real = ITURI_DAILY_TRAVEL,
-        sd::Real   = ITURI_DAILY_TRAVEL_SD)
+        sd::Real = ITURI_DAILY_TRAVEL_SD)
     daily_travellers ~ truncated(Normal(mean, sd); lower = 0)
     return (; daily_travellers)
 end
@@ -108,15 +108,15 @@ and pooling strength `τ`. Used by [`cases_model`](@ref),
 [`exports_model`](@ref) and [`exports_deaths_model`](@ref).
 """
 @model function pooled_ascertainment_model(;
-        mu_prior  = Normal(logit(0.25), 1.0),
+        mu_prior = Normal(logit(0.25), 1.0),
         tau_prior = truncated(Normal(0, 0.5); lower = 1e-4))
-    μ_logit  ~ mu_prior
-    τ_logit  ~ tau_prior
-    z_drc    ~ Normal(0, 1)
+    μ_logit ~ mu_prior
+    τ_logit ~ tau_prior
+    z_drc ~ Normal(0, 1)
     z_uganda ~ Normal(0, 1)
-    logit_p_drc    = μ_logit + τ_logit * z_drc
+    logit_p_drc = μ_logit + τ_logit * z_drc
     logit_p_uganda = μ_logit + τ_logit * z_uganda
-    p_drc    := logistic(logit_p_drc)
+    p_drc := logistic(logit_p_drc)
     p_uganda := logistic(logit_p_uganda)
     return (; μ_logit, τ_logit, p_drc, p_uganda)
 end

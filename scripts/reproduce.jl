@@ -24,7 +24,7 @@ const REPO_URL = "https://github.com/epiforecasts/BVDOutbreakSize"
 
 ref = get(ENV, "BVD_REF", "main")
 output_dir = abspath(get(ENV, "BVD_OUTPUT_DIR",
-                         joinpath(pwd(), "bvd-output")))
+    joinpath(pwd(), "bvd-output")))
 
 src = mktempdir()
 run(`git clone --depth 1 --branch $ref $REPO_URL $src`)

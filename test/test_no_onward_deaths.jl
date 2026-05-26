@@ -11,7 +11,7 @@
     using BVDOutbreakSize: deaths_only_model, predict_no_onward_deaths
 
     chn = sample(deaths_only_model(missing), Prior(), 100;
-                 chain_type = FlexiChains.VNChain, progress = false)
+        chain_type = FlexiChains.VNChain, progress = false)
     obs_deaths = 88
     df = predict_no_onward_deaths(chn; obs_deaths = obs_deaths)
 
@@ -32,10 +32,10 @@ end
     using BVDOutbreakSize: deaths_only_model,
                            predict_no_onward_deaths, plot_no_onward_deaths
 
-    chn = sample(deaths_only_model(missing), Prior(), 80;
-                 chain_type = FlexiChains.VNChain, progress = false)
-    df = predict_no_onward_deaths(chn; obs_deaths = 50)
-    fg = plot_no_onward_deaths(df; obs_deaths = 50)
+    chn=sample(deaths_only_model(missing), Prior(), 80;
+        chain_type = FlexiChains.VNChain, progress = false)
+    df=predict_no_onward_deaths(chn; obs_deaths = 50)
+    fg=plot_no_onward_deaths(df; obs_deaths = 50)
     @test fg !== nothing
     @test fg isa CairoMakie.Makie.Figure
 end

@@ -40,7 +40,7 @@ end
     exact = (exp(0.01 * 50.0) - exp(0.01 * 10.0)) / 0.01
     @test isapprox(integrate(f, 10.0, 50.0, 5.0), exact; rtol = 1e-8)
     @test isapprox(integrate(f, 10.0, 50.0, 1.0e6),
-                   integrate(f, 10.0, 50.0); rtol = 1e-10)
+        integrate(f, 10.0, 50.0); rtol = 1e-10)
     @test integrate(f, 50.0, 50.0, 5.0) == 0.0
 end
 

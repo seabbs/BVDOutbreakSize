@@ -6,12 +6,11 @@
         # active project of the test process is not mutated (otherwise
         # later @testitems lose access to BVDOutbreakSize).
         run(`julia --project=$formatter_env -e "using Pkg; Pkg.instantiate()"`)
-        cmd = Cmd(`julia --project=$formatter_env $(joinpath(formatter_env, "runtests.jl"))`;
+        cmd = Cmd(
+            `julia --project=$formatter_env $(joinpath(formatter_env, "runtests.jl"))`;
             ignorestatus = true)
         result = run(pipeline(cmd, stdout = stdout, stderr = stderr); wait = true)
-        # TODO: flip to `@test result.exitcode == 0` after a one-time
-        # JuliaFormatter pass over src/, test/, docs/, scripts/.
-        @test_broken result.exitcode == 0
+        @test result.exitcode == 0
     else
         @test_skip "Formatter environment not found"
     end

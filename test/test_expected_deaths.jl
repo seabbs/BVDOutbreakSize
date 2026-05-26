@@ -17,8 +17,8 @@
     dist = Gamma(α, θ)
     analytic = expected_deaths(CFR, r, T, dist)
     numerical = invoke(expected_deaths,
-                       Tuple{Any, Any, Any, Any},
-                       CFR, r, T, dist) #avoid the analytic method dispatch
+        Tuple{Any, Any, Any, Any},
+        CFR, r, T, dist) #avoid the analytic method dispatch
     @test analytic ≈ numerical rtol = 1e-6
 end
 
@@ -33,8 +33,8 @@ end
         MersenneTwister(20260520),
         BVDOutbreakSize._gamma_cdf, α, θ, x_cdf;
         is_primitive = true,
-        perf_flag    = :none,
-        mode         = Mooncake.ReverseMode,
+        perf_flag = :none,
+        mode = Mooncake.ReverseMode
     )
 end
 
@@ -55,16 +55,16 @@ end
     θ = 1.0
     cases = [
         # (α,    z,      atol)
-        (0.3,  13.04, 1e-8),  # small α, deep tail — NUTS warmup risk
-        (0.5,  1.0,   1e-8),  # small α
-        (0.5,  5.0,   1e-8),
-        (1.1,  0.2,   1e-8),  # Stan grid
-        (1.1,  2.0,   1e-8),
-        (2.5,  1.3,   1e-8),
-        (2.5,  30.0,  1e-8),  # Stan tail
-        (9.0,  10.0,  4e-7),  # Stan crossover (loosened)
-        (10.0, 9.0,   1e-8),
-        (25.0, 13.04, 1e-8),
+        (0.3, 13.04, 1e-8),  # small α, deep tail — NUTS warmup risk
+        (0.5, 1.0, 1e-8),  # small α
+        (0.5, 5.0, 1e-8),
+        (1.1, 0.2, 1e-8),  # Stan grid
+        (1.1, 2.0, 1e-8),
+        (2.5, 1.3, 1e-8),
+        (2.5, 30.0, 1e-8),  # Stan tail
+        (9.0, 10.0, 4e-7),  # Stan crossover (loosened)
+        (10.0, 9.0, 1e-8),
+        (25.0, 13.04, 1e-8)
     ]
     for (α, z, atol) in cases
         x = z * θ
@@ -72,10 +72,10 @@ end
             MersenneTwister(20260520),
             BVDOutbreakSize._gamma_cdf, α, θ, x;
             is_primitive = true,
-            perf_flag    = :none,
-            mode         = Mooncake.ReverseMode,
-            atol         = atol,
-            rtol         = atol,
+            perf_flag = :none,
+            mode = Mooncake.ReverseMode,
+            atol = atol,
+            rtol = atol
         )
     end
 end

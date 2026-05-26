@@ -36,7 +36,7 @@ Fields returned:
 """
 function load_observations(
         path::AbstractString = joinpath(@__DIR__, "..", "data",
-                                        "observations.toml"))
+        "observations.toml"))
     raw = TOML.parsefile(path)
     _val(k) = raw[k]["value"]
     _src(k) = String(raw[k]["source"])
@@ -51,44 +51,44 @@ function load_observations(
     export_deaths_daily = if haskey(raw, "export_death_dates")
         offs = Int[_gap(d) for d in _val("export_death_dates")]
         isempty(offs) ? Int[] :
-            Int[count(==(δ), offs) for δ in maximum(offs):-1:0]
+        Int[count(==(δ), offs) for δ in maximum(offs):-1:0]
     else
         Int[]
     end
     has_gen = haskey(raw, "genetic_tmrca")
     return (;
-        as_of_date                   = as_of,
-        exported_cases               = Int(_val("exported_cases")),
-        exports_deaths               = Int(_val("exports_deaths")),
-        total_deaths                 = Int(_val("total_deaths")),
-        reported_cases               = Int(_val("reported_cases")),
-        daily_outbound_travellers    = float(
+        as_of_date = as_of,
+        exported_cases = Int(_val("exported_cases")),
+        exports_deaths = Int(_val("exports_deaths")),
+        total_deaths = Int(_val("total_deaths")),
+        reported_cases = Int(_val("reported_cases")),
+        daily_outbound_travellers = float(
             _val("daily_outbound_travellers")),
         daily_outbound_travellers_sd = float(
             _val("daily_outbound_travellers_sd")),
-        source_population            = Int(_val("source_population")),
-        export_deaths_daily          = export_deaths_daily,
+        source_population = Int(_val("source_population")),
+        export_deaths_daily = export_deaths_daily,
         first_export_detection_delta = _delta("first_export_detection_date"),
-        genetic_tmrca_days           = has_gen ?
-            _gap(raw["genetic_tmrca"]["date"]) : missing,
-        genetic_tmrca_days_sd        = has_gen ?
-            float(raw["genetic_tmrca"]["days_sd"]) : missing,
-        genetic_tmrca_alt_days       =
-            has_gen && haskey(raw["genetic_tmrca"], "alt_date") ?
-            _gap(raw["genetic_tmrca"]["alt_date"]) : missing,
-        genetic_tmrca_alt_days_sd    =
-            has_gen && haskey(raw["genetic_tmrca"], "alt_days_sd") ?
-            float(raw["genetic_tmrca"]["alt_days_sd"]) : missing,
+        genetic_tmrca_days = has_gen ?
+                             _gap(raw["genetic_tmrca"]["date"]) : missing,
+        genetic_tmrca_days_sd = has_gen ?
+                                float(raw["genetic_tmrca"]["days_sd"]) : missing,
+        genetic_tmrca_alt_days =
+        has_gen && haskey(raw["genetic_tmrca"], "alt_date") ?
+        _gap(raw["genetic_tmrca"]["alt_date"]) : missing,
+        genetic_tmrca_alt_days_sd =
+        has_gen && haskey(raw["genetic_tmrca"], "alt_days_sd") ?
+        float(raw["genetic_tmrca"]["alt_days_sd"]) : missing,
         sources = (;
-            exported_cases               = _src("exported_cases"),
-            exports_deaths               = _src("exports_deaths"),
-            total_deaths                 = _src("total_deaths"),
-            reported_cases               = _src("reported_cases"),
-            daily_outbound_travellers    = _src("daily_outbound_travellers"),
+            exported_cases = _src("exported_cases"),
+            exports_deaths = _src("exports_deaths"),
+            total_deaths = _src("total_deaths"),
+            reported_cases = _src("reported_cases"),
+            daily_outbound_travellers = _src("daily_outbound_travellers"),
             daily_outbound_travellers_sd = _src("daily_outbound_travellers_sd"),
-            source_population            = _src("source_population"),
-            genetic_tmrca                = has_gen ?
-                String(raw["genetic_tmrca"]["source"]) : missing,
-        ),
+            source_population = _src("source_population"),
+            genetic_tmrca = has_gen ?
+                            String(raw["genetic_tmrca"]["source"]) : missing
+        )
     )
 end

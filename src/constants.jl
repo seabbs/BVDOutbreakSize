@@ -9,12 +9,12 @@ al. (Imperial College London, 20 May 2026 update), as `(label, value)`
 tuples in the order they appear in Tables 1 and 2.
 """
 const REPORT_SCENARIOS = [
-    ("Method 1 Ituri, w=10 d",   470),
-    ("Method 1 Ituri, w=15 d",   313),
-    ("Method 1 Ituri, w=20 d",   235),
-    ("Method 1 +N. Kivu, w=10",  617),
-    ("Method 1 +N. Kivu, w=15",  412),
-    ("Method 1 +N. Kivu, w=20",  309),
+    ("Method 1 Ituri, w=10 d", 470),
+    ("Method 1 Ituri, w=15 d", 313),
+    ("Method 1 Ituri, w=20 d", 235),
+    ("Method 1 +N. Kivu, w=10", 617),
+    ("Method 1 +N. Kivu, w=15", 412),
+    ("Method 1 +N. Kivu, w=20", 309),
     ("Method 2 τ=14 d, CFR 26%", 860),
     ("Method 2 τ=14 d, CFR 33%", 678),
     ("Method 2 τ=14 d, CFR 40%", 559),
@@ -23,7 +23,7 @@ const REPORT_SCENARIOS = [
     ("Method 2 τ= 7 d, CFR 40%", 901),
     ("Method 2 τ=21 d, CFR 26%", 730),
     ("Method 2 τ=21 d, CFR 33%", 575),
-    ("Method 2 τ=21 d, CFR 40%", 474),
+    ("Method 2 τ=21 d, CFR 40%", 474)
 ]
 
 """
@@ -31,7 +31,7 @@ const REPORT_SCENARIOS = [
 
 Source population for the Ituri Province (McCabe et al., Table 1).
 """
-const ITURI_POPULATION   = 4_392_200
+const ITURI_POPULATION = 4_392_200
 
 """
     ITURI_DAILY_TRAVEL

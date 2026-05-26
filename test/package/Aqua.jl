@@ -20,7 +20,10 @@ end
 
 @testitem "Aqua: stale_deps" tags=[:quality] begin
     using Aqua, BVDOutbreakSize
-    Aqua.test_stale_deps(BVDOutbreakSize)
+    # DataFramesMeta isn't used in src/ — the data-wrangling macros
+    # live in scripts/refresh_insp_data.jl, which runs under
+    # --project=. and needs the package present.
+    Aqua.test_stale_deps(BVDOutbreakSize; ignore = [:DataFramesMeta])
 end
 
 @testitem "Aqua: deps_compat" tags=[:quality] begin

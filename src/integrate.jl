@@ -17,7 +17,7 @@ function integrate(f, lo, hi; alg = CUMULATIVE_INTEGRAL_ALG)
     hi <= lo && return zero(hi - lo)
     halfwidth = (hi - lo) / 2
     prob = IntegralProblem(_integrate_kernel, (-1.0, 1.0),
-                           (; f, halfwidth, lo))
+        (; f, halfwidth, lo))
     return halfwidth * solve(prob, alg).u
 end
 
@@ -27,7 +27,7 @@ end
 # `s = hi` and stretches the sparse end out to `s = lo`. The Jacobian
 # `dd/du = span · p · vᵖ⁻¹ / 2` is folded into the integrand so a single
 # fixed `solve` covers the whole domain.
-_clustered_kernel(u, p) = begin
+function _clustered_kernel(u, p)
     v = (u + one(u)) / 2
     d = p.span * v^p.expo
     return p.f(p.hi - d) * (p.span * p.expo * v^(p.expo - one(p.expo)) / 2)
@@ -56,7 +56,7 @@ function integrate(f, lo, hi, scale; alg = DEATH_INTEGRAL_ALG)
         return integrate(f, lo, hi; alg)
     expo = max(one(span), log(span / scale) / log(oftype(span, 2)))
     prob = IntegralProblem(_clustered_kernel, (-1.0, 1.0),
-                           (; f, hi, span, expo))
+        (; f, hi, span, expo))
     return solve(prob, alg).u
 end
 
@@ -139,14 +139,14 @@ end
 
 function ExportDeathDelay(dist, gmax::Real;
         npts::Integer = EXPORT_DELAY_GRID_POINTS)
-    g  = float(gmax)
+    g = float(gmax)
     dx = g / (npts - 1)
     Tt = typeof(pdf(dist, dx) * dx)
-    F  = Vector{Tt}(undef, npts)
+    F = Vector{Tt}(undef, npts)
     F[1] = zero(Tt)
     prev = zero(Tt)
     @inbounds for i in 2:npts
-        fx   = pdf(dist, (i - 1) * dx)
+        fx = pdf(dist, (i - 1) * dx)
         F[i] = F[i - 1] + (prev + fx) * dx / 2
         prev = fx
     end
@@ -156,10 +156,10 @@ end
 # Linear interpolation of the precomputed CDF: F_d(0) = 0 and flat past
 # `gmax` (all delay mass within the window has accumulated by then).
 @inline function _cdf_to(ed::ExportDeathDelay, y)
-    y <= zero(y)  && return zero(eltype(ed.F))
-    y >= ed.gmax  && return @inbounds ed.F[end]
-    pos  = y / ed.dx
-    i    = floor(Int, pos) + 1
+    y <= zero(y) && return zero(eltype(ed.F))
+    y >= ed.gmax && return @inbounds ed.F[end]
+    pos = y / ed.dx
+    i = floor(Int, pos) + 1
     frac = pos - (i - 1)
     return @inbounds ed.F[i] + frac * (ed.F[i + 1] - ed.F[i])
 end

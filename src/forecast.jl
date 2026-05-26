@@ -37,29 +37,29 @@ growth continues unchanged over the horizon (no interventions, no
 saturation).
 """
 function forecast_reported(chn;
-        horizon::Real          = 7,
+        horizon::Real = 7,
         daily_travellers::Real,
         source_population::Real,
         obs_cases::Real,
         obs_deaths::Real,
         obs_exports::Real,
-        seed::Integer          = 20260520,
-        alg                    = DEATH_INTEGRAL_ALG)
-    r   = _draws(chn, :r)
-    T   = _draws(chn, :T)
+        seed::Integer = 20260520,
+        alg = DEATH_INTEGRAL_ALG)
+    r = _draws(chn, :r)
+    T = _draws(chn, :T)
     CFR = _draws(chn, :CFR)
-    α   = _draws(chn, :α)
-    θ   = _draws(chn, :θ)
-    w   = _draws(chn, :w)
-    pr  = _draws(chn, :p_drc)
-    pu  = _draws(chn, :p_uganda)
-    k   = _draws(chn, :k)
+    α = _draws(chn, :α)
+    θ = _draws(chn, :θ)
+    w = _draws(chn, :w)
+    pr = _draws(chn, :p_drc)
+    pu = _draws(chn, :p_uganda)
+    k = _draws(chn, :k)
 
     rng = MersenneTwister(seed)
     n = length(r)
     q = daily_travellers / source_population
-    cases_cum   = Vector{Int}(undef, n)
-    deaths_cum  = Vector{Int}(undef, n)
+    cases_cum = Vector{Int}(undef, n)
+    deaths_cum = Vector{Int}(undef, n)
     exports_cum = Vector{Int}(undef, n)
 
     @inbounds for i in 1:n
@@ -79,12 +79,12 @@ function forecast_reported(chn;
 
     _new(cum, obs) = max.(cum .- round(Int, obs), 0)
     return DataFrame(
-        cases_cum    = cases_cum,
-        deaths_cum   = deaths_cum,
-        exports_cum  = exports_cum,
-        cases_new    = _new(cases_cum,   obs_cases),
-        deaths_new   = _new(deaths_cum,  obs_deaths),
-        exports_new  = _new(exports_cum, obs_exports),
+        cases_cum = cases_cum,
+        deaths_cum = deaths_cum,
+        exports_cum = exports_cum,
+        cases_new = _new(cases_cum, obs_cases),
+        deaths_new = _new(deaths_cum, obs_deaths),
+        exports_new = _new(exports_cum, obs_exports)
     )
 end
 
@@ -96,20 +96,22 @@ total by `T + 7`, or new this week), reporting the same equal-tailed
 other summary tables.
 """
 function forecast_table(fc::DataFrame; digits::Integer = 0)
-    _row(label, quantity, draws) = begin
+    _row(label,
+        quantity,
+        draws) = begin
         s = posterior_summary(draws)
         (stream = label, quantity = quantity,
-         lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
-         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
-         upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
+            lower_90 = round(s.lo90; digits), lower_60 = round(s.lo60; digits),
+            lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+            upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
     end
     rows = NamedTuple[]
     for (label, cum, new) in (
-            ("DRC reported cases", :cases_cum,   :cases_new),
-            ("DRC deaths",         :deaths_cum,  :deaths_new),
-            ("Uganda exports",     :exports_cum, :exports_new))
+        ("DRC reported cases", :cases_cum, :cases_new),
+        ("DRC deaths", :deaths_cum, :deaths_new),
+        ("Uganda exports", :exports_cum, :exports_new))
         push!(rows, _row(label, "cumulative by T+7", fc[!, cum]))
-        push!(rows, _row(label, "new this week",     fc[!, new]))
+        push!(rows, _row(label, "new this week", fc[!, new]))
     end
     return _prettify(DataFrame(rows))
 end
@@ -127,20 +129,22 @@ projection.
 """
 function forecast_vs_truth(fc::DataFrame;
         cases::Real, deaths::Real, exports::Real, digits::Integer = 0)
-    _row(label, draws, obs) = begin
-        s  = posterior_summary(draws)
+    _row(label,
+        draws,
+        obs) = begin
+        s = posterior_summary(draws)
         lo = round(s.lo90; digits)
         hi = round(s.hi90; digits)
         (stream = label, observed = round(obs; digits),
-         lower_90 = lo, lower_60 = round(s.lo60; digits),
-         lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
-         upper_60 = round(s.hi60; digits), upper_90 = hi,
-         within_90 = lo <= obs <= hi ? "yes" : "no")
+            lower_90 = lo, lower_60 = round(s.lo60; digits),
+            lower_30 = round(s.lo30; digits), upper_30 = round(s.hi30; digits),
+            upper_60 = round(s.hi60; digits), upper_90 = hi,
+            within_90 = lo <= obs <= hi ? "yes" : "no")
     end
     rows = [
-        _row("DRC reported cases", fc[!, :cases_cum],   cases),
-        _row("DRC deaths",         fc[!, :deaths_cum],  deaths),
-        _row("Uganda exports",     fc[!, :exports_cum], exports),
+        _row("DRC reported cases", fc[!, :cases_cum], cases),
+        _row("DRC deaths", fc[!, :deaths_cum], deaths),
+        _row("Uganda exports", fc[!, :exports_cum], exports)
     ]
     return _prettify(DataFrame(rows))
 end

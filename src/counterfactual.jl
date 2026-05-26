@@ -42,18 +42,18 @@ matching the rest of the package.
 function predict_no_onward_deaths(chn;
         obs_deaths::Real,
         alg = DEATH_INTEGRAL_ALG)
-    r_draws   = _draws(chn, :r)
-    T_draws   = _draws(chn, :T)
-    α_draws   = _draws(chn, :α)
-    θ_draws   = _draws(chn, :θ)
+    r_draws = _draws(chn, :r)
+    T_draws = _draws(chn, :T)
+    α_draws = _draws(chn, :α)
+    θ_draws = _draws(chn, :θ)
     CFR_draws = _draws(chn, :CFR)
 
     n = length(r_draws)
     delta = Vector{Float64}(undef, n)
     @inbounds for i in 1:n
         delta[i] = _committed_deaths_one(r_draws[i], T_draws[i],
-                                         α_draws[i], θ_draws[i],
-                                         CFR_draws[i]; alg)
+            α_draws[i], θ_draws[i],
+            CFR_draws[i]; alg)
     end
     total = float(obs_deaths) .+ delta
     return DataFrame(delta_deaths = delta, total_projected = total)

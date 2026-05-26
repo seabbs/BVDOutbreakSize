@@ -11,12 +11,11 @@ ascertainment, then conditions on the exports likelihood only. See
 """
 @model function exports_only_model(
         exported_cases::Union{Missing, Integer};
-        growth        = exponential_growth_model(),
-        exports       = exports_model,
+        growth = exponential_growth_model(),
+        exports = exports_model,
         ascertainment = pooled_ascertainment_model())
-
     growth_state ~ to_submodel(growth, false)
-    asc_state    ~ to_submodel(ascertainment, false)
+    asc_state ~ to_submodel(ascertainment, false)
 
     exports_state ~ to_submodel(
         exports(exported_cases, growth_state, asc_state.p_uganda), false)
@@ -31,11 +30,10 @@ dispersion, then conditions on the deaths likelihood only. See
 """
 @model function deaths_only_model(
         total_deaths::Union{Missing, Integer};
-        growth     = exponential_growth_model(),
-        deaths     = deaths_model,
+        growth = exponential_growth_model(),
+        deaths = deaths_model,
         dispersion = surveillance_dispersion_model())
-
-    growth_state     ~ to_submodel(growth, false)
+    growth_state ~ to_submodel(growth, false)
     dispersion_state ~ to_submodel(dispersion, false)
     k = dispersion_state.k
 
@@ -52,14 +50,13 @@ reported-cases likelihood. See [`cases_model`](@ref).
 """
 @model function cases_only_model(
         reported_cases::Union{Missing, Integer};
-        growth        = exponential_growth_model(),
-        cases         = cases_model,
-        dispersion    = surveillance_dispersion_model(),
+        growth = exponential_growth_model(),
+        cases = cases_model,
+        dispersion = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model())
-
-    growth_state     ~ to_submodel(growth, false)
+    growth_state ~ to_submodel(growth, false)
     dispersion_state ~ to_submodel(dispersion, false)
-    asc_state        ~ to_submodel(ascertainment, false)
+    asc_state ~ to_submodel(ascertainment, false)
     k = dispersion_state.k
 
     cases_state ~ to_submodel(
@@ -76,21 +73,20 @@ on the dated export-deaths likelihood. See
 """
 @model function exports_deaths_only_model(
         export_deaths_daily::AbstractVector;
-        growth        = exponential_growth_model(),
-        delay         = delay_model(),
-        cfr           = cfr_model(),
-        window        = detection_window_model(),
-        traveller     = traveller_volume_model(),
+        growth = exponential_growth_model(),
+        delay = delay_model(),
+        cfr = cfr_model(),
+        window = detection_window_model(),
+        traveller = traveller_volume_model(),
         exports_deaths_model = exports_deaths_model,
         ascertainment = pooled_ascertainment_model(),
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0)
-
     growth_state ~ to_submodel(growth, false)
-    delay_state  ~ to_submodel(delay, false)
-    cfr_state    ~ to_submodel(cfr, false)
+    delay_state ~ to_submodel(delay, false)
+    cfr_state ~ to_submodel(cfr, false)
     window_state ~ to_submodel(window, false)
-    asc_state    ~ to_submodel(ascertainment, false)
+    asc_state ~ to_submodel(ascertainment, false)
 
     travel_state ~ to_submodel(traveller, false)
     daily_travellers = travel_state.daily_travellers
@@ -99,7 +95,7 @@ on the dated export-deaths likelihood. See
         exports_deaths_model(export_deaths_daily, growth_state,
             cfr_state.CFR, delay_state.dist, asc_state.p_uganda;
             pre_start_deaths = pre_start_deaths,
-            window           = window_state.w,
+            window = window_state.w,
             daily_travellers = daily_travellers,
             source_population = source_population),
         false)
@@ -120,28 +116,27 @@ checks.
         total_deaths::Union{Missing, Integer},
         reported_cases::Union{Missing, Integer} = missing,
         export_deaths_daily::AbstractVector = Int[];
-        growth        = exponential_growth_model(),
-        exports       = exports_model,
-        deaths        = deaths_model,
-        cases         = cases_model,
+        growth = exponential_growth_model(),
+        exports = exports_model,
+        deaths = deaths_model,
+        cases = cases_model,
         exports_deaths_model = exports_deaths_model,
         exports_detection_timing = exports_detection_timing_model,
-        dispersion    = surveillance_dispersion_model(),
+        dispersion = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
-        genetic       = nothing,
+        genetic = nothing,
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
         pre_detection_exports::Union{Missing, Integer} = 0,
         first_export_detection_delta::Union{Missing, Real} = missing)
-
-    growth_state     ~ to_submodel(growth, false)
+    growth_state ~ to_submodel(growth, false)
     if genetic !== nothing
         genetic_state ~ to_submodel(genetic(growth_state.T), false)
     end
     dispersion_state ~ to_submodel(dispersion, false)
-    asc_state        ~ to_submodel(ascertainment, false)
-    k        = dispersion_state.k
-    p_drc    = asc_state.p_drc
+    asc_state ~ to_submodel(ascertainment, false)
+    k = dispersion_state.k
+    p_drc = asc_state.p_drc
     p_uganda = asc_state.p_uganda
 
     exports_state ~ to_submodel(
@@ -154,15 +149,15 @@ checks.
         exports_deaths_model(export_deaths_daily, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;
             pre_start_deaths = pre_start_deaths,
-            window           = exports_state.w,
+            window = exports_state.w,
             daily_travellers = exports_state.daily_travellers,
             source_population = source_population),
         false)
     detection_timing_state ~ to_submodel(
         exports_detection_timing(growth_state, p_uganda;
-            delta            = first_export_detection_delta,
+            delta = first_export_detection_delta,
             pre_detection_exports = pre_detection_exports,
-            window           = exports_state.w,
+            window = exports_state.w,
             daily_travellers = exports_state.daily_travellers,
             source_population = source_population),
         false)
@@ -180,16 +175,15 @@ only) fit.
 @model function imperial_only_model(
         exported_cases::Union{Missing, Integer},
         total_deaths::Union{Missing, Integer};
-        growth        = exponential_growth_model(),
-        exports       = exports_model,
-        deaths        = deaths_model,
-        dispersion    = surveillance_dispersion_model(),
+        growth = exponential_growth_model(),
+        exports = exports_model,
+        deaths = deaths_model,
+        dispersion = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model())
-
-    growth_state     ~ to_submodel(growth, false)
+    growth_state ~ to_submodel(growth, false)
     dispersion_state ~ to_submodel(dispersion, false)
-    asc_state        ~ to_submodel(ascertainment, false)
-    k        = dispersion_state.k
+    asc_state ~ to_submodel(ascertainment, false)
+    k = dispersion_state.k
     p_uganda = asc_state.p_uganda
 
     if !ismissing(exported_cases)

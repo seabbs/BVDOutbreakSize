@@ -44,13 +44,14 @@ end
 # font files by basename from the same assets directory as the CSS. A
 # referenced font that is not found is left untouched.
 function embed_fonts(css::AbstractString, assets_dir::AbstractString)
-    replace(css, r"url\(([^)]*?([^/)]+\.woff2))\)" => function (m)
-        name = match(r"url\([^)]*?([^/)]+\.woff2)\)", m).captures[1]
-        path = joinpath(assets_dir, name)
-        isfile(path) || return m
-        data = base64encode(read(path))
-        "url(data:font/woff2;base64,$data)"
-    end)
+    replace(css,
+        r"url\(([^)]*?([^/)]+\.woff2))\)" => function (m)
+            name = match(r"url\([^)]*?([^/)]+\.woff2)\)", m).captures[1]
+            path = joinpath(assets_dir, name)
+            isfile(path) || return m
+            data = base64encode(read(path))
+            "url(data:font/woff2;base64,$data)"
+        end)
 end
 
 function find_one(root::AbstractString, name::AbstractString)
@@ -78,8 +79,7 @@ function build_standalone(build_dir::AbstractString, out_file::AbstractString)
     # (citations resolve to the references page, etc.) that are not part
     # of this single file. Absolutise them against the hosted site so
     # they resolve instead of breaking against the local filesystem.
-    content = replace(content, "href=\"/BVDOutbreakSize/" =>
-                      "href=\"https://epiforecasts.io/BVDOutbreakSize/")
+    content = replace(content, "href=\"/BVDOutbreakSize/" => "href=\"https://epiforecasts.io/BVDOutbreakSize/")
 
     css = ""
     for f in readdir(assets)
@@ -118,9 +118,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     root = joinpath(@__DIR__, "..")
     build_dir = length(ARGS) >= 1 ? ARGS[1] :
                 joinpath(root, "docs", "build")
-    out_file  = length(ARGS) >= 2 ? ARGS[2] :
-                joinpath(root, "output", "analysis.html")
+    out_file = length(ARGS) >= 2 ? ARGS[2] :
+               joinpath(root, "output", "analysis.html")
     out = build_standalone(build_dir, out_file)
     println("wrote self-contained report: ", out,
-            " (", filesize(out), " bytes)")
+        " (", filesize(out), " bytes)")
 end

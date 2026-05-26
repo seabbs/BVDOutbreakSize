@@ -30,11 +30,10 @@ submodels internally.
         exported_cases::Union{Missing, Integer},
         growth_state, p_uganda::Real;
         source_population::Real = ITURI_POPULATION,
-        window                  = detection_window_model(),
-        traveller               = traveller_volume_model())
-
+        window = detection_window_model(),
+        traveller = traveller_volume_model())
     cumulative = growth_state.cumulative
-    T          = growth_state.T
+    T = growth_state.T
 
     window_state ~ to_submodel(window, false)
     w = window_state.w
@@ -48,7 +47,7 @@ submodels internally.
     exported_cases ~ Poisson(expected_exports_T)
 
     return (; w, daily_travellers, p_uganda,
-              expected_exports = expected_exports_T)
+        expected_exports = expected_exports_T)
 end
 
 """
@@ -63,23 +62,22 @@ internally.
         total_deaths::Union{Missing, Integer},
         growth_state, k::Real;
         delay = delay_model(),
-        cfr   = cfr_model())
-
+        cfr = cfr_model())
     C_T = growth_state.C_T
-    r   = growth_state.r
-    T   = growth_state.T
+    r = growth_state.r
+    T = growth_state.T
 
     delay_state ~ to_submodel(delay, false)
-    cfr_state   ~ to_submodel(cfr, false)
+    cfr_state ~ to_submodel(cfr, false)
 
     CFR = cfr_state.CFR
 
     ## NaN-safe clamp: extreme NUTS proposals during warmup can push
     ## the expected count to NaN / Inf.
-    raw_deaths         = expected_deaths(CFR, r, T, delay_state.dist)
+    raw_deaths = expected_deaths(CFR, r, T, delay_state.dist)
     expected_deaths_T := isfinite(raw_deaths) ?
-        max(raw_deaths, eps(typeof(raw_deaths))) :
-        eps(typeof(raw_deaths))
+                         max(raw_deaths, eps(typeof(raw_deaths))) :
+                         eps(typeof(raw_deaths))
 
     total_deaths ~ safe_nbinomial(k, expected_deaths_T)
 
@@ -95,13 +93,12 @@ suspected-case count to `C(T)` via the DRC ascertainment fraction
 @model function cases_model(
         reported_cases::Union{Missing, Integer},
         growth_state, k::Real, p_drc::Real)
-
     C_T = growth_state.C_T
 
-    raw_reports        = p_drc * C_T
+    raw_reports = p_drc * C_T
     expected_reports := isfinite(raw_reports) ?
-        max(raw_reports, eps(typeof(raw_reports))) :
-        eps(typeof(raw_reports))
+                        max(raw_reports, eps(typeof(raw_reports))) :
+                        eps(typeof(raw_reports))
 
     reported_cases ~ safe_nbinomial(k, expected_reports)
 
@@ -123,11 +120,10 @@ likelihoods share person-time.
         window::Real,
         daily_travellers::Real,
         source_population::Real = ITURI_POPULATION)
-
     cumulative = growth_state.cumulative
-    T          = growth_state.T
-    q          = daily_travellers / source_population
-    n          = length(export_deaths_daily)   # days from earliest death to cut-off
+    T = growth_state.T
+    q = daily_travellers / source_population
+    n = length(export_deaths_daily)   # days from earliest death to cut-off
 
     ## Precompute the onset-to-death CDF once and reuse it across every
     ## bin edge below (`T - s ≤ window` over the domain; see
@@ -166,14 +162,13 @@ matching the at-risk export person-time intensity. Passing
         window::Real,
         daily_travellers::Real,
         source_population::Real = ITURI_POPULATION)
-
     if !ismissing(delta)
         cumulative = growth_state.cumulative
-        T          = growth_state.T
-        t1         = T - delta
-        q          = daily_travellers / source_population
+        T = growth_state.T
+        t1 = T - delta
+        q = daily_travellers / source_population
         survived_exports := t1 <= zero(T) ? zero(T) :
-            expected_exports(cumulative, p_uganda, q, t1, window)
+                            expected_exports(cumulative, p_uganda, q, t1, window)
         ## No detection before t1 as a Poisson observed at 0; `missing`
         ## generates it for predictive checks (see equation (22)).
         pre_detection_exports ~ Poisson(max(survived_exports, zero(T)))

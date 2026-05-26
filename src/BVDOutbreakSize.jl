@@ -1,9 +1,8 @@
 module BVDOutbreakSize
 
 using Statistics: quantile, mean, std
-using TOML
-using DataFrames: DataFrame
-using DataFramesMeta
+using TOML: TOML
+using DataFrames: DataFrame, rename
 using Chain: @chain
 using Random: MersenneTwister
 using Dates: Date, date2epochdays, epochdays2date
@@ -12,7 +11,7 @@ using Mooncake: Mooncake
 using ChainRulesCore: ChainRulesCore, NoTangent
 using SpecialFunctions: digamma, loggamma
 import SpecialFunctions
-using Turing
+using Turing: @model, MCMCThreads, NUTS, sample, to_submodel
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
@@ -49,14 +48,14 @@ export REPORT_SCENARIOS,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
        forecast_vs_truth, plot_forecast_vs_truth,
-       # prior submodels
+# prior submodels
        exponential_growth_model, genetic_seeding_model, delay_model,
        cfr_model, detection_window_model, traveller_volume_model,
        surveillance_dispersion_model, pooled_ascertainment_model,
-       # observation models
+# observation models
        exports_model, deaths_model, cases_model, exports_deaths_model,
        exports_detection_timing_model,
-       # joint composers
+# joint composers
        exports_only_model, deaths_only_model, cases_only_model,
        exports_deaths_only_model, bvd_joint, imperial_only_model
 

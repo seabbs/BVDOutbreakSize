@@ -19,14 +19,14 @@
     end
 
     chn = sample(_summary_model(), Prior(), 200;
-                 chain_type = FlexiChains.VNChain, progress = false)
+        chain_type = FlexiChains.VNChain, progress = false)
     params = [:a, :b]
     df = summary_table(chn, params)
 
     @test df isa DataFrame
     @test names(df) ==
           ["Quantity", "Lower 90%", "Lower 60%", "Lower 30%",
-           "Upper 30%", "Upper 60%", "Upper 90%"]
+        "Upper 30%", "Upper 60%", "Upper 90%"]
     @test nrow(df) == length(params)
     @test df[!, "Quantity"] == ["a", "b"]
 
