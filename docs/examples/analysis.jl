@@ -71,6 +71,12 @@
 #   hyperprior on the reporting fraction, applied to the latent
 #   $C(T)$, gives a joint posterior over the reported suspected-case
 #   count alongside deaths and exports.
+# - *Suspected and laboratory-confirmed streams* (not in McCabe et al.).
+#   Reported (suspected) counts are modelled as the BVD-driven
+#   onset-to-report convolution plus a non-BVD background; confirmed
+#   counts add a PCR sensitivity factor and an onset-to-confirmation
+#   convolution stacked on the same BVD trajectory. Implied test
+#   positivity is exposed as a derived quantity.
 # - *No-onward-transmission counterfactual* (not in McCabe et al.).
 #   Projects the future expected deaths from cases already infected
 #   by $T$, integrating $i(s)\cdot(1 - F_d(T - s))$ per draw — a
@@ -187,7 +193,7 @@ using Random
 using Markdown
 using Dates: Date, Day, value
 using BVDOutbreakSize
-using BVDOutbreakSize: integrate, integrate_cumulative,
+using BVDOutbreakSize: integrate_cumulative,
                        integrate_exports_deaths, delay_convolution
 import CairoMakie
 
@@ -515,40 +521,32 @@ end
 
 # ##### Surveillance delays
 #
-# Reported (suspected) and laboratory-confirmed counts sit at the end
-# of two reporting chains and so see the growth curve through two
-# different kernels. The infection-to-report delay $f_{\text{rep}}$
-# governs the time from infection to a case appearing on the suspected
-# line list. The lab-turnaround delay $f_{\text{lab}}$ adds the
-# further lag from that report to the case being confirmed. The
-# infection-to-confirmation delay is then the convolution
-# $f_{\text{conf}} = f_{\text{rep}} \ast f_{\text{lab}}$.
+# Suspected and laboratory-confirmed counts see the growth curve
+# through two delays: an onset-to-report delay $f_{\text{rep}}$
+# (symptom onset to the case appearing on the suspected line list),
+# and a report-to-confirmation delay $f_{\text{lab}}$ (lab
+# turnaround).
 #
-# Both delays are Gamma with priors over shape and scale, mirroring the
-# onset-to-death `delay_model`. The infection-to-report prior is
-# centred on roughly $12$ days (Ebola-class incubation around $10$ days
-# plus a few days to line listing) with wide $\alpha, \theta$ priors.
-# The lab-turnaround prior centre is around $4$-$5$ days with a heavy
-# right tail: the Bunia provincial-lab GeneXpert was calibrated for
-# Zaire Ebola virus and returned negative on the Ituri samples
-# [africacdc_sitrep_2026](@cite), so confirmation routed through INRB
-# Kinshasa (~$1500$ km from Ituri) — sample shipment plus the rerun on
-# a Bundibugyo-capable PCR adds days to the on-site PCR turnaround.
-# No per-sample turnaround estimate has been published for this
-# outbreak; the prior is analyst judgement consistent with that
-# qualitative description and the broader Ebola PCR literature, and
-# could be tightened if INRB publishes sample-to-result data. The
-# infection-to-confirmation kernel is sampled implicitly by sampling
-# its components separately so the lab step is interpretable on its
-# own.
+# The onset-to-report prior is taken from the companion BDBV linelist
+# reanalysis of the 2012 Isiro outbreak [bdbv_linelist_analysis_2026](@cite),
+# whose Gamma-family posterior on the onset-to-notification delay has
+# median around $11$ days. We loosen this slightly to allow for
+# 2026-specific deviations.
+#
+# No published per-sample lab turnaround is available for this
+# outbreak. The Bunia provincial-lab GeneXpert returned negative on
+# the Ituri samples and confirmation routed through INRB Kinshasa
+# [africacdc_sitrep_2026](@cite); the prior centre is around $4$-$5$
+# days with a heavy right tail to allow for sample shipment, and can
+# be tightened if data becomes available.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: report_delay_model</summary>
 #md # ```
 
 @model function report_delay_model(;
-        alpha_prior = truncated(Normal(4.0, 1.5); lower = 0),
-        theta_prior = truncated(Normal(3.0, 1.0); lower = 0))
+        alpha_prior = truncated(Normal(2.5, 1.0); lower = 0.5),
+        theta_prior = truncated(Normal(4.5, 1.5); lower = 0.5))
     α_rep ~ alpha_prior
     θ_rep ~ theta_prior
     return (; α = α_rep, θ = θ_rep, dist = Gamma(α_rep, θ_rep))
@@ -573,23 +571,6 @@ end
 #md # ```@raw html
 #md # </details>
 #md # ```
-
-# We evaluate the infection-to-confirmation convolution against $C(s)$
-# as an exact double integral — outer over the lab-turnaround kernel,
-# inner the same infection-to-report convolution the reported-cases
-# likelihood already uses (equation (21)):
-#
-# ```math
-# \int_0^T e^{r s}\, f_{\text{conf}}(T - s)\, ds
-#   = \int_0^T f_{\text{lab}}(u)\,
-#       \Big[\int_0^{T-u} e^{r s'}\, f_{\text{rep}}(T-u-s')\, ds'\Big]\, du. \tag{5}
-# ```
-#
-# The inner integral reuses [`delay_convolution`](@ref) at the
-# pushed-back cut-off $T - u$, so the Gamma analytic fast path with its
-# `_gamma_cdf` rrule applies — no moment-matching, and either kernel
-# can be swapped to another `Distribution` family without changing the
-# integrator.
 
 # ##### Case-fatality ratio
 #
@@ -993,9 +974,8 @@ end
 # ##### Reported cases
 #
 # $C(T)$ is the latent count of cases that will ultimately be
-# laboratory-confirmable. Confirmed cases anchor it directly through the
-# infection-to-confirmation convolution. Suspected reports include
-# test-negative referrals — clinical look-alikes such as malaria or
+# laboratory-confirmable. Suspected reports include test-negative
+# referrals — alternative differential diagnoses such as malaria or
 # other febrile illness — whose rate is set by background prevalence
 # and surveillance intensity, not by BVD growth. We therefore model the
 # suspected stream as the sum of a BVD-driven component and a non-BVD
@@ -1031,19 +1011,16 @@ end
 #
 # $\mu_{\text{bg}} = \lambda_{\text{bg}}\, T$ assumes the non-BVD
 # background rate is constant in time and independent of the outbreak.
-# Two ways this might break:
-#
-# - *Surveillance ramp-up.* As awareness rises, more febrile cases
-#   present and get sampled, so $\lambda_{\text{bg}}$ would be
-#   time-varying. With a single cumulative suspected count we can only
-#   identify the cumulative rate, so we keep the constant-rate
-#   parameterisation as the summary.
-# - *Outbreak-correlated background.* If suspected ascertainment is
-#   triggered by the outbreak — more testing where BVD has been seen —
-#   non-BVD admissions get sampled at a rate that tracks $C(T)$. The
-#   model treats $\lambda_{\text{bg}}$ as independent of $C(T)$, so
-#   strong coupling in reality would have $\lambda_{\text{bg}}$ absorb
-#   some of that variation and shift the implied positivity.
+# There are several alternative mechanisms that could be used to model
+# this process under different assumptions. Firstly, awareness-driven
+# surveillance ramp-up would make $\lambda_{\text{bg}}$ time-varying;
+# with a single cumulative suspected count we can only identify a
+# cumulative rate, so we keep the constant-rate parameterisation as
+# the summary. Secondly, if suspected ascertainment is triggered by
+# the outbreak — more testing where BVD has been seen — non-BVD
+# presentations would get sampled at a rate that tracks $C(T)$, and
+# $\lambda_{\text{bg}}$ would absorb some of that variation, shifting
+# the implied positivity.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: background_suspected_model</summary>
@@ -1113,31 +1090,17 @@ end
 
 # ##### Confirmed cases
 #
-# Laboratory-confirmed counts anchor $C(T)$, picking up only BVD cases
-# that (a) have cleared both the report and lab-turnaround delays and
-# (b) returned a positive PCR. Letting $s$ denote PCR sensitivity (the
-# probability a sample from a true BVD case returns positive in the
-# lab), the cumulative expectation rewrites the equation (5) double
-# integral with the BVD ascertainment and sensitivity factors out
-# front:
+# Laboratory-confirmed counts are only BVD cases that (a) have cleared
+# both the report and lab-turnaround delays and (b) returned a
+# positive PCR. Letting $s$ denote PCR sensitivity, the cumulative
+# expectation convolves the BVD-suspected trajectory of equation (18)
+# against the lab-turnaround kernel and scales by $s$:
 #
 # ```math
-# \mu_{\text{conf}} = s \cdot p_{\text{DRC}}
-#     \int_0^T f_{\text{lab}}(u)\,
-#       \Big[\int_0^{T-u} e^{r s'}\, f_{\text{rep}}(T-u-s')\, ds'\Big]\, du, \qquad
+# \mu_{\text{conf}} = s
+#     \int_0^T \mu_{\text{BVD}}(s')\, f_{\text{lab}}(T - s')\, ds', \qquad
 # Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k). \tag{21}
 # ```
-#
-# The inner bracket is the same $\int e^{r s'}\, f_{\text{rep}}\, ds'$
-# convolution the reported-cases submodel computes (equation (18)),
-# evaluated at the pushed-back cut-off $T - u$ instead of $T$. The
-# confirmed submodel takes that integrator's closure directly as
-# input, so no moment-matching enters and either kernel can be swapped
-# to a different `Distribution` family without changing the code path.
-# Sampling the report-delay,
-# lab-turnaround and sensitivity priors separately keeps each step
-# interpretable. The dispersion $k$ is shared across all NegBinomial
-# likelihoods.
 #
 # Beta prior on the PCR sensitivity:
 #
@@ -1145,21 +1108,13 @@ end
 # s \sim \mathrm{Beta}(15,\ 2), \tag{22}
 # ```
 #
-# with mean $0.88$, SD $0.08$ and a $95\%$ interval covering roughly
-# $0.69$ to $0.99$. The Cepheid GeneXpert Ebola assay validations
-# [pinsky2015,semper2016](@cite) report $100\%$ sensitivity against the
-# Trombley reference on Sierra Leone field whole blood and on
-# virus-isolation-confirmed patient samples; the prior centre sits
-# below that to leave room for early-infection low-viral-load
-# specimens and field-handling losses, and the wide right tail still
-# covers the reference-panel value. The Bundibugyo-capable PCR run by
-# INRB is assumed comparable but with thinner published evidence than
-# for Zaire Ebola virus, which argues for the wider tail. With a
-# single confirmed count, $s$ and $p_{\text{DRC}}$ are jointly
-# identifiable only via the prior on $s$; the prior therefore
-# propagates directly into the $p_{\text{DRC}}$ posterior, and the
-# combined product $s \cdot p_{\text{DRC}}$ is what the confirmed
-# stream actually pins down.
+# mean $0.88$, $95\%$ interval $0.69$-$0.99$. The Cepheid GeneXpert
+# Ebola assay validations on Zaire Ebola report $100\%$ sensitivity on
+# field whole blood and on virus-isolation-confirmed samples
+# [pinsky2015,semper2016](@cite); we centre the prior below that to
+# leave room for early-infection low-viral-load specimens, field
+# handling, and the lack of comparable Bundibugyo-specific
+# validations.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_sensitivity_model</summary>
@@ -1191,22 +1146,8 @@ end
     s_test = sensitivity_state.s_test
     T = growth_state.T
 
-    ## One more integral on top of the reported-cases closure:
-    ##   μ_conf = s · ∫₀^T pdf(f_lab, u) · bvd_reported_at(T-u) du.
-    ## The `bvd_reported_at` callable carries the inner f_rep
-    ## convolution already evaluated by `reported_cases_model`, so the
-    ## confirmed likelihood is just a single outer quadrature against
-    ## f_lab — no separate f_conf kernel.
-    integrand = let bvd_reported_at = bvd_reported_at,
-                    f_lab = f_lab, T = T
-        u -> begin
-            d = T - u
-            d <= 0 ? zero(T) :
-                pdf(f_lab, u) * bvd_reported_at(d)
-        end
-    end
-    scale_lab = mean(f_lab) + 10 * std(f_lab)  ## matches DELAY_SUPPORT_K = 10
-    raw_confirmed = s_test * integrate(integrand, zero(T), T, scale_lab)
+    raw_confirmed = s_test *
+        delay_convolution(bvd_reported_at, T, f_lab)
     expected_confirmed := isfinite(raw_confirmed) ?
         max(raw_confirmed, eps(typeof(raw_confirmed))) :
         eps(typeof(raw_confirmed))

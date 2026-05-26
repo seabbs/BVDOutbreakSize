@@ -64,8 +64,8 @@ values = [516, 575, 672, 745, 872, 905]
 source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP SitReps 004-010 published 18-23 May 2026. Values are cumulative DRC suspected cases summed across reporting health zones at each sitrep date. The 24 May vintage is omitted because two zones (Goma, Katwa) were revised downward, giving a cumulative sum (893) below the 23 May figure."
 
 [confirmed_cases]
-value  = 33
-source = "WHO AFRO, Ebola Bundibugyo virus disease outbreak (DRC | Uganda), Weekly External Situation Report 01, data as of 18 May 2026 — DRC cumulative laboratory-confirmed cases. Lags the suspected count by a report-to-test delay; the joint stream uses a positivity multiplier (45% in recent INSP daily/cumulative figures) on the suspected-case expectation."
+value  = 95
+source = "INRB-UMIE/Ebola_DRC_2026 transcription of INSP SitRep 010 (data as of 23 May 2026) — DRC cumulative laboratory-confirmed cases, summed across the reporting health zones from insp_sitrep__cumulative_confirmed_cases__daily.csv. Matches the cumulative suspected and deaths cut-off date."
 
 [daily_outbound_travellers]
 value  = 1871

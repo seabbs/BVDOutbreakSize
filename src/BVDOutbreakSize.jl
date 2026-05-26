@@ -380,14 +380,37 @@ analytic closed form
 ```
 
 where ``f`` is the Gamma(α, θ) density, ``M`` its moment-generating
-function and ``F`` its CDF. The CDF is routed through
-[`_gamma_cdf`](@ref) so Mooncake reverse-mode AD picks up a shape-
-parameter gradient (computed internally with ForwardDiff).
+function and ``F`` its CDF.
 """
 function delay_convolution(scale, r, T, delay_dist::Gamma)
     α, θ = delay_dist.α, delay_dist.θ
     return scale * exp(r * T) * mgf(delay_dist, -r) *
            _gamma_cdf(α, θ, T * (1 + θ * r))
+end
+
+"""
+$(TYPEDSIGNATURES)
+
+Variant accepting an arbitrary cumulative-incidence trajectory
+`cumulative(s)` in place of the ``e^{r s}`` proxy:
+
+```math
+\\int_0^T \\text{cumulative}(s)\\, f(T - s)\\, ds.
+```
+
+Used by the confirmed-cases likelihood, where `cumulative` is the
+reported-cases submodel's BVD convolution as a function of time.
+"""
+function delay_convolution(cumulative::Function, T, delay_dist;
+        alg = DEATH_INTEGRAL_ALG)
+    scale = _delay_scale(delay_dist)
+    g = let cumulative = cumulative, T = T, delay_dist = delay_dist
+        s -> begin
+            d = T - s
+            d <= 0 ? zero(T) : cumulative(s) * pdf(delay_dist, d)
+        end
+    end
+    return integrate(g, zero(T), T, scale; alg)
 end
 
 """
@@ -1246,11 +1269,6 @@ function _forecast_cases_mean(r, Th, α_rep, θ_rep, p_drc, λ_bg;
     return p_drc * conv + λ_bg * Th
 end
 
-# Laboratory-confirmed cases at horizon `Th`: outer quadrature against
-# the lab-turnaround Gamma, with the inner reported-cases
-# closure `τ -> p_drc · delay_convolution(1, r, τ, f_rep)` evaluated at
-# the pushed-back cut-off `Th - u`. Same exact double integral as the
-# in-model confirmed likelihood, no moment-match.
 function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
         p_drc, s_test; alg = DEATH_INTEGRAL_ALG)
     d_rep = Gamma(α_rep, θ_rep)
@@ -1258,15 +1276,7 @@ function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
     bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep, alg = alg
         τ -> p_drc * delay_convolution(one(p_drc), r, τ, d_rep; alg)
     end
-    scale = _delay_scale(d_lab)
-    g = let bvd_reported_at = bvd_reported_at, d_lab = d_lab, Th = Th
-        u -> begin
-            d = Th - u
-            d <= 0 ? zero(Th) :
-                pdf(d_lab, u) * bvd_reported_at(d)
-        end
-    end
-    return s_test * integrate(g, zero(Th), Th, scale; alg)
+    return s_test * delay_convolution(bvd_reported_at, Th, d_lab; alg)
 end
 
 function _nb_rand(rng, k, μ)
