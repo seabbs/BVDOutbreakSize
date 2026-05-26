@@ -1,6 +1,6 @@
 using Test
 import BVDOutbreakSize
-using BVDOutbreakSize: REPORT_SCENARIOS,
+using BVDOutbreakSize: REPORT_SCENARIOS, expected_deaths,
                        summary_table, posterior_summary,
                        fit_diagnostics, diagnostics_table,
                        streams_table, comparison_table,
@@ -9,14 +9,22 @@ using BVDOutbreakSize: REPORT_SCENARIOS,
                        plot_cumulative_cases, plot_density_overlay,
                        plot_prior_predictive,
                        plot_posterior_predictive, plot_pair,
-                       plot_start_date_pair, plot_estimate_comparison,
                        forecast_reported, forecast_table, plot_forecast,
+                       predict_no_onward_deaths, plot_no_onward_deaths,
+                       plot_estimate_comparison, plot_start_date_pair,
                        forecast_vs_truth, plot_forecast_vs_truth
 using ADTypes: AutoMooncake
+import CairoMakie
 using DataFrames: DataFrame, nrow
-using Distributions: Normal
+using Distributions: Beta, Gamma, NegativeBinomial, Normal, Poisson
+using Distributions: pdf, truncated
+using Integrals: IntegralProblem, GaussLegendre, solve
+using JET: test_opt
+using Mooncake: Mooncake
 using Random: MersenneTwister
-using Turing: Turing, @model, sample, Prior
+using Statistics: quantile
+using StatsFuns: logit, logistic
+using Turing: Turing, @model, sample, Prior, to_submodel
 import FlexiChains
 using FlexiChains: VNChain
 import CairoMakie
@@ -40,6 +48,7 @@ include("test_confirmed_cases_model.jl")
 include("test_forecast.jl")
 include("test_pooled_ascertainment.jl")
 include("test_exports_deaths.jl")
+include("test_expected_deaths.jl")
 include("test_integrate.jl")
 include("test_exports_death_timing.jl")
 include("test_exports_delay_grid.jl")

@@ -3,9 +3,6 @@
 ## bulk-ESS and numerical-error (divergence) information the helpers
 ## read.
 
-using BVDOutbreakSize: fit_diagnostics, diagnostics_table
-using DataFrames: DataFrame, nrow
-
 @model function _diag_synthetic()
     x ~ Normal(0, 1)
     y ~ Normal(0, 1)

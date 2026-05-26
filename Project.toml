@@ -1,6 +1,6 @@
 name = "BVDOutbreakSize"
 uuid = "7c2a1f8e-9d4b-4a16-bf3e-1f5c8c3a90e2"
-authors = ["Sam Abbott <sam.abbott@lshtm.ac.uk>"]
+authors = ["Sam Abbott <sam.abbott@lshtm.ac.uk>", "Samuel P. C. Brand"]
 version = "1.1.0"
 
 [deps]
@@ -9,6 +9,7 @@ AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Chain = "8be319e6-bccf-4806-a6f7-6fae938471bc"
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
@@ -33,6 +34,7 @@ ADTypes = "1.22"
 AlgebraOfGraphics = "0.10, 0.11"
 CSV = "0.10"
 CairoMakie = "0.15"
+ChainRulesCore = "1"
 Chain = "0.6, 1"
 DataFrames = "1.6"
 DataFramesMeta = "0.15"

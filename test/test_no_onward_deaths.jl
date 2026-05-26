@@ -4,10 +4,6 @@
 ## return contract and basic sanity (non-negative, finite, and
 ## total_projected = obs_deaths + delta_deaths).
 
-using BVDOutbreakSize: predict_no_onward_deaths, plot_no_onward_deaths
-using Distributions: Gamma, Beta, truncated
-using DataFrames: DataFrame, nrow
-
 @model function _no_onward_synthetic()
     r   ~ truncated(Normal(0.05, 0.02); lower = 1e-3)
     T   ~ truncated(Normal(60.0, 10.0); lower = 14.0, upper = 180.0)
