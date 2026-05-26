@@ -1,0 +1,12 @@
+\usepackage{fontspec}
+\setmainfont{Arial Unicode MS}
+\setmonofont{Fira Code}[Scale=0.85]
+\usepackage{unicode-math}
+\setmathfont{STIX Two Math}
+
+% Fallbacks for the few characters Arial Unicode MS lacks
+\usepackage{newunicodechar}
+\newunicodechar{✅}{\checkmark}
+\newunicodechar{⟹}{\ensuremath{\Longrightarrow}}
+\newunicodechar{⟺}{\ensuremath{\Longleftrightarrow}}
+\newunicodechar{⥤}{\ensuremath{\rightarrowtail}}

@@ -1,0 +1,235 @@
+/*
+ * style.css — Quarto-like theme for pandoc-generated HTML
+ * Matches the visual style of CategoricalProjectionModels.jl vignettes
+ * rendered by Quarto 1.9 with the default light theme.
+ */
+
+/* ---- Root variables (matching Quarto/Bootstrap 5 light theme) ---- */
+:root {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --color-text: #212529;
+  --color-heading: #212529;
+  --color-link: #0d6efd;
+  --color-link-hover: #0a58ca;
+  --color-code-inline: #7d12ba;
+  --color-code-bg: #f8f9fa;
+  --color-border: #dee2e6;
+  --color-bg: #ffffff;
+  --color-muted: #6c757d;
+  --color-stripe: rgba(0, 0, 0, 0.05);
+  /* Lean syntax highlighting */
+  --hl-keyword: #003B4F;
+  --hl-function: #4758AB;
+  --hl-string: #20794D;
+  --hl-number: #AD0000;
+  --hl-comment: #5E5E5E;
+  --hl-operator: #5E5E5E;
+  --hl-import: #00769E;
+}
+
+/* ---- Base ---- */
+html {
+  font-size: 17px;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: 1.5;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2em 1.5em;
+}
+
+/* ---- Typography ---- */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-heading);
+  font-weight: 500;
+  line-height: 1.2;
+  margin-top: 1.8em;
+  margin-bottom: 0.5rem;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.65rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+h3 { font-size: 1.45rem; }
+h4 { font-size: 1.25rem; }
+h5 { font-size: 1.1rem; }
+h6 { font-size: 1rem; }
+
+p { margin-bottom: 1rem; }
+
+a { color: var(--color-link); text-decoration: underline; }
+a:hover { color: var(--color-link-hover); }
+
+blockquote {
+  margin: 1em 0;
+  padding: 0.625rem 1.25rem;
+  border-left: 0.25rem solid #e9ecef;
+  font-size: 1rem;
+  color: var(--color-muted);
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 2em 0;
+}
+
+/* ---- Title block ---- */
+header#title-block-header {
+  margin-bottom: 2em;
+}
+
+header#title-block-header h1.title {
+  font-size: 2rem;
+  font-weight: 600;
+  border-bottom: none;
+  margin-bottom: 0.3em;
+}
+
+header#title-block-header .author {
+  color: var(--color-muted);
+  font-size: 1.1rem;
+}
+
+/* ---- Code ---- */
+code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  color: var(--color-code-inline);
+  background: var(--color-code-bg);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.375rem;
+}
+
+pre {
+  background: var(--color-code-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  padding: 0.8em 1em;
+  overflow-x: auto;
+  font-size: 0.85em;
+  line-height: 1.5;
+  margin: 1em 0;
+}
+
+pre code {
+  color: var(--color-text);
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* Lean syntax highlighting */
+pre code .kw, pre code .cf { color: var(--hl-keyword); font-weight: bold; }
+pre code .fu { color: var(--hl-function); }
+pre code .st, pre code .vs { color: var(--hl-string); }
+pre code .dv, pre code .fl, pre code .bn { color: var(--hl-number); }
+pre code .co { color: var(--hl-comment); font-style: italic; }
+pre code .op { color: var(--hl-operator); }
+pre code .im { color: var(--hl-import); }
+pre code .cn { color: #8f5902; }
+
+/* ---- Tables (Bootstrap-like striped) ---- */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 0.9em;
+}
+
+th, td {
+  border: 1px solid var(--color-border);
+  padding: 0.5em 0.8em;
+  text-align: left;
+}
+
+th {
+  background: var(--color-code-bg);
+  font-weight: 600;
+}
+
+tr:nth-child(even) {
+  background: var(--color-stripe);
+}
+
+/* ---- Table of Contents ---- */
+nav#TOC {
+  background: var(--color-code-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  padding: 1em 1.5em;
+  margin-bottom: 2em;
+}
+
+nav#TOC ul {
+  list-style: none;
+  padding-left: 1.2em;
+}
+
+nav#TOC > ul {
+  padding-left: 0;
+}
+
+nav#TOC a {
+  text-decoration: none;
+  color: #333;
+}
+
+nav#TOC a:hover {
+  color: var(--color-link);
+}
+
+nav#TOC li {
+  margin: 0.2em 0;
+}
+
+/* ---- Lists ---- */
+ul, ol {
+  margin-bottom: 1rem;
+  padding-left: 2em;
+}
+
+li { margin-bottom: 0.25em; }
+
+/* Task list (checkboxes) */
+ul.task-list { list-style: none; padding-left: 0; }
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em;
+  vertical-align: middle;
+}
+
+/* ---- Images ---- */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1.5em auto;
+}
+
+/* ---- Math ---- */
+.math.display {
+  display: block;
+  text-align: center;
+  margin: 1em auto;
+  overflow-x: auto;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  body { padding: 1em; }
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.4rem; }
+  pre { font-size: 0.8em; }
+  table { font-size: 0.8em; }
+}
+
+@media print {
+  body { max-width: 100%; }
+  pre { white-space: pre-wrap; }
+  nav#TOC { display: none; }
+}
