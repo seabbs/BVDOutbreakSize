@@ -1,13 +1,7 @@
-# # Estimating the current size of the 2026 DRC Bundibugyo virus outbreak: a joint Bayesian re-analysis of the McCabe et al. report
-#
-# **Authors.** Sam Abbott, Kath Sherratt, Samuel Brand and Sebastian
-# Funk.
-#
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
-#md # m = match(r"<!-- SHARED:START -->(.*?)<!-- SHARED:END -->"s, readme)
-#md # body = strip(m.captures[1])
+#md # body = strip(match(r"^(.*?)<!-- SHARED:END -->"s, readme).captures[1])
 #md # body = replace(body,
 #md #     r"https://epiforecasts\.io/BVDOutbreakSize/stable/analysis" => "",
 #md #     "https://epiforecasts.io/BVDOutbreakSize/stable/contributing" => "contributing.md")
