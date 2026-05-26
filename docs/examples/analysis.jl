@@ -379,10 +379,10 @@ observations_table #hide
 # correlated through $C(T) = \exp(r T)$), the model samples $\tau$ and
 # the *doubling-time multiplier* $m = T/\tau$. Then $C(T) = 2^m$ is
 # near-orthogonal to $\tau$. $m$ is centred at 7 ($C(T) = 2^7 = 128$)
-# with SD 2.5, truncated to $(0, 13]$:
+# with SD 2.5, truncated below at zero:
 #
 # ```math
-# m \sim \mathrm{Normal}(7,\ 2.5)\ \text{on}\ (0, 13]. \tag{3}
+# m \sim \mathrm{Normal}(7,\ 2.5)\ \text{on}\ (0, \infty). \tag{3}
 # ```
 #
 # This gives 95% prior support of roughly $m \in (2, 12)$, i.e.
@@ -390,10 +390,9 @@ observations_table #hide
 # doublings plausible under the doubling times McCabe et al. sweep
 # (7–21 days) over a likely few weeks to months of spread since
 # seeding — it is motivated by their scenario *settings*, not by their
-# reported outbreak sizes. The hard upper bound at 13 caps $C(T)$ at
-# ~8000. The growth rate $r$ and the elapsed time $T = m\cdot\tau$ are
-# exposed as deterministics so they appear in posterior tables and
-# pair plots.
+# reported outbreak sizes. The growth rate $r$ and the elapsed time
+# $T = m\cdot\tau$ are exposed as deterministics so they appear in
+# posterior tables and pair plots.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exponential_growth_model</summary>
@@ -401,8 +400,7 @@ observations_table #hide
 
 @model function exponential_growth_model(;
         tau_prior = LogNormal(log(14), 0.4),
-        m_prior   = truncated(Normal(7.0, 2.5);
-                              lower = 0, upper = 13.0))
+        m_prior   = truncated(Normal(7.0, 2.5); lower = 0))
     τ ~ tau_prior
     m ~ m_prior
     r   := log(2) / τ
@@ -1073,7 +1071,6 @@ end
 # As with the export-death term, this is one-sided and only marginally
 # constrains the posterior because the Uganda detections sit only days
 # before the cut-off.
-# Passing `delta = missing` makes the submodel a no-op.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exports_detection_timing_model</summary>
@@ -1626,6 +1623,13 @@ summary_ranges = let
         "30% ", round(s.lo30; digits = d), "–", round(s.hi30; digits = d),
         ", 60% ", round(s.lo60; digits = d), "–", round(s.hi60; digits = d),
         ", 90% ", round(s.lo90; digits = d), "–", round(s.hi90; digits = d))
+    ## Seeding-start dates derived from the T posterior. Higher T means
+    ## earlier seeding, so the start-date range flips the lo/hi labels.
+    start_from(t)  = Date(obs.as_of_date) - Day(round(Int, t))
+    ints_d(s) = string(
+        "30% ", start_from(s.hi30), "–", start_from(s.lo30),
+        ", 60% ", start_from(s.hi60), "–", start_from(s.lo60),
+        ", 90% ", start_from(s.hi90), "–", start_from(s.lo90))
 
     C  = posterior_C_joint
     Td = vec(Array(chn_joint[:T]))
@@ -1635,10 +1639,6 @@ summary_ranges = let
     sT = posterior_summary(Td)
     sτ = posterior_summary(τd)
     sr = posterior_summary(rd)
-
-    start_central  = Date(obs.as_of_date) - Day(round(Int, med(Td)))
-    start_earliest = Date(obs.as_of_date) - Day(round(Int, sT.hi90))
-    start_latest   = Date(obs.as_of_date) - Day(round(Int, sT.lo90))
     f_lo = round(sC.lo90 / obs.reported_cases; digits = 1)
     f_hi = round(sC.hi90 / obs.reported_cases; digits = 1)
 
@@ -1656,8 +1656,7 @@ summary_ranges = let
       multiplier is one over the DRC reporting fraction; see
       [what the reporting fraction means](#Joint-model-estimates).
     - **Time since seeding:** we estimate $(ints_i(sT)) days, placing
-      the start of sustained transmission around $(start_central) (90%
-      credible interval $(start_earliest) to $(start_latest)).
+      the start of sustained transmission at $(ints_d(sT)).
     - **Doubling time and growth rate:** we estimate a doubling time of
       $(ints_f(sτ, 1)) days, and an implied growth rate of
       $(ints_f(sr, 3)) per day.

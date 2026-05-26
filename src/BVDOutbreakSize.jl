@@ -747,14 +747,17 @@ are drawn as faint dashed Makie `vlines` on top of the AoG figure.
 function plot_cumulative_cases(
         streams::Pair{String, <:AbstractVector}...;
         scenarios = REPORT_SCENARIOS,
-        xmax::Real = 2_500)
+        xmax::Union{Nothing, Real} = nothing)
+    upper = isnothing(xmax) ?
+        1.05 * maximum(quantile(s.second, 0.995) for s in streams) :
+        xmax
     df = @chain DataFrame(
             stream = String[], C_T = Float64[],
         ) begin
         let df = _
             for (label, draws) in streams
                 for x in draws
-                    0 < x < xmax * 1.05 && push!(df, (label, float(x)))
+                    0 < x < upper * 1.05 && push!(df, (label, float(x)))
                 end
             end
             df
@@ -769,11 +772,11 @@ function plot_cumulative_cases(
     fg = AoG.draw(spec;
         axis  = (; ylabel = "Posterior density",
                    title  = "Posterior C_T by data stream",
-                   limits = ((0, xmax), nothing)),
+                   limits = ((0, upper), nothing)),
         figure = (; size = (760, 420)),
     )
 
-    scenario_xs = Float64[val for (_, val) in scenarios if val < xmax]
+    scenario_xs = Float64[val for (_, val) in scenarios if val < upper]
     isempty(scenario_xs) || vlines!(fg.figure.content[1], scenario_xs;
             color = (:grey, 0.4), linestyle = :dash)
     return fg
