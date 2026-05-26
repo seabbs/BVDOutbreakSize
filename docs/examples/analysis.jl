@@ -61,12 +61,11 @@
 # travel-related imports with one death in Uganda. The McCabe et al.
 # 18 May report used a 16 May cut-off ($336$ cases, $88$ deaths, two
 # imports); the 20 May update used 18 May ($516$ cases, $131$ deaths).
-# We draw the DRC counts from the per-zone INSP situation-report series
-# via the INRB-UMIE Ebola_DRC_2026 transcription, which gives a daily
-# vintage trajectory; the underlying source is the same INSP sitreps
-# the WHO joint sitrep aggregates from. The joint posterior assumes a
-# single common cut-off for every data stream, so the deaths, exports
-# and reported-case counts must all be kept in sync to the same date.
+# DRC counts come from the situation reports of the Institut National
+# de Santé Publique (INSP); Uganda imports come from WHO. The joint
+# posterior assumes a single common cut-off for every data stream, so
+# the deaths, exports and reported-case counts must all be kept in
+# sync to the same date.
 #
 # **Offline copy.** A self-contained single-file HTML version of this
 # report, built from the same run, is attached to each results release:

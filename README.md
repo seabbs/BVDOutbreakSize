@@ -8,12 +8,10 @@ data arrive, so the estimates change between updates.
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev)
 
-**Data as of:** 23 May 2026, the latest INSP (DRC Institut National de
-Santé Publique) situation report with a clean cumulative across health
-zones. DRC counts are transcribed from the INSP sitreps by
-[INRB-UMIE/Ebola_DRC_2026](https://github.com/INRB-UMIE/Ebola_DRC_2026);
-Uganda imports are from the WHO Disease Outbreak News pages. Estimates
-are reported as of this date; it can lag the update date above.
+**Data as of:** 23 May 2026. DRC counts come from the situation reports
+of the Institut National de Santé Publique (INSP); Uganda imports come
+from WHO. Estimates are reported as of this date; it can lag the update
+date above.
 
 [![DOI](https://zenodo.org/badge/1243778099.svg)](https://doi.org/10.5281/zenodo.20312758)
 
@@ -71,14 +69,12 @@ are responsible for that oversight.
 First, the method: we fit all data streams jointly in a single
 Bayesian model rather than combining separate scenario analyses (the
 abstract above and the analysis page list the full set of changes).
-Second, the data: we use the 23 May 2026 snapshot (sources per
-[`data/observations.toml`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/data/observations.toml)),
-beyond the cut-offs used in either McCabe et al. report version. To
-separate these two effects we also refit the model to each report
-version's own data (18 May, then the 20 May update).
-The joint posterior assumes a single common cut-off for
-every data stream, so the counts must be kept in sync to the same
-date.
+Second, the data: we use the 23 May 2026 snapshot, beyond the cut-offs
+used in either McCabe et al. report version. To separate these two
+effects we also refit the model to each report version's own data
+(18 May, then the 20 May update). The joint posterior assumes a single
+common cut-off for every data stream, so the counts must be kept in
+sync to the same date.
 
 The analysis page sets out
 [each way our method departs from the report](https://epiforecasts.io/BVDOutbreakSize/dev/analysis#What-we-do-differently-from-McCabe-et-al.)
@@ -189,16 +185,25 @@ repository depends on:
   2026 DRC Bundibugyo outbreak.*
   <https://github.com/epiforecasts/BVDOutbreakSize>.
   DOI: [10.5281/zenodo.20312758](https://doi.org/10.5281/zenodo.20312758).
-- **WHO situation reports** that supply the DRC suspected-case and
-  suspected-death counts and the Uganda export-case counts —
+- **INSP situation reports** that supply the DRC suspected-case and
+  suspected-death counts and the sitrep cumulative trajectory —
+  Institut National de Santé Publique, Démocratique du Congo (2026).
+  *Situation reports on the 17th Ebola epidemic.*
+  <https://insp.cd/ebola-17eme-epidemie/>. Transcribed across health
+  zones by INRB-UMIE/Ebola_DRC_2026,
+  <https://github.com/INRB-UMIE/Ebola_DRC_2026>.
+- **WHO situation reports and Disease Outbreak News** that supply
+  the Uganda import-case counts and the dated detection and death
+  events for the first Uganda import —
   World Health Organization Regional Office for Africa (2026).
   *Ebola disease caused by Bundibugyo virus outbreak, Democratic
   Republic of the Congo and Uganda — Weekly External Situation
   Report 01.* Data as of 18 May 2026.
   World Health Organization (2026). *Disease Outbreak News:
-  Ebola disease caused by Bundibugyo virus — Uganda (DON602).*
-  Source of the first Uganda export hospital-admission date
-  (11 May 2026) and the fatal export death date (14 May 2026).
+  Ebola disease caused by Bundibugyo virus — Democratic Republic
+  of the Congo and Uganda (DON602, DON603).* Source of the first
+  Uganda import hospital-admission date (11 May 2026) and the fatal
+  import death date (14 May 2026).
 - **Imperial reports** that this work re-implements and compares
   against, in both released versions —
   McCabe, R., Ebbarnezh, L., Okware, S., Fotsing, R., Koua, E.,

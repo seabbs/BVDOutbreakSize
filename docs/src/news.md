@@ -11,8 +11,9 @@ each push to `main` also republishes the rendered analysis and the
 ### Data
 
 - Moved the cut-off to 23 May 2026 and switched the DRC source from
-  the WHO AFRO joint sitrep to the INSP situation reports transcribed
-  by [INRB-UMIE/Ebola_DRC_2026](https://github.com/INRB-UMIE/Ebola_DRC_2026).
+  the WHO AFRO joint sitrep to the situation reports of the Institut
+  National de Santé Publique (INSP), transcribed by
+  [INRB-UMIE/Ebola_DRC_2026](https://github.com/INRB-UMIE/Ebola_DRC_2026).
   The INSP series gives a per-zone, per-sitrep daily vintage trajectory
   (suspected and confirmed; this analysis uses suspected). Cumulative
   counts at 23 May: 1000 suspected DRC cases, 232 suspected DRC deaths.
