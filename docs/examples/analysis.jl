@@ -1,70 +1,19 @@
-# # Estimating the current size of the 2026 DRC Bundibugyo virus outbreak: a joint Bayesian re-analysis of the McCabe et al. report
-#
-# **Authors.** Sam Abbott, Kath Sherratt, Samuel Brand and Sebastian
-# Funk.
-#
-#md # ```@eval
-#md # using Dates, Markdown
-#md # Markdown.parse("**Last updated.** $(Dates.today()). This is a " *
-#md #     "live report, re-run as new data arrive, so the estimates " *
-#md #     "change between updates.")
-#md # ```
-#
-#md # ```@eval
-#md # using BVDOutbreakSize, Markdown
-#md # d = load_observations().as_of_date
-#md # Markdown.parse("**Data as of.** $(d), the release date of the " *
-#md #     "WHO AFRO External Situation Report 01 the counts are taken " *
-#md #     "from. Estimates are reported as of this date; it can lag " *
-#md #     "the update date above.")
-#md # ```
-#
-# [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/stable/analysis)
-# [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiforecasts.io/BVDOutbreakSize/dev/analysis)
-#
 #md # ```@eval
 #md # using BVDOutbreakSize, Markdown
 #md # readme = read(joinpath(pkgdir(BVDOutbreakSize), "README.md"), String)
-#md # m = match(r"<!-- ABSTRACT:START -->(.*?)<!-- ABSTRACT:END -->"s, readme)
-#md # Markdown.parse(strip(m.captures[1]))
+#md # body = strip(match(r"^(.*?)<!-- SHARED:END -->"s, readme).captures[1])
+#md # body = replace(body,
+#md #     r"https://epiforecasts\.io/BVDOutbreakSize/stable/analysis" => "",
+#md #     "https://epiforecasts.io/BVDOutbreakSize/stable/contributing" => "contributing.md")
+#md # Markdown.parse(body)
 #md # ```
 #
-# **Scope.** This work is motivated by adding an external view of the
-# current situation, based on our understanding of real-time infectious
-# disease dynamics and the infection process that gives rise to
-# observed epidemic surveillance counts.
-# We are actively developing it and encourage feedback, so please get
-# in touch.
-# We fully support reuse and adaptation.
-# Find out more in the [contributing guide](contributing.md).
-#
-# **Use of AI.** The model code and this analysis were drafted by a
-# language model and reviewed and revised under human oversight; the
-# named authors are responsible for that oversight (see the
-# *LLM-driven reimplementation* limitation below). The full analysis
-# code lives in the
-# [epiforecasts/BVDOutbreakSize](https://github.com/epiforecasts/BVDOutbreakSize)
-# repository, where issues and suggestions are welcome. This page is
-# generated from
+# This page is generated from
 # [`docs/examples/analysis.jl`](https://github.com/epiforecasts/BVDOutbreakSize/blob/main/docs/examples/analysis.jl);
 # the model code it calls is in
 # [`src/`](https://github.com/epiforecasts/BVDOutbreakSize/tree/main/src).
-#
-# **How the numbers differ from McCabe et al.** Our estimates differ
-# from the McCabe et al. [mccabe2026](@cite) report for two reasons.
-# First, the method: we fit
-# all streams jointly in a single Bayesian model rather than combining
-# separate scenario analyses (see
-# [What we do differently](#What-we-do-differently-from-McCabe-et-al.)
-# below). Second, the data: results are reported as of the cut-off
-# date in `data/observations.toml` (currently **2026-05-18**), using
-# the reported counts in the data table below. These match the 20 May
-# report's deaths and cases ($131$ and $516$) and are more recent than
-# the 16 May 2026 figures the 18 May report used (e.g. $88$ suspected
-# deaths). The joint
-# posterior assumes a single common
-# cut-off for every data stream, so the deaths, exports and reported-
-# case counts must all be kept in sync to the same date.
+# See the *LLM-driven reimplementation* limitation below for the
+# oversight context behind the Use of AI note.
 #
 # **Offline copy.** A self-contained single-file HTML version of this
 # report, built from the same run, is attached to each results release:
@@ -101,12 +50,10 @@
 #   incomplete gamma function and fall back to quadrature for any
 #   other onset-to-death family.
 # - *Closed-form CDF under AD.* The Gamma CDF is differentiated
-#   through a hand-written reverse-mode derivative rule, aka "rrule",
-#   for `ChainRulesCore.jl`, and converted for use with the `Mooncake.jl`
-#   AD backend using the `Mooncake.@from_rrule` macro. The rrule is 
-#   inspired by Stan's `grad_reg_inc_gamma` implementation and uses a
-#   Kummer series for the partial derivative with respect to the shape parameter
-#   of the regularized incomplete gamma function.
+#   through a hand-written reverse-mode derivative rule. The derivative
+#   with respect to the shape parameter of the regularized incomplete
+#   gamma function uses a Kummer series, following the corresponding
+#   routine in the Stan Math Library [carpenter2015stanmath](@cite).
 # - *Onset-to-death prior anchored on the Bayesian reanalysis* of
 #   the same Isiro 2012 line list McCabe et al. cite for their
 #   point estimates [bdbv_linelist_analysis_2026](@cite),
@@ -432,10 +379,10 @@ observations_table #hide
 # correlated through $C(T) = \exp(r T)$), the model samples $\tau$ and
 # the *doubling-time multiplier* $m = T/\tau$. Then $C(T) = 2^m$ is
 # near-orthogonal to $\tau$. $m$ is centred at 7 ($C(T) = 2^7 = 128$)
-# with SD 2.5, truncated to $(0, 13]$:
+# with SD 2.5, truncated below at zero:
 #
 # ```math
-# m \sim \mathrm{Normal}(7,\ 2.5)\ \text{on}\ (0, 13]. \tag{3}
+# m \sim \mathrm{Normal}(7,\ 2.5)\ \text{on}\ (0, \infty). \tag{3}
 # ```
 #
 # This gives 95% prior support of roughly $m \in (2, 12)$, i.e.
@@ -443,10 +390,9 @@ observations_table #hide
 # doublings plausible under the doubling times McCabe et al. sweep
 # (7–21 days) over a likely few weeks to months of spread since
 # seeding — it is motivated by their scenario *settings*, not by their
-# reported outbreak sizes. The hard upper bound at 13 caps $C(T)$ at
-# ~8000. The growth rate $r$ and the elapsed time $T = m\cdot\tau$ are
-# exposed as deterministics so they appear in posterior tables and
-# pair plots.
+# reported outbreak sizes. The growth rate $r$ and the elapsed time
+# $T = m\cdot\tau$ are exposed as deterministics so they appear in
+# posterior tables and pair plots.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exponential_growth_model</summary>
@@ -454,8 +400,7 @@ observations_table #hide
 
 @model function exponential_growth_model(;
         tau_prior = LogNormal(log(14), 0.4),
-        m_prior   = truncated(Normal(7.0, 2.5);
-                              lower = 0, upper = 13.0))
+        m_prior   = truncated(Normal(7.0, 2.5); lower = 0))
     τ ~ tau_prior
     m ~ m_prior
     r   := log(2) / τ
@@ -1396,7 +1341,6 @@ end
 # As with the export-death term, this is one-sided and only marginally
 # constrains the posterior because the Uganda detections sit only days
 # before the cut-off.
-# Passing `delta = missing` makes the submodel a no-op.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exports_detection_timing_model</summary>
@@ -1967,6 +1911,13 @@ summary_ranges = let
         "30% ", round(s.lo30; digits = d), "–", round(s.hi30; digits = d),
         ", 60% ", round(s.lo60; digits = d), "–", round(s.hi60; digits = d),
         ", 90% ", round(s.lo90; digits = d), "–", round(s.hi90; digits = d))
+    ## Seeding-start dates derived from the T posterior. Higher T means
+    ## earlier seeding, so the start-date range flips the lo/hi labels.
+    start_from(t)  = Date(obs.as_of_date) - Day(round(Int, t))
+    ints_d(s) = string(
+        "30% ", start_from(s.hi30), "–", start_from(s.lo30),
+        ", 60% ", start_from(s.hi60), "–", start_from(s.lo60),
+        ", 90% ", start_from(s.hi90), "–", start_from(s.lo90))
 
     C  = posterior_C_joint
     Td = vec(Array(chn_joint[:T]))
@@ -1976,10 +1927,6 @@ summary_ranges = let
     sT = posterior_summary(Td)
     sτ = posterior_summary(τd)
     sr = posterior_summary(rd)
-
-    start_central  = Date(obs.as_of_date) - Day(round(Int, med(Td)))
-    start_earliest = Date(obs.as_of_date) - Day(round(Int, sT.hi90))
-    start_latest   = Date(obs.as_of_date) - Day(round(Int, sT.lo90))
     f_lo = round(sC.lo90 / obs.reported_cases; digits = 1)
     f_hi = round(sC.hi90 / obs.reported_cases; digits = 1)
 
@@ -1997,8 +1944,7 @@ summary_ranges = let
       multiplier is one over the DRC reporting fraction; see
       [what the reporting fraction means](#Joint-model-estimates).
     - **Time since seeding:** we estimate $(ints_i(sT)) days, placing
-      the start of sustained transmission around $(start_central) (90%
-      credible interval $(start_earliest) to $(start_latest)).
+      the start of sustained transmission at $(ints_d(sT)).
     - **Doubling time and growth rate:** we estimate a doubling time of
       $(ints_f(sτ, 1)) days, and an implied growth rate of
       $(ints_f(sr, 3)) per day.

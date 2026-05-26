@@ -29,7 +29,6 @@ using CairoMakie: Figure, Axis, hist!, density!, vlines!, vspan!,
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
        ITURI_DAILY_TRAVEL_SD,
-       EXPORTED_CASES, EXPORTS_DEATHS,
        load_observations,
        summary_table, posterior_summary,
        fit_diagnostics, diagnostics_table,
@@ -96,20 +95,6 @@ point-of-entry-to-point-of-entry variation and reporting uncertainty
 in the underlying mobility survey.
 """
 const ITURI_DAILY_TRAVEL_SD = 200
-
-"""
-    EXPORTED_CASES
-
-BVD cases detected in Uganda having travelled from Ituri Province.
-"""
-const EXPORTED_CASES = 2
-
-"""
-    EXPORTS_DEATHS
-
-Deaths recorded in Uganda among the exported BVD cases.
-"""
-const EXPORTS_DEATHS = 1
 
 # Include reverse rules for the gamma CDF
 include("gamma_cdf.jl")
@@ -772,14 +757,17 @@ are drawn as faint dashed Makie `vlines` on top of the AoG figure.
 function plot_cumulative_cases(
         streams::Pair{String, <:AbstractVector}...;
         scenarios = REPORT_SCENARIOS,
-        xmax::Real = 2_500)
+        xmax::Union{Nothing, Real} = nothing)
+    upper = isnothing(xmax) ?
+        1.05 * maximum(quantile(s.second, 0.995) for s in streams) :
+        xmax
     df = @chain DataFrame(
             stream = String[], C_T = Float64[],
         ) begin
         let df = _
             for (label, draws) in streams
                 for x in draws
-                    0 < x < xmax * 1.05 && push!(df, (label, float(x)))
+                    0 < x < upper * 1.05 && push!(df, (label, float(x)))
                 end
             end
             df
@@ -794,11 +782,11 @@ function plot_cumulative_cases(
     fg = AoG.draw(spec;
         axis  = (; ylabel = "Posterior density",
                    title  = "Posterior C_T by data stream",
-                   limits = ((0, xmax), nothing)),
+                   limits = ((0, upper), nothing)),
         figure = (; size = (760, 420)),
     )
 
-    scenario_xs = Float64[val for (_, val) in scenarios if val < xmax]
+    scenario_xs = Float64[val for (_, val) in scenarios if val < upper]
     isempty(scenario_xs) || vlines!(fg.figure.content[1], scenario_xs;
             color = (:grey, 0.4), linestyle = :dash)
     return fg

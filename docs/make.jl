@@ -18,20 +18,20 @@ const LITERATE_OUT = joinpath(@__DIR__, "src")
 
 isdir(LITERATE_OUT) || mkpath(LITERATE_OUT)
 
-# Copy the README to the home page, stripping the ABSTRACT marker
+# Copy the README to the home page, stripping the SHARED-block marker
 # comments. The analysis page reads them from the source README to load
-# the abstract, but they must not appear on the rendered home page (the
-# Vitepress typographer mangles the `--` and shows them as text).
+# the shared prose, but they must not appear on the rendered home page
+# (the Vitepress typographer mangles the `--` and shows them as text).
 #
 # The README links to analysis-page sections with absolute hosted URLs
 # so they work when read on GitHub. On the rendered home page those would
-# pin to a fixed version (/dev/); rewrite them to Documenter `@ref`
+# pin to a fixed version (/stable/); rewrite them to Documenter `@ref`
 # cross-references so they instead resolve within whichever version is
 # being viewed. The link target is the section anchor, whose Documenter
 # slug is the header title with spaces replaced by dashes, so reversing
 # that recovers the title for `@ref`.
 let readme = read(joinpath(REPO_ROOT, "README.md"), String)
-    readme = replace(readme, r"^<!-- ABSTRACT:(START|END) -->\n"m => "")
+    readme = replace(readme, r"^<!-- SHARED:END -->\n"m => "")
     readme = replace(
         readme,
         r"\(https?://[^)]*?/analysis#([^)]+)\)" =>
