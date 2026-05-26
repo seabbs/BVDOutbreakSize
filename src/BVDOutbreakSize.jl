@@ -1,7 +1,6 @@
 module BVDOutbreakSize
 
 using Statistics: quantile, mean, std
-using Printf: @sprintf
 using TOML
 using DataFrames: DataFrame
 using DataFramesMeta
@@ -11,7 +10,7 @@ using Dates: Date, date2epochdays, epochdays2date
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using ChainRulesCore: ChainRulesCore, NoTangent
-using SpecialFunctions: gamma_inc, digamma, loggamma
+using SpecialFunctions: digamma, loggamma
 import SpecialFunctions
 using Turing
 using Turing.DynamicPPL: InitFromPrior
@@ -19,7 +18,7 @@ import FlexiChains
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
                            TYPEDFIELDS, TYPEDSIGNATURES
 using Distributions: Distribution, Gamma, cdf, ccdf, mgf, pdf, Poisson, NegativeBinomial
-using Integrals: IntegralProblem, GaussLegendre, QuadGKJL, solve
+using Integrals: IntegralProblem, GaussLegendre, solve
 import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
