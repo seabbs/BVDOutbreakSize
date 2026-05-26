@@ -51,3 +51,6 @@ StatsFuns = "1"
 TOML = "1"
 Turing = "0.45"
 julia = "1.11"
+
+[workspace]
+projects = ["test", "docs"]

@@ -3,6 +3,7 @@ ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 BVDOutbreakSize = "7c2a1f8e-9d4b-4a16-bf3e-1f5c8c3a90e2"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Coverage = "a2441757-f6aa-5fb2-8edb-039e3f45d037"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
@@ -20,6 +21,9 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
 TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 Turing = "fce5fe82-541a-59a6-adf8-730c64b5f9a0"
+
+[compat]
+Coverage = "1"
 
 [sources]
 BVDOutbreakSize = {path = ".."}
