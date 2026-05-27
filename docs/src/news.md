@@ -11,6 +11,7 @@ each push to `main` also republishes the rendered analysis and the
 ### Modelling
 
 - Improved the comparison to the McCabe et al. report by making sure that 95% credible intervals are being compared and reordering it.
+- Added a custom chain rule for `SpecialFunctions.gamma_inc`. This allows us to differentiate through the analytical solution to the gamma convolution integral.
 
 ### Data
 
