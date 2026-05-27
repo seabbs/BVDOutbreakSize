@@ -1266,8 +1266,7 @@ cfr_prior_fig #hide
 #md # ```@example main
 #md # println("```julia")
 #md # print(@code_string BVDOutbreakSize.bvd_joint(1, 1))
-#md # println("
-```")
+#md # println("\n```")
 #md # ```
 
 #md # ```@raw html
