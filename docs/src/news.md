@@ -6,7 +6,11 @@ Major versions of the report are kept as
 each push to `main` also republishes the rendered analysis and the
 `output/` artifacts.
 
-## Unreleased
+## v1.2.0
+
+### Modelling
+
+- Improved the comparison to the McCabe et al. report by making sure that 95% credible intervals are being compared and reordering it.
 
 ### Data
 
@@ -29,6 +33,12 @@ each push to `main` also republishes the rendered analysis and the
 - Added a `reported_case_history` block in `data/observations.toml`
   with eight INSP sitrep vintages (14 May to 23 May 2026), ready for
   the cumulative-trajectory likelihood once it merges.
+
+### Infrastructure
+
+- Moved the submodels out of the analysis file and into the supporting package. Instead we now print these in the analysis.
+- Added additional package infrastructure including `Aqua.jl` and `Jet.jl`.
+- Streamlined the package unit tests.
 
 ## v1.1.0
 
