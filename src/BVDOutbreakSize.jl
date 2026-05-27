@@ -12,7 +12,7 @@ using ChainRulesCore: ChainRulesCore, NoTangent
 using SpecialFunctions: digamma, loggamma
 import SpecialFunctions
 using Turing: @model, MCMCThreads, NUTS, sample, to_submodel
-using Turing.DynamicPPL: InitFromPrior
+using Turing.DynamicPPL: InitFromPrior, InitFromUniform
 import FlexiChains
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
                            TYPEDFIELDS, TYPEDSIGNATURES
