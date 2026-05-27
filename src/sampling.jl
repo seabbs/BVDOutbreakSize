@@ -13,7 +13,8 @@ initialise from a uniform `[-2, 2]` window in the unconstrained
 parameter space (`InitFromUniform()`), which guarantees a finite
 initial log-density and gradient for any joint prior, then NUTS
 adapts away from there during warmup. Pass `init =
-InitFromPrior()` to fall back to prior-draw initialisation.
+Turing.DynamicPPL.InitFromPrior()` to fall back to prior-draw
+initialisation.
 """
 function nuts_sample(model;
         samples::Integer = 1_000,
