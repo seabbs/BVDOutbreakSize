@@ -4,17 +4,14 @@
 ## return contract and basic sanity (non-negative, finite, and
 ## total_projected = obs_deaths + delta_deaths).
 
-@model function _no_onward_synthetic()
-    r   ~ truncated(Normal(0.05, 0.02); lower = 1e-3)
-    T   ~ truncated(Normal(60.0, 10.0); lower = 14.0, upper = 180.0)
-    α   ~ truncated(Normal(4.3, 1.0);   lower = 0.5)
-    θ   ~ truncated(Normal(2.6, 0.6);   lower = 0.2)
-    CFR ~ Beta(6.0, 14.0)
-end
+@testitem "predict_no_onward_deaths returns the documented columns" tags=[:slow] begin
+    using DataFrames: DataFrame, nrow
+    using Turing: sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: deaths_only_model, predict_no_onward_deaths
 
-@testset "predict_no_onward_deaths returns the documented columns" begin
-    chn = sample(_no_onward_synthetic(), Prior(), 100;
-                 chain_type = FlexiChains.VNChain, progress = false)
+    chn = sample(deaths_only_model(missing), Prior(), 100;
+        chain_type = FlexiChains.VNChain, progress = false)
     obs_deaths = 88
     df = predict_no_onward_deaths(chn; obs_deaths = obs_deaths)
 
@@ -29,11 +26,16 @@ end
     @test maximum(abs.(df.total_projected .- (obs_deaths .+ df.delta_deaths))) < 1e-8
 end
 
-@testset "plot_no_onward_deaths returns a renderable figure-grid" begin
-    chn = sample(_no_onward_synthetic(), Prior(), 80;
-                 chain_type = FlexiChains.VNChain, progress = false)
-    df = predict_no_onward_deaths(chn; obs_deaths = 50)
-    fg = plot_no_onward_deaths(df; obs_deaths = 50)
+@testitem "plot_no_onward_deaths returns a renderable figure-grid" tags=[:slow] setup=[HeadlessMakie] begin
+    using Turing: sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: deaths_only_model,
+                           predict_no_onward_deaths, plot_no_onward_deaths
+
+    chn=sample(deaths_only_model(missing), Prior(), 80;
+        chain_type = FlexiChains.VNChain, progress = false)
+    df=predict_no_onward_deaths(chn; obs_deaths = 50)
+    fg=plot_no_onward_deaths(df; obs_deaths = 50)
     @test fg !== nothing
     @test fg isa CairoMakie.Makie.Figure
 end

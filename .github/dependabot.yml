@@ -9,3 +9,15 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+
+  # Julia dependency updates using workspace feature (Julia 1.12+) to
+  # coordinate updates across main package, test/, and docs/ environments
+  - package-ecosystem: "julia"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "julia"

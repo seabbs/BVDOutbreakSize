@@ -1,6 +1,4 @@
 """
-$(TYPEDSIGNATURES)
-
 Wrapper around `cdf(Gamma(α, θ), x)` as a 3-argument scalar
 scalar function to attach reverse-mode rule.
 
@@ -19,10 +17,7 @@ with `y = x/θ`, `P` the regularized lower incomplete gamma and `ψ` is the diga
 """
 _gamma_cdf(α, θ, x) = cdf(Gamma(α, θ), x)
 
-
 """
-$(TYPEDSIGNATURES)
-
 Series sum of term derivatives for `∂_α P(α, z)`, using the
 absolutely-convergent Kummer expansion
 
@@ -49,14 +44,14 @@ function _grad_p_a_series(a, z; rtol = 1e-14, maxiter = 10_000)
     # avoid recalculating the same digamma values across iterations
     log_term0 = a * log(z) - z - loggamma(a + 1)
     term = exp(log_term0)
-    ψ    = digamma(a + 1)
-    P    = term
-    S    = term * ψ
+    ψ = digamma(a + 1)
+    P = term
+    S = term * ψ
     for n in 1:maxiter
         term *= z / (a + n)
-        ψ    += 1 / (a + n)
-        P    += term
-        S    += term * ψ
+        ψ += 1 / (a + n)
+        P += term
+        S += term * ψ
         # convergence check: both the P and S series must have converged to
         # ensure the final result is accurate to rtol.
         abs(term * ψ) <= rtol * abs(S) &&
@@ -66,24 +61,20 @@ function _grad_p_a_series(a, z; rtol = 1e-14, maxiter = 10_000)
 end
 
 """
-$(TYPEDSIGNATURES)
-
 Compute the partial derivatives of the gamma CDF with respect to α, θ, and x.
 """
 function _gamma_cdf_partials(α, θ, x)
     R = float(promote_type(typeof(α), typeof(θ), typeof(x)))
     y = x / θ
     y <= zero(y) && return zero(R), zero(R), zero(R)
-    f      = pdf(Gamma(α, θ), x)
-    df_dx  = f
-    df_dθ  = -y * f
-    df_dα  = _grad_p_a_series(α, y)
+    f = pdf(Gamma(α, θ), x)
+    df_dx = f
+    df_dθ = -y * f
+    df_dα = _grad_p_a_series(α, y)
     return df_dα, df_dθ, df_dx
 end
 
 """
-$(TYPEDSIGNATURES)
-
 ChainRulesCore rrule for the gamma CDF, using the above partials.
 
 NB: the `NoTangent()` is for the function argument itself, which is not a callable/functor.
@@ -101,4 +92,5 @@ function ChainRulesCore.rrule(::typeof(_gamma_cdf),
 end
 
 # Generate reverse-mode rules for Mooncake AD
-Mooncake.@from_rrule Mooncake.DefaultCtx Tuple{typeof(_gamma_cdf), Float64, Float64, Float64}
+Mooncake.@from_rrule Mooncake.DefaultCtx Tuple{
+    typeof(_gamma_cdf), Float64, Float64, Float64}

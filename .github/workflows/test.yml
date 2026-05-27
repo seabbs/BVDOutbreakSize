@@ -16,13 +16,58 @@ permissions:
 
 jobs:
   test:
-    name: Tests
+    name: Julia ${{ matrix.julia-version }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        julia-version: ['1']
+        os: [ubuntu-latest]
+        experimental: [false]
+        include:
+          - julia-version: 'lts'
+            os: ubuntu-latest
+            experimental: false
+          - julia-version: 'pre'
+            os: ubuntu-latest
+            experimental: true
+          - julia-version: '1'
+            os: macOS-latest
+            experimental: false
+          - julia-version: '1'
+            os: windows-latest
+            experimental: false
+    env:
+      JULIA_CI_EXPERIMENTAL: ${{ matrix.experimental }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: ${{ matrix.julia-version }}
+      - uses: julia-actions/cache@v3
+      - uses: julia-actions/julia-runtest@v1
+        with:
+          test_args: ${{ (matrix.julia-version != '1' || matrix.os == 'windows-latest') && 'skip_quality' || '' }}
+
+  downgrade-compat:
+    name: Downgrade compat (Julia 1.11)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: julia-actions/setup-julia@v3
         with:
-          version: '1'
+          version: '1.11'
       - uses: julia-actions/cache@v3
-      - name: Run tests
-        run: julia --project -e 'using Pkg; Pkg.test()'
+      - uses: julia-actions/julia-downgrade-compat@v2
+        with:
+          # Mooncake skipped: DynamicPPLMooncakeExt fails to precompile
+          # at the bottom of Mooncake's 0.5 range — an upstream extension
+          # issue, not a BVD compat bound that's wrong.
+          skip: Pkg,TOML,Dates,Printf,Random,Statistics,Test,Mooncake
+      - uses: julia-actions/julia-runtest@v1
+        with:
+          # `downgrade` ARG also skips :ad items: Mooncake-gradient
+          # tolerances drift on the downgraded dep set; the AD plumbing
+          # is exercised at the pinned versions on every other cell.
+          test_args: downgrade

@@ -16,3 +16,5 @@ CLAUDE.md
 *.swp
 *.swo
 test/Manifest.toml
+test/jet/Manifest.toml
+test/formatter/Manifest.toml

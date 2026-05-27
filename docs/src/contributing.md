@@ -92,8 +92,9 @@ its own priors:
 
 **Observation submodels**, one per data stream, each taking the growth
 state, adding its forward integral and likelihood: `exports_model`
-(Poisson), `deaths_model` (NegBinomial), `cases_model` (NegBinomial),
-and `exports_deaths_model` (Poisson).
+(Poisson), `deaths_model` (NegBinomial), `reported_cases_model`
+(NegBinomial), `confirmed_cases_model` (NegBinomial), and
+`exports_deaths_model` (Poisson).
 
 **Composers** stitch the blocks into full generative models:
 `exports_only_model`, `deaths_only_model`, `cases_only_model`,

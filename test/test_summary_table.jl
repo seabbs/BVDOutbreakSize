@@ -3,21 +3,30 @@
 ## Prior() on a trivial Turing model so the test does not depend on
 ## NUTS warm-up.
 
-@model function _summary_model()
-    a ~ Normal(0.0, 1.0)
-    b ~ Normal(2.0, 0.5)
-end
+@testitem "summary_table returns expected columns and rows" tags=[:slow] begin
+    using DataFrames: DataFrame, nrow
+    using Distributions: Normal
+    using Turing: @model, sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: summary_table
 
-@testset "summary_table returns expected columns and rows" begin
+    ## kept: summary_table only needs two named parameters with sensible
+    ## quantiles; the real models drag in BVD-specific structure that the
+    ## test does not need.
+    @model function _summary_model()
+        a ~ Normal(0.0, 1.0)
+        b ~ Normal(2.0, 0.5)
+    end
+
     chn = sample(_summary_model(), Prior(), 200;
-                 chain_type = FlexiChains.VNChain, progress = false)
+        chain_type = FlexiChains.VNChain, progress = false)
     params = [:a, :b]
     df = summary_table(chn, params)
 
     @test df isa DataFrame
     @test names(df) ==
           ["Quantity", "Lower 90%", "Lower 60%", "Lower 30%",
-           "Upper 30%", "Upper 60%", "Upper 90%"]
+        "Upper 30%", "Upper 60%", "Upper 90%"]
     @test nrow(df) == length(params)
     @test df[!, "Quantity"] == ["a", "b"]
 
