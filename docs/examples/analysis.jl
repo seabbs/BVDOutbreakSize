@@ -1054,7 +1054,7 @@ cfr_prior_fig #hide
 #
 # ```math
 # s \sim \mathrm{Beta}(30,\ 2), \qquad
-# \tau \sim \mathrm{Beta}(2,\ 2). \tag{25}
+# \tau \sim \mathrm{Beta}(5,\ 2). \tag{25}
 # ```
 #
 # The sensitivity prior has mean $0.94$ and $95\%$ interval
@@ -1067,10 +1067,14 @@ cfr_prior_fig #hide
 # estimate to leave room for early-infection low-viral-load specimens,
 # field handling, and the lack of Bundibugyo-specific validations.
 #
-# The testing fraction $\tau$ has a wide $\mathrm{Beta}(2, 2)$ prior
-# (mean $0.5$, supports the full $[0, 1]$ range); it is identified
+# The testing fraction $\tau$ has a $\mathrm{Beta}(5, 2)$ prior (mean
+# $0.71$, $95\%$ interval $\sim 0.40$-$0.95$). The prior is pulled
+# away from $0$ because the model is sensitive to tiny $\tau$ values at
+# NUTS warmup — `expected_tested` then collapses to near-zero while
+# the observation `tests_analysed` is $\gg 0$. Posterior is identified
 # from the absolute scale of `tests_analysed` against the suspected
-# total and the lab-delay CDF integrals above.
+# total and the lab-delay CDF integrals above, so the data can pull
+# $\tau$ well below the prior mean if that is what it implies.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_sensitivity_model</summary>

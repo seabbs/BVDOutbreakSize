@@ -111,7 +111,7 @@ inside [`reported_cases_model`](@ref); the per-test positivity
 """
 @model function test_positivity_model(;
         lambda_prior = truncated(Normal(0.0, 10.0); lower = 0),
-        fraction_tested_prior = Beta(2.0, 2.0))
+        fraction_tested_prior = Beta(5.0, 2.0))
     λ_bg ~ lambda_prior
     τ_test ~ fraction_tested_prior
     return (; λ_bg, τ_test)
