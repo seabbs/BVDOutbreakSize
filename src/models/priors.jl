@@ -97,17 +97,24 @@ of Bundibugyo-specific validations. Used by
 end
 
 """
-Test-positivity machinery. Samples the per-day non-BVD background
-suspected-case rate `λ_bg` on a half-normal scale; this rate underlies
-the suspected/confirmed contrast that identifies the BVD fraction.
+Test-positivity machinery. Samples
+- `λ_bg` — the per-day non-BVD background suspected-case rate, on a
+  half-normal scale. Underlies the suspected/confirmed contrast.
+- `τ` — the fraction of suspected cases that get sampled and routed
+  to the laboratory pipeline; together with the lab-delay CDF this
+  handles right-truncation of the per-test positivity observation.
+
 The derived per-suspected positivity `μ_BVD / μ_cases` is exposed
-inside [`reported_cases_model`](@ref) where the relevant means are in
-scope.
+inside [`reported_cases_model`](@ref); the per-test positivity
+`s · BVD_tested / (BVD_tested + bg_tested)` is exposed inside
+[`confirmed_cases_model`](@ref).
 """
 @model function test_positivity_model(;
-        lambda_prior = truncated(Normal(0.0, 10.0); lower = 0))
+        lambda_prior = truncated(Normal(0.0, 10.0); lower = 0),
+        fraction_tested_prior = Beta(2.0, 2.0))
     λ_bg ~ lambda_prior
-    return (; λ_bg)
+    τ_test ~ fraction_tested_prior
+    return (; λ_bg, τ_test)
 end
 
 """

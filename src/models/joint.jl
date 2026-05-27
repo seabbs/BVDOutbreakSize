@@ -118,6 +118,7 @@ checks.
         reported_cases::Union{Missing, Integer} = missing,
         export_deaths_daily::AbstractVector = Int[];
         confirmed_cases::Union{Missing, Integer} = missing,
+        cumulative_tests_analysed::Union{Missing, Integer} = missing,
         growth = exponential_growth_model(),
         exports = exports_model,
         deaths = deaths_model,
@@ -156,8 +157,9 @@ checks.
             test_positivity = test_positivity), false)
     if confirmed_cases !== missing
         confirmed_state ~ to_submodel(
-            confirmed(confirmed_cases,
-                reported_state.bvd_reported_at, growth_state, k;
+            confirmed(confirmed_cases, cumulative_tests_analysed,
+                reported_state.bvd_reported_at, growth_state, k,
+                reported_state.λ_bg, reported_state.τ_test;
                 lab_delay = lab_delay,
                 test_sensitivity = test_sensitivity),
             false)

@@ -19,6 +19,12 @@ Fields returned:
   cumulative case count, the truth-anchor on the latent
   eventually-confirmable pool ``C(T)`` (reported counts are an inflated
   view); `missing` when no `confirmed_cases` block is present.
+- `cumulative_tests_analysed::Union{Int, Missing}` — cumulative number
+  of suspected-case specimens whose lab processing has completed by the
+  cut-off. Paired with `confirmed_cases` it gives a per-test positivity
+  observation; right-truncation is handled inside the model by the lab
+  delay CDF. `missing` when no `cumulative_tests_analysed` block is
+  present.
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
@@ -67,6 +73,9 @@ function load_observations(
         reported_cases = Int(_val("reported_cases")),
         confirmed_cases = haskey(raw, "confirmed_cases") ?
                           Int(_val("confirmed_cases")) : missing,
+        cumulative_tests_analysed = haskey(raw, "cumulative_tests_analysed") ?
+                                    Int(_val("cumulative_tests_analysed")) :
+                                    missing,
         daily_outbound_travellers = float(
             _val("daily_outbound_travellers")),
         daily_outbound_travellers_sd = float(
@@ -91,6 +100,10 @@ function load_observations(
             reported_cases = _src("reported_cases"),
             confirmed_cases = haskey(raw, "confirmed_cases") ?
                               _src("confirmed_cases") : missing,
+            cumulative_tests_analysed = haskey(raw,
+                "cumulative_tests_analysed") ?
+                                        _src("cumulative_tests_analysed") :
+                                        missing,
             daily_outbound_travellers = _src("daily_outbound_travellers"),
             daily_outbound_travellers_sd = _src("daily_outbound_travellers_sd"),
             source_population = _src("source_population"),

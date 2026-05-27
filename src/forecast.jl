@@ -24,13 +24,14 @@ function _forecast_cases_mean(r, Th, α_rep, θ_rep, p_drc, λ_bg;
 end
 
 function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
-        p_drc, s_test; alg = DEATH_INTEGRAL_ALG)
+        p_drc, s_test, τ_test; alg = DEATH_INTEGRAL_ALG)
     d_rep = Gamma(α_rep, θ_rep)
     d_lab = Gamma(α_lab, θ_lab)
     bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep, alg = alg
-        τ -> p_drc * delay_convolution(one(p_drc), r, τ, d_rep; alg)
+        u -> p_drc * delay_convolution(one(p_drc), r, u, d_rep; alg)
     end
-    return s_test * delay_convolution(bvd_reported_at, Th, d_lab; alg)
+    return s_test * τ_test *
+           delay_convolution(bvd_reported_at, Th, d_lab; alg)
 end
 
 function _nb_rand(rng, k, μ)
@@ -93,6 +94,13 @@ function forecast_reported(chn;
     α_lab = has_lab ? _draws(chn, :α_lab) : nothing
     θ_lab = has_lab ? _draws(chn, :θ_lab) : nothing
     s_test = has_lab ? _draws(chn, :s_test) : nothing
+    ## τ_test is optional on the chain: when absent (older fits or
+    ## synthetic chains predating the testing-rate extension) fall back
+    ## to τ = 1, matching the previous "all suspected get tested"
+    ## assumption.
+    τ_test_draws = (has_lab && haskey_chain(chn, :τ_test)) ?
+                   _draws(chn, :τ_test) :
+                   (has_lab ? ones(length(r)) : nothing)
 
     rng = MersenneTwister(seed)
     n = length(r)
@@ -120,7 +128,7 @@ function forecast_reported(chn;
         if has_lab
             μ_confirmed = _forecast_confirmed_mean(r[i], Th,
                 α_rep[i], θ_rep[i], α_lab[i], θ_lab[i], pr[i],
-                s_test[i]; alg)
+                s_test[i], τ_test_draws[i]; alg)
             confirmed_cum[i] = _nb_rand(rng, k[i], μ_confirmed)
         end
     end

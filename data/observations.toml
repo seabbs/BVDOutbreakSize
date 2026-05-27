@@ -64,8 +64,12 @@ values = [516, 575, 672, 745, 872, 905]
 source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP SitReps 004-010 published 18-23 May 2026. Values are cumulative DRC suspected cases summed across reporting health zones at each sitrep date. The 24 May vintage is omitted because two zones (Goma, Katwa) were revised downward, giving a cumulative sum (893) below the 23 May figure."
 
 [confirmed_cases]
-value  = 95
-source = "INRB-UMIE/Ebola_DRC_2026 transcription of INSP SitRep 010 (data as of 23 May 2026) — DRC cumulative laboratory-confirmed cases, summed across the reporting health zones from insp_sitrep__cumulative_confirmed_cases__daily.csv. Matches the cumulative suspected and deaths cut-off date."
+value  = 101
+source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul positifs`. The lab-section headline figure is six higher than the INRB-UMIE zone-summed transcription (95) because some confirmed samples were not yet linked to a reporting zone; we use the lab raw count to stay consistent with [cumulative_tests_analysed] below, which is also from the lab section."
+
+[cumulative_tests_analysed]
+value  = 211
+source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul échantillons analysés`. Cumulative number of suspected-case specimens that the Bunia/INRB pipeline has completed processing by the cut-off. The 418 received minus 207 unanalysed reflects the lab-pipeline backlog and gives a natural right-truncation handle on the per-test positivity rate (101/211 ≈ 47.9%)."
 
 [daily_outbound_travellers]
 value  = 1871

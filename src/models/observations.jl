@@ -105,6 +105,7 @@ recomputing the convolution.
     report_state ~ to_submodel(report_delay, false)
     test_positivity_state ~ to_submodel(test_positivity, false)
     λ_bg = test_positivity_state.λ_bg
+    τ_test = test_positivity_state.τ_test
     f_rep = report_state.dist
     r = growth_state.r
     T = growth_state.T
@@ -133,7 +134,7 @@ recomputing the convolution.
 
     reported_cases ~ safe_nbinomial(k, expected_reports)
 
-    return (; p_drc, λ_bg,
+    return (; p_drc, λ_bg, τ_test,
         expected_reports, reported_cases,
         μ_BVD, μ_bg, positivity,
         bvd_reported_at,
@@ -141,16 +142,44 @@ recomputing the convolution.
 end
 
 """
-Laboratory-confirmed cases likelihood. Convolves the BVD-suspected
-trajectory `bvd_reported_at` (a closure produced by
-[`reported_cases_model`](@ref)) against the lab-turnaround delay
-[`lab_delay_model`](@ref) and scales by the PCR sensitivity
-[`test_sensitivity_model`](@ref). NegativeBinomial likelihood
-sharing the dispersion `k` of [`surveillance_dispersion_model`](@ref).
+Laboratory pipeline likelihood. Models two coupled observations
+covering both the testing-volume gate and the per-test positivity
+contrast:
+
+- `tests_analysed` (`Cumul échantillons analysés`): observed cumulative
+  count of suspected samples whose lab processing has completed by the
+  cut-off. NegativeBinomial mean
+  ``\\tau\\,(\\text{BVD}_\\text{tested} + \\text{bg}_\\text{tested})``,
+  with
+  ``\\text{BVD}_\\text{tested} = \\int_0^T \\text{BVD}_\\text{reported}(u)\\, f_\\text{lab}(T-u)\\,du``
+  and
+  ``\\text{bg}_\\text{tested} = \\lambda_\\text{bg}\\,\\int_0^T F_\\text{lab}(T-u)\\,du``.
+  The lab-delay CDF ``F_\\text{lab}`` only counts samples that have
+  finished processing by `T`, so right-truncation is handled by the
+  integration limits — no fudge needed.
+- `confirmed_cases` (`Cumul positifs`): observed positives among the
+  analysed samples. Binomial likelihood conditional on
+  `tests_analysed` with positivity probability
+  ``s\\,\\text{BVD}_\\text{tested}/(\\text{BVD}_\\text{tested}+\\text{bg}_\\text{tested})``
+  (PCR sensitivity times the BVD fraction in the tested pool;
+  specificity is assumed perfect, so non-BVD samples never test
+  positive).
+
+Takes the BVD-suspected trajectory `bvd_reported_at` and the testing
+fraction `τ_test` / background rate `λ_bg` directly from
+[`reported_cases_model`](@ref) so the same posterior trajectory drives
+both streams.
+
+If `tests_analysed` is missing, falls back to the cumulative-count
+NegBinomial form on `confirmed_cases` alone (mean
+``s\\cdot\\tau\\,\\text{BVD}_\\text{tested}``); if both are missing,
+the model is purely prior-predictive.
 """
 @model function confirmed_cases_model(
         confirmed_cases::Union{Missing, Integer},
-        bvd_reported_at, growth_state, k::Real;
+        tests_analysed::Union{Missing, Integer},
+        bvd_reported_at, growth_state, k::Real,
+        λ_bg::Real, τ_test::Real;
         lab_delay = lab_delay_model(),
         test_sensitivity = test_sensitivity_model())
     lab_state ~ to_submodel(lab_delay, false)
@@ -159,15 +188,54 @@ sharing the dispersion `k` of [`surveillance_dispersion_model`](@ref).
     s_test = sensitivity_state.s_test
     T = growth_state.T
 
-    raw_confirmed = s_test *
-                    delay_convolution(bvd_reported_at, T, f_lab)
-    expected_confirmed := isfinite(raw_confirmed) ?
-                          max(raw_confirmed, eps(typeof(raw_confirmed))) :
-                          eps(typeof(raw_confirmed))
+    ## BVD samples that have completed lab processing by T (before
+    ## the τ gate): same kernel as the previous confirmed integrand,
+    ## ∫₀^T BVD_reported(u) · f_lab(T-u) du.
+    raw_bvd_tested = τ_test * delay_convolution(bvd_reported_at, T, f_lab)
+    BVD_tested := isfinite(raw_bvd_tested) ?
+                  max(raw_bvd_tested, eps(typeof(raw_bvd_tested))) :
+                  eps(typeof(raw_bvd_tested))
 
-    confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
+    ## Non-BVD samples that have completed lab processing by T:
+    ## constant arrival rate λ_bg per day to the suspected pool,
+    ## convolved against the lab-delay CDF F_lab so right-truncation
+    ## is absorbed in the integration. τ gates the same sampling
+    ## fraction as the BVD branch.
+    bg_integrand = let f_lab = f_lab, T = T
+        u -> cdf(f_lab, T - u)
+    end
+    bg_integral = integrate(bg_integrand, zero(T), T,
+        _delay_scale(f_lab); alg = DEATH_INTEGRAL_ALG)
+    raw_bg_tested = τ_test * λ_bg * bg_integral
+    bg_tested := isfinite(raw_bg_tested) ?
+                 max(raw_bg_tested, eps(typeof(raw_bg_tested))) :
+                 eps(typeof(raw_bg_tested))
 
-    return (; expected_confirmed, s_test,
+    expected_tested := BVD_tested + bg_tested
+    ## Per-test positivity: s × BVD fraction in the tested pool.
+    ## Exposed for direct comparison against the sitrep `Taux de
+    ## positivité` figure.
+    p_positive := s_test * BVD_tested / expected_tested
+
+    ## Testing-volume likelihood. Skipped when no tests-analysed
+    ## observation is supplied — falls through to the cumulative
+    ## confirmed NegBinomial below for prior-predictive callers.
+    if !ismissing(tests_analysed)
+        tests_analysed ~ safe_nbinomial(k, expected_tested)
+        ## Confirmed-given-tested Binomial. `tests_analysed` is a data
+        ## integer here (not a sampled latent), so the discrete-trial
+        ## count of the Binomial is fixed by the observation.
+        confirmed_cases ~ Binomial(tests_analysed, p_positive)
+    else
+        ## No tests-analysed data: use the original cumulative-count
+        ## form on confirmed alone. Means scale by τ relative to the
+        ## pre-test-positivity form; equivalent up to that factor.
+        expected_confirmed := s_test * BVD_tested
+        confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
+    end
+
+    return (; expected_tested, p_positive,
+        BVD_tested, bg_tested, s_test, τ_test,
         lab_delay_dist = f_lab)
 end
 
