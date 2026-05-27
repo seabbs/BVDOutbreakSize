@@ -2,7 +2,9 @@
 ## are produced in the documented order and match `Statistics.quantile`
 ## on a known vector.
 
-@testset "posterior_summary returns six fields in documented order" begin
+@testitem "posterior_summary returns six fields in documented order" begin
+    using Statistics: quantile
+    using BVDOutbreakSize: posterior_summary
     xs = collect(0.0:0.01:1.0)
     s = posterior_summary(xs)
 

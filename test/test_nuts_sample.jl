@@ -4,11 +4,17 @@
 ## returns by default (a FlexiChains.VNChain here) and check shape +
 ## finite draws.
 
-@model function _nuts_model()
-    x ~ Normal(0.0, 1.0)
-end
+@testitem "nuts_sample returns a sample container with finite draws" tags=[:slow] begin
+    using Distributions: Normal
+    using Turing: @model
+    using BVDOutbreakSize: nuts_sample
 
-@testset "nuts_sample returns a sample container with finite draws" begin
+    ## kept: a trivial one-parameter Gaussian is the cheapest target
+    ## that still exercises every NUTS wiring path.
+    @model function _nuts_model()
+        x ~ Normal(0.0, 1.0)
+    end
+
     chn = nuts_sample(_nuts_model(); samples = 50, chains = 2)
     @test chn !== nothing
 

@@ -1,9 +1,13 @@
 ## Tests for comparison_table: one row per scenario with a
 ## narrowest_CrI value drawn from the documented label set.
 
-const _CRI_LABELS = Set(["30%", "60%", "90%", "outside 90%"])
+@testitem "comparison_table covers every REPORT_SCENARIOS entry" begin
+    using DataFrames: DataFrame, nrow
+    using Random: MersenneTwister
+    using BVDOutbreakSize: comparison_table, REPORT_SCENARIOS
 
-@testset "comparison_table covers every REPORT_SCENARIOS entry" begin
+    _CRI_LABELS = Set(["30%", "60%", "90%", "outside 90%"])
+
     rng = MersenneTwister(2)
     # Draws span the published scenario range so every label can in
     # principle be assigned, but we only check membership.
@@ -22,7 +26,9 @@ const _CRI_LABELS = Set(["30%", "60%", "90%", "outside 90%"])
     end
 end
 
-@testset "comparison_table handles a far-away posterior" begin
+@testitem "comparison_table handles a far-away posterior" begin
+    using Random: MersenneTwister
+    using BVDOutbreakSize: comparison_table
     # All draws cluster well above every reported scenario, so the
     # narrowest label is always "outside 90%".
     rng = MersenneTwister(3)

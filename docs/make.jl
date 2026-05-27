@@ -9,10 +9,10 @@ using BVDOutbreakSize
 
 const bib = CitationBibliography(
     joinpath(@__DIR__, "src", "refs.bib");
-    style = :authoryear,
+    style = :authoryear
 )
 
-const REPO_ROOT    = dirname(@__DIR__)
+const REPO_ROOT = dirname(@__DIR__)
 const LITERATE_SRC = joinpath(@__DIR__, "examples", "analysis.jl")
 const LITERATE_OUT = joinpath(@__DIR__, "src")
 
@@ -34,11 +34,10 @@ let readme = read(joinpath(REPO_ROOT, "README.md"), String)
     readme = replace(readme, r"^<!-- SHARED:END -->\n"m => "")
     readme = replace(
         readme,
-        r"\(https?://[^)]*?/analysis#([^)]+)\)" =>
-            m -> begin
-                slug = match(r"#([^)]+)\)$", m).captures[1]
-                "(@ref \"" * replace(slug, '-' => ' ') * "\")"
-            end,
+        r"\(https?://[^)]*?/analysis#([^)]+)\)" => m -> begin
+            slug = match(r"#([^)]+)\)$", m).captures[1]
+            "(@ref \"" * replace(slug, '-' => ' ') * "\")"
+        end
     )
     write(joinpath(LITERATE_OUT, "index.md"), readme)
 end
@@ -46,10 +45,10 @@ end
 Literate.markdown(
     LITERATE_SRC,
     LITERATE_OUT;
-    name    = "analysis",
-    flavor  = Literate.DocumenterFlavor(),
+    name = "analysis",
+    flavor = Literate.DocumenterFlavor(),
     execute = true,
-    credit  = false,
+    credit = false
 )
 
 # References page sourced from refs.bib through `@bibliography`.
@@ -62,25 +61,25 @@ end
 
 makedocs(;
     sitename = "BVDOutbreakSize",
-    authors  = "Sam Abbott and contributors",
-    repo     = "github.com/epiforecasts/BVDOutbreakSize",
-    clean    = true,
-    doctest  = false,
+    authors = "Sam Abbott and contributors",
+    repo = "github.com/epiforecasts/BVDOutbreakSize",
+    clean = true,
+    doctest = false,
     warnonly = [:missing_docs, :linkcheck, :citations],
-    plugins  = [bib],
-    pages    = [
-        "Home"         => "index.md",
-        "Analysis"     => "analysis.md",
-        "API"          => "api.md",
+    plugins = [bib],
+    pages = [
+        "Home" => "index.md",
+        "Analysis" => "analysis.md",
+        "API" => "api.md",
         "Contributing" => "contributing.md",
-        "News"         => "news.md",
-        "References"   => "references.md",
+        "News" => "news.md",
+        "References" => "references.md"
     ],
-    format   = DocumenterVitepress.MarkdownVitepress(;
-        repo      = "github.com/epiforecasts/BVDOutbreakSize",
+    format = DocumenterVitepress.MarkdownVitepress(;
+        repo = "github.com/epiforecasts/BVDOutbreakSize",
         devbranch = "main",
-        devurl    = "dev",
-    ),
+        devurl = "dev"
+    )
 )
 
 # Use DocumenterVitepress.deploydocs, not the bare Documenter one:
@@ -89,9 +88,9 @@ makedocs(;
 # gh-pages/<base>/. Plain deploydocs leaves the numbered subdir, so
 # the deployed site's asset URLs 404. Ref LuxDL/DocumenterVitepress.jl#280.
 DocumenterVitepress.deploydocs(;
-    repo        = "github.com/epiforecasts/BVDOutbreakSize",
-    target      = "build",
-    branch      = "gh-pages",
-    devbranch   = "main",
-    push_preview = true,
+    repo = "github.com/epiforecasts/BVDOutbreakSize",
+    target = "build",
+    branch = "gh-pages",
+    devbranch = "main",
+    push_preview = true
 )
