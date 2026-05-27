@@ -9,12 +9,10 @@ default_adtype() = AutoMooncake(; config = Mooncake.Config())
 
 """
 NUTS on `model`, parallel chains via `MCMCThreads`. Chains
-initialise from a uniform `[-2, 2]` window in the unconstrained
-parameter space (`InitFromUniform()`), which guarantees a finite
-initial log-density and gradient for any joint prior, then NUTS
-adapts away from there during warmup. Pass `init =
-Turing.DynamicPPL.InitFromPrior()` to fall back to prior-draw
-initialisation.
+initialise from the prior (`InitFromPrior()`) to keep the sampler
+in regions with reasonable physical interpretation. Pass `init =
+Turing.DynamicPPL.InitFromUniform()` to fall back to unconstrained
+uniform initialisation.
 """
 function nuts_sample(model;
         samples::Integer = 1_000,
@@ -23,7 +21,7 @@ function nuts_sample(model;
         seed::Integer = 20260518,
         progress::Bool = false,
         adtype = default_adtype(),
-        init = InitFromUniform())
+        init = InitFromPrior())
     rng = MersenneTwister(seed)
     return sample(
         rng,
