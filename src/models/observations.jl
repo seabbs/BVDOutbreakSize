@@ -200,9 +200,13 @@ the model is purely prior-predictive.
     ## constant arrival rate λ_bg per day to the suspected pool,
     ## convolved against the lab-delay CDF F_lab so right-truncation
     ## is absorbed in the integration. τ gates the same sampling
-    ## fraction as the BVD branch.
-    bg_integrand = let f_lab = f_lab, T = T
-        u -> cdf(f_lab, T - u)
+    ## fraction as the BVD branch. Uses `_gamma_cdf` rather than
+    ## raw `cdf(::Gamma, ·)` so the α derivative is finite under
+    ## Mooncake (see #138).
+    α_lab = lab_state.α
+    θ_lab = lab_state.θ
+    bg_integrand = let α_lab = α_lab, θ_lab = θ_lab, T = T
+        u -> _gamma_cdf(α_lab, θ_lab, T - u)
     end
     bg_integral = integrate(bg_integrand, zero(T), T,
         _delay_scale(f_lab); alg = DEATH_INTEGRAL_ALG)
