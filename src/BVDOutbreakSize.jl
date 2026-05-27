@@ -51,7 +51,7 @@ export REPORT_SCENARIOS,
 # prior submodels
        exponential_growth_model, genetic_seeding_model, delay_model,
        report_delay_model, lab_delay_model, test_sensitivity_model,
-       background_suspected_model,
+       test_positivity_model,
        cfr_model, detection_window_model, traveller_volume_model,
        surveillance_dispersion_model, pooled_ascertainment_model,
 # observation models

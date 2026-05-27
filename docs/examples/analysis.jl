@@ -965,12 +965,12 @@ cfr_prior_fig #hide
 # the implied positivity.
 
 #md # ```@raw html
-#md # <details><summary>Submodel: background_suspected_model</summary>
+#md # <details><summary>Submodel: test_positivity_model</summary>
 #md # ```
 
 #md # ```@example main
 #md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.background_suspected_model())
+#md # print(@code_string BVDOutbreakSize.test_positivity_model())
 #md # println("\n```")
 #md # ```
 

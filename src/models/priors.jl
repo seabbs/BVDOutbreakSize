@@ -60,8 +60,8 @@ loosened to allow for 2026-specific deviations. Used by
 [`reported_cases_model`](@ref).
 """
 @model function report_delay_model(;
-        alpha_prior = truncated(Normal(2.5, 1.0); lower = 0.5),
-        theta_prior = truncated(Normal(4.5, 1.5); lower = 0.5))
+        alpha_prior = truncated(Normal(2.5, 1.0); lower = 0),
+        theta_prior = truncated(Normal(4.5, 1.5); lower = 0))
     α_rep ~ alpha_prior
     θ_rep ~ theta_prior
     return (; α = α_rep, θ = θ_rep, dist = Gamma(α_rep, θ_rep))
@@ -70,8 +70,8 @@ end
 """
 Report-to-lab-confirmation delay prior. Samples a gamma shape `α_lab`
 and scale `θ_lab` from truncated-normal priors with a heavy right tail
-to allow for sample shipment from provincial labs to INRB Kinshasa.
-Used by [`confirmed_cases_model`](@ref).
+to allow for sample shipment to a confirmatory lab. No per-sample
+outbreak data anchors this prior. Used by [`confirmed_cases_model`](@ref).
 """
 @model function lab_delay_model(;
         alpha_prior = truncated(Normal(1.5, 1.0); lower = 0),
@@ -97,12 +97,14 @@ of Bundibugyo-specific validations. Used by
 end
 
 """
-Non-BVD background suspected-cases rate prior. Samples a per-day rate
-`λ_bg` on a half-normal scale, broad relative to the observed shortfall
-between suspected and confirmed counts. Used by
-[`reported_cases_model`](@ref).
+Test-positivity machinery. Samples the per-day non-BVD background
+suspected-case rate `λ_bg` on a half-normal scale; this rate underlies
+the suspected/confirmed contrast that identifies the BVD fraction.
+The derived per-suspected positivity `μ_BVD / μ_cases` is exposed
+inside [`reported_cases_model`](@ref) where the relevant means are in
+scope.
 """
-@model function background_suspected_model(;
+@model function test_positivity_model(;
         lambda_prior = truncated(Normal(0.0, 10.0); lower = 0))
     λ_bg ~ lambda_prior
     return (; λ_bg)

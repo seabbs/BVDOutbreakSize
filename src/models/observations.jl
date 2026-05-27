@@ -89,20 +89,22 @@ Reported (suspected) cases likelihood. Couples the observed DRC
 suspected-case count to `C(T)` as the sum of (i) a BVD-driven
 contribution `p_drc · ∫₀^T exp(r·s) · f_rep(T-s) ds` using the
 onset-to-report delay [`report_delay_model`](@ref) and (ii) a non-BVD
-background `λ_bg · T` from [`background_suspected_model`](@ref). The
-NegativeBinomial likelihood shares `k` with [`deaths_model`](@ref) and
-[`confirmed_cases_model`](@ref). Exposes the BVD-suspected
-trajectory `bvd_reported_at` as a callable so the confirmed-cases
-submodel can re-use it without recomputing the convolution.
+background `λ_bg · T`, with `λ_bg` supplied by
+[`test_positivity_model`](@ref). The NegativeBinomial likelihood shares
+`k` with [`deaths_model`](@ref) and [`confirmed_cases_model`](@ref).
+Exposes the derived per-suspected positivity `μ_BVD / μ_cases` as a
+diagnostic and the BVD-suspected trajectory `bvd_reported_at` as a
+callable so the confirmed-cases submodel can re-use it without
+recomputing the convolution.
 """
 @model function reported_cases_model(
         reported_cases::Union{Missing, Integer},
         growth_state, k::Real, p_drc::Real;
         report_delay = report_delay_model(),
-        background = background_suspected_model())
+        test_positivity = test_positivity_model())
     report_state ~ to_submodel(report_delay, false)
-    background_state ~ to_submodel(background, false)
-    λ_bg = background_state.λ_bg
+    test_positivity_state ~ to_submodel(test_positivity, false)
+    λ_bg = test_positivity_state.λ_bg
     f_rep = report_state.dist
     r = growth_state.r
     T = growth_state.T

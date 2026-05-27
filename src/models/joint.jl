@@ -127,7 +127,7 @@ checks.
         exports_detection_timing = exports_detection_timing_model,
         dispersion = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
-        background = background_suspected_model(),
+        test_positivity = test_positivity_model(),
         report_delay = report_delay_model(),
         lab_delay = lab_delay_model(),
         test_sensitivity = test_sensitivity_model(),
@@ -153,7 +153,7 @@ checks.
     reported_state ~ to_submodel(
         reported_cases_submodel(reported_cases, growth_state, k, p_drc;
             report_delay = report_delay,
-            background = background), false)
+            test_positivity = test_positivity), false)
     if confirmed_cases !== missing
         confirmed_state ~ to_submodel(
             confirmed(confirmed_cases,
