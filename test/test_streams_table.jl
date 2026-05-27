@@ -1,7 +1,10 @@
 ## Tests for streams_table: one row per stream with the documented
 ## column order.
 
-@testset "streams_table returns expected columns and row count" begin
+@testitem "streams_table returns expected columns and row count" begin
+    using DataFrames: DataFrame, nrow
+    using Random: MersenneTwister
+    using BVDOutbreakSize: streams_table
     rng = MersenneTwister(1)
     a = randn(rng, 500) .* 50 .+ 400
     b = randn(rng, 500) .* 80 .+ 600
@@ -11,7 +14,7 @@
     @test df isa DataFrame
     @test names(df) ==
           ["Stream", "Lower 90%", "Lower 60%", "Lower 30%",
-           "Upper 30%", "Upper 60%", "Upper 90%"]
+        "Upper 30%", "Upper 60%", "Upper 90%"]
     @test nrow(df) == 2
     @test df[!, "Stream"] == ["fit A", "fit B"]
 
