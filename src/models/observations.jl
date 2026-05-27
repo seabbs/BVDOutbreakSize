@@ -214,8 +214,15 @@ the model is purely prior-predictive.
     expected_tested := BVD_tested + bg_tested
     ## Per-test positivity: s × BVD fraction in the tested pool.
     ## Exposed for direct comparison against the sitrep `Taux de
-    ## positivité` figure.
-    p_positive := s_test * BVD_tested / expected_tested
+    ## positivité` figure. Clamped to `(eps, 1-eps)` so extreme NUTS
+    ## proposals during warmup do not fall outside the Binomial
+    ## domain.
+    p_pos_raw = s_test * BVD_tested / expected_tested
+    p_positive := isfinite(p_pos_raw) ?
+                  clamp(p_pos_raw,
+        eps(typeof(p_pos_raw)),
+        one(p_pos_raw) - eps(typeof(p_pos_raw))) :
+                  eps(typeof(p_pos_raw))
 
     ## Testing-volume likelihood. Skipped when no tests-analysed
     ## observation is supplied — falls through to the cumulative

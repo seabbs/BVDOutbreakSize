@@ -168,3 +168,26 @@ end
     @test all(isfinite, C)
     @test all(C .> 0)
 end
+
+@testitem "bvd_joint initialises with tested + confirmed observations" tags=[:slow] begin
+    ## Regression test for the Binomial init failure: the live
+    ## `bvd_joint(...; cumulative_tests_analysed=...)` path must
+    ## produce finite log-densities under prior draws so NUTS can
+    ## find valid initial parameters. Exercises the full per-test
+    ## positivity Binomial branch with the real submodels.
+    using Turing: sample, Prior
+    import FlexiChains
+    using BVDOutbreakSize: bvd_joint, load_observations
+    obs = load_observations()
+    chn = sample(
+        bvd_joint(obs.exported_cases, obs.total_deaths,
+            obs.reported_cases, obs.export_deaths_daily;
+            confirmed_cases = obs.confirmed_cases,
+            cumulative_tests_analysed = obs.cumulative_tests_analysed,
+            first_export_detection_delta = obs.first_export_detection_delta),
+        Prior(), 200;
+        chain_type = FlexiChains.VNChain, progress = false)
+    C = vec(Array(chn[:cumulative_cases]))
+    @test length(C) == 200
+    @test all(isfinite, C)
+end

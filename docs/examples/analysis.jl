@@ -71,12 +71,15 @@
 #   hyperprior on the reporting fraction, applied to the latent
 #   $C(T)$, gives a joint posterior over the reported suspected-case
 #   count alongside deaths and exports.
-# - *Suspected and laboratory-confirmed streams* (not in McCabe et al.).
-#   Reported (suspected) counts are modelled as the BVD-driven
-#   onset-to-report convolution plus a non-BVD background; confirmed
-#   counts add a PCR sensitivity factor and an onset-to-confirmation
-#   convolution stacked on the same BVD trajectory. Implied test
-#   positivity is exposed as a derived quantity.
+# - *Suspected, tested and laboratory-confirmed streams* (not in McCabe
+#   et al.). Reported (suspected) counts are the BVD-driven
+#   onset-to-report convolution plus a non-BVD background. The lab
+#   pipeline takes a fraction $\tau$ of suspected through an
+#   onset-to-confirmation delay; per-test positivity falls out as a
+#   Binomial likelihood on the confirmed/tested pair. The lab-delay CDF
+#   handles right-truncation of the tested observation. PCR sensitivity
+#   and testing fraction are separately identified given both
+#   observations.
 # - *No-onward-transmission counterfactual* (not in McCabe et al.).
 #   Projects the future expected deaths from cases already infected
 #   by $T$, integrating $i(s)\cdot(1 - F_d(T - s))$ per draw — a
@@ -935,21 +938,22 @@ cfr_prior_fig #hide
 # ```
 #
 # $\lambda_{\text{bg}}$ is the expected non-BVD suspected reports per
-# day. The implied test-positivity at the cut-off is
-# $\pi = \mu_{\text{BVD}} / \mu_{\text{cases}}$ — a derived quantity
-# checked against the sitrep figure (about $45\%$) rather than a free
-# parameter. Half-Normal prior:
+# day. The implied per-suspected positivity at the cut-off is
+# $\pi = \mu_{\text{BVD}} / \mu_{\text{cases}}$, a derived quantity
+# distinct from the per-test positivity used by the lab pipeline
+# below. Half-Normal prior:
 #
 # ```math
 # \lambda_{\text{bg}} \sim \mathrm{Normal}^{+}(0,\ 10)\ \text{per day}. \tag{20}
 # ```
 #
 # The prior is intentionally broad: $\lambda_{\text{bg}}$ is identified
-# from the suspected/confirmed contrast rather than set from external
-# data here. Ideally it would be informed by a known background rate of
-# non-BVD presentations from routine surveillance or other data sources.
-# The dispersion $k$ (equation (9)) is shared with the deaths and
-# confirmed likelihoods.
+# from the suspected/confirmed contrast — and, once the tests-analysed
+# observation is included, from the testing-volume gate on the BVD and
+# background streams. Ideally it would also be informed by a known
+# background rate of non-BVD presentations from routine surveillance or
+# other data sources. The dispersion $k$ (equation (9)) is shared with
+# the deaths and tested likelihoods.
 #
 # $\mu_{\text{bg}} = \lambda_{\text{bg}}\, T$ assumes the non-BVD
 # background rate is constant in time and independent of the outbreak.
@@ -993,35 +997,80 @@ cfr_prior_fig #hide
 #md # </details>
 #md # ```
 
-# ##### Confirmed cases
+# ##### Tested-volume and confirmed cases
 #
-# Laboratory-confirmed counts are only BVD cases that (a) have cleared
-# both the report and lab-turnaround delays and (b) returned a
-# positive PCR. Letting $s$ denote PCR sensitivity, the cumulative
-# expectation convolves the BVD-suspected trajectory of equation (18)
-# against the lab-turnaround kernel and scales by $s$:
+# The laboratory pipeline gives us two coupled observations. A fraction
+# $\tau$ of every suspected case gets routed to the lab; among samples
+# whose processing has completed by $T$, BVD-positive ones return a
+# positive PCR with sensitivity $s$. Non-BVD samples are assumed never
+# to test positive (perfect specificity).
 #
-# ```math
-# \mu_{\text{conf}} = s
-#     \int_0^T \mu_{\text{BVD}}(s')\, f_{\text{lab}}(T - s')\, ds', \qquad
-# Y_{\text{conf}} \sim \mathrm{NegBinomial}(\mu_{\text{conf}},\ k). \tag{21}
-# ```
-#
-# Beta prior on the PCR sensitivity:
+# The cumulative number of BVD samples that have completed processing
+# by $T$ is the BVD-suspected trajectory of equation (18) convolved
+# against the lab-turnaround kernel, gated by $\tau$:
 #
 # ```math
-# s \sim \mathrm{Beta}(30,\ 2), \tag{22}
+# \mu_{\text{BVD,test}} =
+#     \tau \int_0^T \mu_{\text{BVD}}(s')\, f_{\text{lab}}(T - s')\, ds'. \tag{21}
 # ```
 #
-# mean $0.94$, $95\%$ interval $0.84$-$0.99$. The Cepheid GeneXpert
-# Ebola assay reported $100\%$ ($95\%$ CI $84.6$-$100\%$, $n = 22$)
-# clinical sensitivity on field whole blood in the Sierra Leone Zaire
-# ebolavirus field evaluation [semper2016](@cite); analytical
-# performance studies place the limit of detection in the tens of
-# copies per mL on whole blood [pinsky2015](@cite). The prior sits
-# just below the field point estimate to leave room for early-infection
-# low-viral-load specimens, field handling, and the lack of
-# Bundibugyo-specific validations.
+# Non-BVD samples arrive at the suspected pool at constant rate
+# $\lambda_{\text{bg}}$ per day; the fraction that has completed lab
+# processing by $T$ is the integral of the lab-delay CDF $F_{\text{lab}}$
+# rather than its density, so right-truncation is absorbed by the
+# integration limits — only samples whose pipeline has finished by $T$
+# are counted:
+#
+# ```math
+# \mu_{\text{bg,test}} =
+#     \tau\,\lambda_{\text{bg}} \int_0^T F_{\text{lab}}(T - u)\, du. \tag{22}
+# ```
+#
+# Cumulative tests analysed are NegBinomial; positive tests conditional
+# on the analysed denominator are Binomial:
+#
+# ```math
+# Y_{\text{test}} \sim \mathrm{NegBinomial}(\mu_{\text{BVD,test}}
+#     + \mu_{\text{bg,test}},\ k), \tag{23}
+# ```
+#
+# ```math
+# Y_{\text{conf}} \mid Y_{\text{test}} \sim
+#     \mathrm{Binomial}\big(Y_{\text{test}},\
+#     p_{\text{pos}}\big), \qquad
+# p_{\text{pos}} = \frac{s\,\mu_{\text{BVD,test}}}{\mu_{\text{BVD,test}}
+#     + \mu_{\text{bg,test}}}. \tag{24}
+# ```
+#
+# `τ_test` and `s` are separately identified once both `Y_test` and
+# `Y_conf` are observed: the absolute scale of `Y_test` pins `τ` (given
+# the BVD trajectory inferred jointly with the other streams), and the
+# `Y_conf / Y_test` ratio pins `s · BVD_fraction`. Without the
+# tests-analysed observation the two would be multiplicatively
+# confounded.
+#
+# Beta prior on the PCR sensitivity, and a Beta prior on the fraction
+# of suspected cases that get routed to the lab:
+#
+# ```math
+# s \sim \mathrm{Beta}(30,\ 2), \qquad
+# \tau \sim \mathrm{Beta}(2,\ 2). \tag{25}
+# ```
+#
+# The sensitivity prior has mean $0.94$ and $95\%$ interval
+# $0.84$-$0.99$. The Cepheid GeneXpert Ebola assay reported $100\%$
+# ($95\%$ CI $84.6$-$100\%$, $n = 22$) clinical sensitivity on field
+# whole blood in the Sierra Leone Zaire ebolavirus field evaluation
+# [semper2016](@cite); analytical performance studies place the limit
+# of detection in the tens of copies per mL on whole blood
+# [pinsky2015](@cite). The prior sits just below the field point
+# estimate to leave room for early-infection low-viral-load specimens,
+# field handling, and the lack of Bundibugyo-specific validations.
+#
+# The testing fraction $\tau$ has a wide $\mathrm{Beta}(2, 2)$ prior
+# (mean $0.5$, supports the full $[0, 1]$ range); it is identified
+# from the absolute scale of `tests_analysed` against the suspected
+# total and the lab-delay CDF integrals above.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_sensitivity_model</summary>
@@ -1365,6 +1414,7 @@ chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
     obs.reported_cases, obs.export_deaths_daily;
     confirmed_cases = obs.confirmed_cases,
+    cumulative_tests_analysed = obs.cumulative_tests_analysed,
     first_export_detection_delta = obs.first_export_detection_delta,
     genetic = genetic_seeding));
 
@@ -1744,6 +1794,7 @@ pp_joint = predict(
     bvd_joint(missing, missing, missing,
         fill(missing, length(obs.export_deaths_daily));
         confirmed_cases = missing,
+        cumulative_tests_analysed = missing,
         pre_start_deaths = missing,
         pre_detection_exports = missing,
         first_export_detection_delta = obs.first_export_detection_delta,
@@ -1946,6 +1997,7 @@ chn_joint_community = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
     obs.reported_cases, obs.export_deaths_daily;
     confirmed_cases = obs.confirmed_cases,
+    cumulative_tests_analysed = obs.cumulative_tests_analysed,
     first_export_detection_delta = obs.first_export_detection_delta,
     genetic = genetic_seeding,
     deaths = (total_deaths, growth_state,
@@ -2028,6 +2080,7 @@ chn_joint_clock19 = nuts_sample(
     bvd_joint(obs.exported_cases, obs.total_deaths,
     obs.reported_cases, obs.export_deaths_daily;
     confirmed_cases = obs.confirmed_cases,
+    cumulative_tests_analysed = obs.cumulative_tests_analysed,
     first_export_detection_delta = obs.first_export_detection_delta,
     genetic = genetic_seeding_clock19));
 
