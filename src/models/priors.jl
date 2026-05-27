@@ -82,14 +82,16 @@ Used by [`confirmed_cases_model`](@ref).
 end
 
 """
-PCR sensitivity prior for the GeneXpert Ebola assay. Centred on a Beta
-mean of 0.88 with a 95% interval of 0.69-0.99, slightly below the
-100% sensitivity reported in Zaire-ebolavirus validations to leave
-room for low-viral-load specimens and field handling. Used by
+PCR sensitivity prior for the GeneXpert Ebola assay. Beta(30, 2): mean
+0.94, 95% interval 0.84-0.99. Sits just below the 100% (95% CI
+84.6-100%, n = 22) clinical sensitivity on field whole blood reported
+in the Sierra Leone Zaire-ebolavirus field evaluation, leaving room for
+early-infection low-viral-load specimens, field handling, and the lack
+of Bundibugyo-specific validations. Used by
 [`confirmed_cases_model`](@ref).
 """
 @model function test_sensitivity_model(;
-        sensitivity_prior = Beta(15.0, 2.0))
+        sensitivity_prior = Beta(30.0, 2.0))
     s_test ~ sensitivity_prior
     return (; s_test)
 end

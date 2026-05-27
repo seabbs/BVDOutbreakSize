@@ -1,14 +1,15 @@
 #!/usr/bin/env julia
 #
-# Refresh DRC suspected case and death totals from the INRB-UMIE
+# Refresh DRC suspected case, confirmed case and death totals from the
+# INRB-UMIE
 # transcription of the INSP situation reports
 # (https://github.com/INRB-UMIE/Ebola_DRC_2026), and print the values
 # in TOML form ready to drop into `data/observations.toml`.
 #
 # Usage:
 #
-#   julia --project=. scripts/refresh_insp_data.jl
-#   julia --project=. scripts/refresh_insp_data.jl 2026-05-23  # pin a cut-off
+#   julia --project=scripts scripts/refresh_insp_data.jl
+#   julia --project=scripts scripts/refresh_insp_data.jl 2026-05-23  # pin a cut-off
 #
 # With no argument the cut-off is the latest sitrep date in the file.
 # Pass an ISO date to pin a specific cut-off (useful when the latest
@@ -29,6 +30,7 @@ const BASE_URL = "https://raw.githubusercontent.com/INRB-UMIE/" *
                  "Ebola_DRC_2026/main/data/insp_sitrep/processed"
 const CASES_FILE = "insp_sitrep__cumulative_suspected_cases__daily.csv"
 const DEATHS_FILE = "insp_sitrep__cumulative_suspected_deaths__daily.csv"
+const CONFIRMED_FILE = "insp_sitrep__cumulative_confirmed_cases__daily.csv"
 
 function trajectory(file)
     df = CSV.read(Downloads.download("$BASE_URL/$file"),
@@ -46,16 +48,21 @@ end
 
 cases = trajectory(CASES_FILE)
 deaths = trajectory(DEATHS_FILE)
+confirmed = trajectory(CONFIRMED_FILE)
 
 cut_off = length(ARGS) >= 1 ? Date(ARGS[1]) :
-          min(maximum(cases.date), maximum(deaths.date))
+          min(maximum(cases.date), maximum(deaths.date),
+    maximum(confirmed.date))
 
 cases_at = @subset cases :date .== cut_off
 deaths_at = @subset deaths :date .== cut_off
+confirmed_at = @subset confirmed :date .== cut_off
 isempty(cases_at) && error("no cases vintage on $cut_off")
 isempty(deaths_at) && error("no deaths vintage on $cut_off")
+isempty(confirmed_at) && error("no confirmed vintage on $cut_off")
 
 cases_kept = @subset cases :date .<= cut_off
+confirmed_kept = @subset confirmed :date .<= cut_off
 
 println("Cut-off: $cut_off")
 println()
@@ -65,6 +72,10 @@ println()
 println()
 println("Deaths trajectory (date, total, n_zones):")
 show(stdout, MIME("text/plain"), deaths);
+println()
+println()
+println("Confirmed trajectory (date, total, n_zones):")
+show(stdout, MIME("text/plain"), confirmed);
 println()
 println()
 println("--- TOML snippet for data/observations.toml ---")
@@ -80,3 +91,11 @@ println()
 println("[reported_case_history]")
 println("dates  = [", join(("\"$(d)\"" for d in cases_kept.date), ", "), "]")
 println("values = [", join(cases_kept.total, ", "), "]")
+println()
+println("[confirmed_cases]")
+println("value  = $(confirmed_at.total[1])")
+println()
+println("[confirmed_case_history]")
+println("dates  = [",
+    join(("\"$(d)\"" for d in confirmed_kept.date), ", "), "]")
+println("values = [", join(confirmed_kept.total, ", "), "]")

@@ -171,6 +171,11 @@
 #   individual-level overlap, so it can double-count evidence and
 #   understate uncertainty. The effect is small here because the
 #   Uganda counts are small.
+# - *Confirmed-cases stream rests on weak priors.* The non-BVD
+#   background rate is identified from the suspected/confirmed contrast
+#   rather than external surveillance data; the report-to-confirmation
+#   delay has no per-sample anchor for this outbreak; PCR sensitivity
+#   is taken from earlier validation studies.
 # - *Data conflict not explored in detail.* We combine four data
 #   streams jointly but have not systematically checked whether they
 #   conflict — whether, say, the exports and the deaths streams imply
@@ -527,12 +532,10 @@ observations_table #hide
 # median around $11$ days. We loosen this slightly to allow for
 # 2026-specific deviations.
 #
-# No published per-sample lab turnaround is available for this
-# outbreak. The Bunia provincial-lab GeneXpert returned negative on
-# the Ituri samples and confirmation routed through INRB Kinshasa
-# [africacdc_sitrep_2026](@cite); the prior centre is around $4$-$5$
-# days with a heavy right tail to allow for sample shipment, and can
-# be tightened if data becomes available.
+# No per-sample lab turnaround is published for this outbreak that we
+# are aware of. We use a Gamma prior centred around $4$-$5$ days with
+# a heavy right tail to allow for sample shipment to a confirmatory
+# lab; can be tightened if data becomes available.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: report_delay_model</summary>
@@ -915,8 +918,9 @@ cfr_prior_fig #hide
 # $C(T)$ is the latent count of cases that will ultimately be
 # laboratory-confirmable. Suspected reports include test-negative
 # referrals — alternative differential diagnoses such as malaria or
-# other febrile illness — whose rate is set by background prevalence
-# and surveillance intensity, not by BVD growth. We therefore model the
+# other febrile illness — whose rate we assume is set by background
+# prevalence and surveillance intensity, not by BVD growth. We therefore
+# model the
 # suspected stream as the sum of a BVD-driven component and a non-BVD
 # background that accrues with elapsed surveillance time:
 #
@@ -941,12 +945,12 @@ cfr_prior_fig #hide
 # \lambda_{\text{bg}} \sim \mathrm{Normal}^{+}(0,\ 10)\ \text{per day}. \tag{20}
 # ```
 #
-# This is broad on the scale of the observed counts: with $T$ of order
-# $80$ days the prior covers a background contribution from near zero up
-# to ~$1600$ non-BVD suspected by the cut-off, comfortably bracketing
-# the $516 - 33 \approx 483$ shortfall between the suspected and
-# confirmed counts. The dispersion $k$ (equation (9)) is shared with the
-# deaths and confirmed likelihoods.
+# The prior is intentionally broad: $\lambda_{\text{bg}}$ is identified
+# from the suspected/confirmed contrast rather than set from external
+# data here. Ideally it would be informed by a known background rate of
+# non-BVD presentations from routine surveillance or other data sources.
+# The dispersion $k$ (equation (9)) is shared with the deaths and
+# confirmed likelihoods.
 #
 # $\mu_{\text{bg}} = \lambda_{\text{bg}}\, T$ assumes the non-BVD
 # background rate is constant in time and independent of the outbreak.
@@ -1007,16 +1011,18 @@ cfr_prior_fig #hide
 # Beta prior on the PCR sensitivity:
 #
 # ```math
-# s \sim \mathrm{Beta}(15,\ 2), \tag{22}
+# s \sim \mathrm{Beta}(30,\ 2), \tag{22}
 # ```
 #
-# mean $0.88$, $95\%$ interval $0.69$-$0.99$. The Cepheid GeneXpert
-# Ebola assay validations on Zaire Ebola report $100\%$ sensitivity on
-# field whole blood and on virus-isolation-confirmed samples
-# [pinsky2015,semper2016](@cite); we centre the prior below that to
-# leave room for early-infection low-viral-load specimens, field
-# handling, and the lack of comparable Bundibugyo-specific
-# validations.
+# mean $0.94$, $95\%$ interval $0.84$-$0.99$. The Cepheid GeneXpert
+# Ebola assay reported $100\%$ ($95\%$ CI $84.6$-$100\%$, $n = 22$)
+# clinical sensitivity on field whole blood in the Sierra Leone Zaire
+# ebolavirus field evaluation [semper2016](@cite); analytical
+# performance studies place the limit of detection in the tens of
+# copies per mL on whole blood [pinsky2015](@cite). The prior sits
+# just below the field point estimate to leave room for early-infection
+# low-viral-load specimens, field handling, and the lack of
+# Bundibugyo-specific validations.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_sensitivity_model</summary>
