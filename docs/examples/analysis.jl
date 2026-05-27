@@ -1097,7 +1097,7 @@ cfr_prior_fig #hide
 #md # ```@example main
 #md # println("```julia")
 #md # print(@code_string BVDOutbreakSize.confirmed_cases_model(
-#md #     1, identity, nothing, 1.0))
+#md #     1, 1, identity, nothing, 1.0, 1.0, 1.0))
 #md # println("\n```")
 #md # ```
 
