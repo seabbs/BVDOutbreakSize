@@ -74,8 +74,8 @@ to allow for sample shipment to a confirmatory lab. No per-sample
 outbreak data anchors this prior. Used by [`confirmed_cases_model`](@ref).
 """
 @model function lab_delay_model(;
-        alpha_prior = truncated(Normal(1.5, 1.0); lower = 0),
-        theta_prior = truncated(Normal(3.0, 2.0); lower = 0))
+        alpha_prior = truncated(Normal(1.5, 1.0); lower = 0.1),
+        theta_prior = truncated(Normal(3.0, 2.0); lower = 0.1))
     α_lab ~ alpha_prior
     θ_lab ~ theta_prior
     return (; α = α_lab, θ = θ_lab, dist = Gamma(α_lab, θ_lab))
