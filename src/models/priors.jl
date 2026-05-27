@@ -60,8 +60,8 @@ loosened to allow for 2026-specific deviations. Used by
 [`reported_cases_model`](@ref).
 """
 @model function report_delay_model(;
-        alpha_prior = truncated(Normal(2.5, 1.0); lower = 0),
-        theta_prior = truncated(Normal(4.5, 1.5); lower = 0))
+        alpha_prior = truncated(Normal(2.5, 1.0); lower = 0.1),
+        theta_prior = truncated(Normal(4.5, 1.5); lower = 0.1))
     α_rep ~ alpha_prior
     θ_rep ~ theta_prior
     return (; α = α_rep, θ = θ_rep, dist = Gamma(α_rep, θ_rep))
