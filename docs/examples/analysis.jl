@@ -920,9 +920,8 @@ cfr_prior_fig #hide
 # referrals — alternative differential diagnoses such as malaria or
 # other febrile illness — whose rate we assume is set by background
 # prevalence and surveillance intensity, not by BVD growth. We therefore
-# model the
-# suspected stream as the sum of a BVD-driven component and a non-BVD
-# background that accrues with elapsed surveillance time:
+# model the suspected stream as the sum of a BVD-driven component and a
+# non-BVD background that accrues with elapsed surveillance time:
 #
 # ```math
 # \mu_{\text{BVD}} = p_{\text{DRC}}
