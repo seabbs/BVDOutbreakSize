@@ -2066,7 +2066,10 @@ forecast_validation_table #hide
 # the new counts over the horizon, mirroring the one-week-ahead forecast.
 # Each panel shades the 90% predictive interval and draws the
 # later-observed count as a dashed rule, so coverage can be read off
-# directly.
+# directly. The confirmed and tests-analysed streams are absent here:
+# the validation refits the original report snapshot, which predates any
+# laboratory data, so that fit carries no lab parameters to project
+# forward.
 
 #md # ```@raw html
 #md # <details><summary>Forecast-validation plot</summary>
@@ -2246,12 +2249,12 @@ clock_sensitivity_C_fig #hide
 # Seeding time $T$ (days before the cut-off); a more recent TMRCA
 # permits later seeding:
 
-T_clock12 = vec(Array(chn_joint[:T]));
-T_clock19 = vec(Array(chn_joint_clock19[:T]));
-
 #md # ```@raw html
 #md # <details><summary>Clock-rate seeding-time table</summary>
 #md # ```
+
+T_clock12 = vec(Array(chn_joint[:T]));
+T_clock19 = vec(Array(chn_joint_clock19[:T]));
 
 clock_sensitivity_T_table = streams_table(
     "joint (1.2e-3 clock)" => T_clock12,
@@ -2283,12 +2286,12 @@ clock_sensitivity_T_fig #hide
 # Growth rate $r$ (per day); later seeding implies faster growth to
 # reach the same observed counts:
 
-r_clock12 = vec(Array(chn_joint[:r]));
-r_clock19 = vec(Array(chn_joint_clock19[:r]));
-
 #md # ```@raw html
 #md # <details><summary>Clock-rate growth-rate table</summary>
 #md # ```
+
+r_clock12 = vec(Array(chn_joint[:r]));
+r_clock19 = vec(Array(chn_joint_clock19[:r]));
 
 clock_sensitivity_r_table = streams_table(
     "joint (1.2e-3 clock)" => r_clock12,
@@ -2408,6 +2411,15 @@ ppc_grid_fig #hide
 #md # <details><summary>Overlaid C_T density plot</summary>
 #md # ```
 
+## Clip the x-axis to keep the bulk of every density legible: the
+## exports-deaths fit has a very heavy upper tail (95% reaching several
+## thousand), which otherwise stretches the axis and compresses the
+## other curves. The cap is the widest 95% upper across the remaining
+## fits, so only the exports-deaths tail is truncated.
+density_xmax = 1.1 * maximum(quantile(v, 0.95)
+for v in (
+    posterior_C_exports, posterior_C_deaths, posterior_C_cases,
+    posterior_C_confirmed, posterior_C_joint))
 cumulative_density_fig = plot_cumulative_cases(
     "exports (cases)" => posterior_C_exports,
     "exports (deaths)" => posterior_C_exports_deaths,
@@ -2415,7 +2427,7 @@ cumulative_density_fig = plot_cumulative_cases(
     "cases (DRC)" => posterior_C_cases,
     "confirmed (DRC)" => posterior_C_confirmed,
     "joint" => posterior_C_joint;
-    scenarios = []);
+    scenarios = [], xmax = density_xmax);
 
 #md # ```@raw html
 #md # </details>
