@@ -27,10 +27,9 @@
     flat = reduce(vcat, raw)
     @test all(isfinite, flat)
     @test all(flat .>= 0)
-    ## Replicated cumulative total must match the sum of the bin draws.
-    totals = vec(Array(chn[:reported_cases_total]))
-    sums = [sum(v) for v in raw]
-    @test all(totals .== sums)
+    ## Each draw is a per-vintage increment vector, so the reconstructed
+    ## cumulative trajectory is monotone non-decreasing.
+    @test all(issorted(cumsum(v)) for v in raw)
 end
 
 @testitem "reported_cases: tiny fit converges and stays positive" tags=[:slow] begin

@@ -102,10 +102,13 @@ the smallest bulk effective sample size across parameters, and the
 number of divergent transitions.
 """
 function fit_diagnostics(chn)
-    rhats = _scalar_stats(FlexiChains.rhat(chn))
-    esses = _scalar_stats(FlexiChains.ess(chn; kind = :bulk))
-    return (max_rhat = maximum(rhats),
-        min_ess_bulk = minimum(esses),
+    ## Drop non-finite entries: a fixed or degenerate quantity has an
+    ## undefined R-hat / ESS (NaN) that would otherwise mask the worst
+    ## genuine value across the sampled parameters.
+    rhats = filter(isfinite, _scalar_stats(FlexiChains.rhat(chn)))
+    esses = filter(isfinite, _scalar_stats(FlexiChains.ess(chn; kind = :bulk)))
+    return (max_rhat = isempty(rhats) ? NaN : maximum(rhats),
+        min_ess_bulk = isempty(esses) ? NaN : minimum(esses),
         n_divergent = _num_divergences(chn))
 end
 

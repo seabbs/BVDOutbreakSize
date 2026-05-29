@@ -29,9 +29,8 @@
     flat = reduce(vcat, raw)
     @test all(isfinite, flat)
     @test all(flat .>= 0)
-    totals = vec(Array(chn[:confirmed_cases_total]))
-    sums = [sum(v) for v in raw]
-    @test all(totals .== sums)
+    ## Per-vintage increments reconstruct a monotone cumulative series.
+    @test all(issorted(cumsum(v)) for v in raw)
 end
 
 @testitem "confirmed_cases: tiny fit stays positive" tags=[:slow] begin

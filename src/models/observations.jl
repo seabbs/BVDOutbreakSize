@@ -102,7 +102,6 @@ reduce to the original likelihood.
     end
 
     expected_deaths_T := Λ_at_edges[end]
-    deaths_total := sum(total_deaths)
 
     return (; CFR, p_deaths, delay_dist = f_death,
         expected_deaths_T, Λ_at_edges)
@@ -188,7 +187,6 @@ positivity `μ_BVD / μ_cases` at the cut-off as a diagnostic.
     positivity := μ_BVD_cum / Λ_at_edges[end]
 
     expected_reports_total := Λ_at_edges[end]
-    reported_cases_total := sum(reported_cases)
 
     return (; p_drc_per_bin, λ_bg, τ_test,
         expected_reports_total, positivity,
@@ -331,7 +329,6 @@ the cumulative confirmed likelihood.
     tests_analysed ~ safe_nbinomial(k, expected_tested)
 
     expected_confirmed_total := Λ_at_edges[end]
-    confirmed_cases_total := sum(confirmed_cases)
 
     return (; expected_tested, p_positive,
         BVD_tested, bg_tested, s_test, τ_test, p_drc_per_bin,
