@@ -1713,7 +1713,9 @@ summary_ranges #hide
 # Our central estimate sits above the McCabe et al. [mccabe2026](@cite)
 # report mainly because we fit more data streams and average over the
 # uncertainty in the parameters the report fixes one scenario at a time,
-# and because we use more recent counts.
+# because we use more recent counts, and because we fit each stream to
+# its full run of situation reports rather than a single total, so the
+# growth rate is informed by the shape of the reported trajectory.
 # See [what we do differently](#What-we-do-differently-from-McCabe-et-al.),
 # the [comparison with McCabe et al.](#Comparison-with-McCabe-et-al.) and
 # the [limitations](#Limitations) for the detail behind this.
