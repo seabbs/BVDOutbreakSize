@@ -428,8 +428,8 @@ observations_table #hide
 # $C(T) \in (4, 4000)$. The range is chosen to span the number of
 # doublings plausible under the doubling times McCabe et al. sweep
 # (7–21 days) over a likely few weeks to months of spread since
-# seeding — it is motivated by their scenario *settings*, not by their
-# reported outbreak sizes. The growth rate $r$ and the elapsed time
+# seeding — it is motivated by their scenario *settings*. The growth
+# rate $r$ and the elapsed time
 # $T = m\cdot\tau$ are exposed as deterministics so they appear in
 # posterior tables and pair plots.
 
