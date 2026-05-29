@@ -31,7 +31,11 @@ all streams together with priors on the nuisance parameters that the
 report varies in scenario sweeps. Beyond the exported cases and DRC
 deaths the report uses, we condition on two further streams, the
 reported cases in DRC (with an ascertainment component) and the deaths
-among exported cases in Uganda. We also add a no-onward-transmission
+among exported cases in Uganda. We fit the DRC streams to the full
+situation-report trajectory, conditioning on the between-vintage
+increments across successive sitreps rather than only the latest
+cumulative total, which sharpens the growth rate. We also add a
+no-onward-transmission
 projected-deaths counterfactual, a one-week-ahead forecast and an
 onset-to-death delay sensitivity analysis, and replace two closed-form
 approximations (the deaths convolution and the small-growth-rate
@@ -62,9 +66,12 @@ than combining separate scenario analyses (see
 [each way our method departs from the report](https://epiforecasts.io/BVDOutbreakSize/stable/analysis#What-we-do-differently-from-McCabe-et-al.)).
 Second, the data: our cut-off is later than either McCabe et al.
 report version (16 May for the 18 May report; 18 May for the 20 May
-update). The joint posterior assumes a single common cut-off for every
-data stream, so the deaths, exports and reported-case counts must all
-be kept in sync to the same date.
+update), and we fit the DRC streams to the full run of situation
+reports rather than a single total at the cut-off, so the growth rate
+is informed by the shape of the reported trajectory rather than the
+prior alone. The joint posterior assumes a single common cut-off for
+every data stream, so the deaths, exports and reported-case counts must
+all be kept in sync to the same date.
 <!-- SHARED:END -->
 
 **See:**

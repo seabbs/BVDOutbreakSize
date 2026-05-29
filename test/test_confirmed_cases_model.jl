@@ -173,8 +173,12 @@ end
     ## Exercises the real production submodels through the
     ## confirmed-and-tested-only composer: a prior fit conditioned on
     ## both lab observations must give finite C(T), and `predict` on the
-    ## same composer with missing observations must populate both
-    ## `tests_analysed` and `confirmed_cases` predictive draws.
+    ## same composer with missing observations must populate both the
+    ## `tests_analysed` and per-vintage `confirmed_cases` predictive
+    ## draws. The confirmed and tested streams enter as two independent
+    ## NegBinomials (per-test positivity is a derived quantity, not a
+    ## Binomial coupling), so a single confirmed draw is not bounded by
+    ## its tested draw.
     using Turing: sample, Prior, predict
     import FlexiChains
     using BVDOutbreakSize: confirmed_only_model
@@ -184,31 +188,51 @@ end
     @test length(C) == 200
     @test all(isfinite, C)
     @test all(C .> 0)
+    ## Per-test positivity exposed as a derived quantity in (0, 1).
+    pos = vec(Array(chn[:p_positive]))
+    @test all(0 .< pos .< 1)
 
     pp = predict(confirmed_only_model(missing, missing), chn)
-    cc = vec(Array(pp[:confirmed_cases]))
+    ## Single confirmed vintage stored as a length-1 vector per draw.
+    cc = reduce(vcat, vec(Array(pp[:confirmed_cases])))
     tt = vec(Array(pp[:tests_analysed]))
     @test all(cc .>= 0)
     @test all(tt .>= 0)
-    ## Confirmed positives can never exceed the tests they come from.
-    @test all(cc .<= tt)
 end
 
 @testitem "bvd_joint initialises with tested + confirmed observations" tags=[:slow] begin
-    ## Regression test for the Binomial init failure: the live
-    ## `bvd_joint(...; cumulative_tests_analysed=...)` path must
-    ## produce finite log-densities under prior draws so NUTS can
-    ## find valid initial parameters. Exercises the full per-test
-    ## positivity Binomial branch with the real submodels.
+    ## Regression test for the Binomial init failure: the full
+    ## per-vintage `bvd_joint` path (deaths + reported + confirmed
+    ## histories, tests_analysed) must produce finite log-densities
+    ## under prior draws so NUTS can find valid initial parameters.
+    ## Exercises the full per-test positivity Binomial branch with the
+    ## real submodels and the real observation history.
     using Turing: sample, Prior
     import FlexiChains
     using BVDOutbreakSize: bvd_joint, load_observations
     obs = load_observations()
+    rh = obs.reported_case_history
+    ch = obs.confirmed_case_history
+    dh = obs.death_history
+    ## Models observe between-vintage increments, not cumulative totals.
+    function _inc(values)
+        out = similar(values, Int)
+        prev = 0
+        for i in eachindex(values)
+            out[i] = values[i] - prev
+            prev = values[i]
+        end
+        return out
+    end
     chn = sample(
-        bvd_joint(obs.exported_cases, obs.total_deaths,
-            obs.reported_cases, obs.export_deaths_daily;
-            confirmed_cases = obs.confirmed_cases,
-            cumulative_tests_analysed = obs.cumulative_tests_analysed,
+        bvd_joint(obs.exported_cases, _inc(dh.values), _inc(rh.values),
+            obs.export_deaths_daily;
+            reported_offsets = rh.offsets,
+            death_offsets = dh.offsets,
+            confirmed_cases = _inc(ch.values),
+            confirmed_offsets = ch.offsets,
+            tests_analysed = obs.cumulative_tests_analysed,
+            tests_offset = 0,
             first_export_detection_delta = obs.first_export_detection_delta),
         Prior(), 200;
         chain_type = FlexiChains.VNChain, progress = false)

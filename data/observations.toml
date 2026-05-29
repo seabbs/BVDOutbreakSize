@@ -71,6 +71,33 @@ source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul posi
 value  = 211
 source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul échantillons analysés`. Cumulative number of suspected-case specimens that the Bunia/INRB pipeline has completed processing by the cut-off. The 418 received minus 207 unanalysed reflects the lab-pipeline backlog and gives a natural right-truncation handle on the per-test positivity rate (101/211 ≈ 47.9%)."
 
+# Cumulative confirmed-case totals across INSP situation-report vintages.
+# Same caveats as `reported_case_history`: we trust each vintage's
+# cumulative-at-date but not per-case timing, so the daily likelihood
+# fits the between-vintage increments. Dates match the suspected
+# history so the two streams share day boundaries (and the bin-edge
+# diff for the daily likelihood is well defined). The cut-off vintage
+# (23 May) matches `confirmed_cases`. The 24 May vintage is omitted
+# because two zones revise the suspected sum downward.
+[confirmed_case_history]
+dates  = ["2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21",
+          "2026-05-22", "2026-05-23"]
+values = [33, 51, 57, 79, 83, 95]
+source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP SitReps 004-010 published 18-23 May 2026. Values are cumulative DRC laboratory-confirmed cases summed across reporting health zones at each sitrep date."
+
+# Cumulative suspected-death totals across INSP situation-report
+# vintages. Same caveats as `reported_case_history`: we trust each
+# vintage's cumulative-at-date but not the per-death timing, so the
+# daily likelihood fits the between-vintage increments. Dates match the
+# suspected case history so the streams share day boundaries. The 18 May
+# sum (131 deaths) matches the WHO AFRO joint sitrep 01 figure and the
+# 23 May cut-off (220) matches `total_deaths`.
+[death_history]
+dates  = ["2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21",
+          "2026-05-22", "2026-05-23"]
+values = [131, 148, 160, 175, 204, 220]
+source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP SitReps 004-010 published 18-23 May 2026. Values are cumulative DRC suspected deaths summed across reporting health zones at each sitrep date, from insp_sitrep__cumulative_suspected_deaths__daily.csv (ND zone entries dropped)."
+
 [daily_outbound_travellers]
 value  = 1871
 source = "McCabe et al. Table 3 — mean daily PoE flow across seven Uganda-DRC border points, Ituri side"

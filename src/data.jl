@@ -19,6 +19,18 @@ Fields returned:
   cumulative case count, the truth-anchor on the latent
   eventually-confirmable pool ``C(T)`` (reported counts are an inflated
   view); `missing` when no `confirmed_cases` block is present.
+- `reported_case_history::Union{NamedTuple, Missing}` — vintage-by-vintage
+  cumulative DRC suspected counts, with fields `dates`, `offsets` (days
+  before `as_of_date`, sorted ascending) and `values` (cumulative count
+  at each sitrep date). Drives the daily reported-cases likelihood by
+  per-day differencing. `missing` when no `reported_case_history` block
+  is present.
+- `confirmed_case_history::Union{NamedTuple, Missing}` — same layout for
+  cumulative DRC laboratory-confirmed counts. Drives the daily
+  confirmed-cases likelihood. `missing` when absent.
+- `death_history::Union{NamedTuple, Missing}` — same layout for
+  cumulative DRC suspected deaths. Drives the daily deaths likelihood.
+  `missing` when absent.
 - `cumulative_tests_analysed::Union{Int, Missing}` — cumulative number
   of suspected-case specimens whose lab processing has completed by the
   cut-off. Paired with `confirmed_cases` it gives a per-test positivity
@@ -64,6 +76,23 @@ function load_observations(
     else
         Int[]
     end
+    ## Cumulative DRC counts at each sitrep vintage: parsed dates,
+    ## the elapsed-time offset before the cut-off (days since the
+    ## vintage's date, in ascending elapsed-time order) and the
+    ## cumulative count. The daily likelihood differences `values`
+    ## between consecutive bin edges, so the vector must be monotone
+    ## non-decreasing.
+    function _history(k)
+        haskey(raw, k) || return missing
+        block = raw[k]
+        ds = String.(block["dates"])
+        offs = Int[_gap(d) for d in ds]
+        vs = Int.(block["values"])
+        ## Sort by ascending elapsed-time (oldest first), so a `diff`
+        ## of `values` matches the natural day-by-day increment.
+        ord = sortperm(offs; rev = true)
+        return (; dates = ds[ord], offsets = offs[ord], values = vs[ord])
+    end
     has_gen = haskey(raw, "genetic_tmrca")
     return (;
         as_of_date = as_of,
@@ -73,6 +102,9 @@ function load_observations(
         reported_cases = Int(_val("reported_cases")),
         confirmed_cases = haskey(raw, "confirmed_cases") ?
                           Int(_val("confirmed_cases")) : missing,
+        reported_case_history = _history("reported_case_history"),
+        confirmed_case_history = _history("confirmed_case_history"),
+        death_history = _history("death_history"),
         cumulative_tests_analysed = haskey(raw, "cumulative_tests_analysed") ?
                                     Int(_val("cumulative_tests_analysed")) :
                                     missing,
@@ -100,6 +132,15 @@ function load_observations(
             reported_cases = _src("reported_cases"),
             confirmed_cases = haskey(raw, "confirmed_cases") ?
                               _src("confirmed_cases") : missing,
+            reported_case_history = haskey(raw, "reported_case_history") ?
+                                    String(raw["reported_case_history"]["source"]) :
+                                    missing,
+            confirmed_case_history = haskey(raw, "confirmed_case_history") ?
+                                     String(raw["confirmed_case_history"]["source"]) :
+                                     missing,
+            death_history = haskey(raw, "death_history") ?
+                            String(raw["death_history"]["source"]) :
+                            missing,
             cumulative_tests_analysed = haskey(raw,
                 "cumulative_tests_analysed") ?
                                         _src("cumulative_tests_analysed") :

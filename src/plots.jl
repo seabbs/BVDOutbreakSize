@@ -551,3 +551,43 @@ function plot_forecast_vs_truth(fc::DataFrame;
     end
     return fig
 end
+
+"""
+Per-vintage posterior-predictive trajectories for the DRC streams. For
+each `panel` the posterior-predictive cumulative count is reconstructed
+by cumulatively summing the per-bin replicate increments, then
+summarised by vintage as a median line with shaded 50% and 90%
+predictive ribbons; the observed cumulative counts are overlaid as
+points. This shows how the fit tracks the full sitrep series rather than
+only the latest total. Each `panel` is a `NamedTuple`
+`(; title, dates, replicates, observed)`, where `replicates` is a vector
+of per-draw increment vectors (one entry per vintage, oldest first) and
+`observed` the matching cumulative counts. `colour` is optional per
+panel.
+"""
+function plot_vintage_ppc(panels::AbstractVector; xlabel = "Sitrep date")
+    fig = Figure(; size = (380 * length(panels), 380))
+    for (j, p) in enumerate(panels)
+        n = length(p.dates)
+        colour = get(p, :colour, :steelblue)
+        ## `replicates` may arrive as a draws×chains matrix of per-bin
+        ## vectors (FlexiChains slice); flatten to one vector of draws.
+        cum = [cumsum(collect(r)) for r in vec(collect(p.replicates))]
+        q(i, pr) = quantile([c[i] for c in cum], pr)
+        med = [q(i, 0.5) for i in 1:n]
+        lo90 = [q(i, 0.05) for i in 1:n]
+        hi90 = [q(i, 0.95) for i in 1:n]
+        lo50 = [q(i, 0.25) for i in 1:n]
+        hi50 = [q(i, 0.75) for i in 1:n]
+        x = collect(1:n)
+        ax = Axis(fig[1, j]; title = p.title, xlabel = xlabel,
+            ylabel = j == 1 ? "Cumulative count" : "",
+            xticks = (x, string.(p.dates)),
+            xticklabelrotation = pi / 4, xticklabelsize = 9)
+        band!(ax, x, lo90, hi90; color = (colour, 0.15))
+        band!(ax, x, lo50, hi50; color = (colour, 0.30))
+        lines!(ax, x, med; color = colour, linewidth = 2)
+        scatter!(ax, x, float.(p.observed); color = :black, markersize = 9)
+    end
+    return fig
+end

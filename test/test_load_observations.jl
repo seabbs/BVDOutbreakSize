@@ -52,6 +52,23 @@
 
     @test !isempty(obs.sources.exported_cases)
     @test !isempty(obs.sources.genetic_tmrca)
+
+    ## death_history: per-vintage cumulative suspected deaths.
+    dh = obs.death_history
+    @test dh isa NamedTuple
+    @test hasproperty(dh, :dates)
+    @test hasproperty(dh, :offsets)
+    @test hasproperty(dh, :values)
+    @test dh.values isa AbstractVector{<:Integer}
+    @test dh.offsets isa AbstractVector{<:Integer}
+    ## 18-23 May vintages: six entries (131, 148, 160, 175, 204, 220).
+    @test dh.values == [131, 148, 160, 175, 204, 220]
+    @test length(dh.offsets) == 6
+    ## Offsets are days before cut-off, sorted ascending (oldest first,
+    ## largest offset first), so edges = T - offset are ascending.
+    @test issorted(dh.offsets; rev = true)
+    @test obs.sources.death_history isa String
+    @test !isempty(obs.sources.death_history)
 end
 
 @testitem "export_deaths_daily is a daily series to the cut-off" begin

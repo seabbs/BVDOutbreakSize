@@ -177,3 +177,95 @@ function integrate_exports_deaths(cumulative, ed::ExportDeathDelay, lo, hi, T;
     end
     return integrate(g, lo, hi; alg)
 end
+
+"""
+Precomputed BVD-suspected trajectory carrying the unit-ascertainment
+trajectory ``\\mu_{BVD,0}(s_j) = \\int_0^{s_j} e^{r u} f_{rep}(s_j - u)\\,du``
+evaluated on a fixed Gauss-Legendre node set over `[0, T_max]`. The same
+nodes back the outer quadrature of the confirmed-cases convolution at every
+daily bin edge, so the expensive per-incidence-time piece is built once
+per draw and reused across all `T_k`. Mirrors [`ExportDeathDelay`](@ref):
+a struct that precomputes the expensive per-incidence-time piece of the
+integrand, dispatched to by a specialised [`delay_convolution`](@ref)
+method.
+
+The DRC ascertainment fraction is *not* baked into the precomputation:
+the per-bin random-effect ascertainment of the daily likelihood
+(see [`daily_ascertainment_model`](@ref)) multiplies the convolution
+output per bin, after `delay_convolution(d, t_edges, f_lab)` returns the
+unit-ascertainment cumulative ``I_{lab,0}(T_k)``. Pass the
+unit-ascertainment trajectory through and apply `p_drc_t` at the bin
+level.
+
+The clustered Gauss-Legendre map of [`integrate`](@ref) is replaced by
+a uniform-grid map so the same `bvd_at_nodes` vector serves every bin
+edge. Resolution scales with `npts`, which defaults to the
+[`DEATH_INTEGRAL_ALG`](@ref) node count.
+"""
+struct DailyBVDTrajectory{T}
+    nodes::Vector{T}           # incidence-time samples s_j ∈ [0, T_max]
+    weights::Vector{T}         # quadrature weights (scaled to T_max / 2)
+    bvd_at_nodes::Vector{T}    # μ_BVD,0(s_j) — propagates the AD type
+    T_max::T
+end
+
+"""
+Build a [`DailyBVDTrajectory`](@ref) precomputation. `T_max` is the
+upper edge of the bin grid (typically the latent seeding-to-cut-off
+time `T`), `r` is the growth rate, and `f_rep` is the onset-to-report
+kernel. Allocates one quadrature node / weight pair scaled to
+`[0, T_max]`, then evaluates `μ_BVD,0(s_j)` (the unit-ascertainment
+trajectory) at each node.
+
+DRC ascertainment is applied separately by the daily likelihood, after
+the convolution returns, so the precomputation is independent of any
+per-bin or pooled `p_drc`.
+
+The Gamma-specialised [`delay_convolution`](@ref) is used for the
+per-node BVD evaluations, so each is closed-form rather than a nested
+quadrature.
+"""
+function DailyBVDTrajectory(T_max::Real, r::Real, f_rep;
+        npts::Integer = 64)
+    Tt = promote_type(typeof(float(T_max)), typeof(r))
+    raw_nodes, raw_weights = FastGaussQuadrature.gausslegendre(npts)
+    half = T_max / 2
+    nodes = Tt[half * (u + one(u)) for u in raw_nodes]
+    weights = Tt[half * w for w in raw_weights]
+    bvd = Tt[delay_convolution(one(Tt), r, s, f_rep) for s in nodes]
+    return DailyBVDTrajectory{Tt}(nodes, weights, bvd, convert(Tt, T_max))
+end
+
+"""
+Cumulative confirmed-cases convolution evaluated at a vector of bin
+edges `t_edges`, reusing the BVD-suspected node evaluations carried by
+`d`:
+
+```math
+I_{lab}(T_k) = \\int_0^{T_k} \\mu_{BVD}(s)\\, f_{lab}(T_k - s)\\, ds.
+```
+
+The outer Gauss-Legendre nodes are fixed across `[0, T_max]` so each
+``\\mu_{BVD}(s_j)`` is precomputed once. For every bin edge, the
+integrand at each node is multiplied by `f_lab(T_k - s_j)` (zero past
+the upper limit) and reduced against the shared weights. Returns one
+cumulative value per edge.
+"""
+function delay_convolution(d::DailyBVDTrajectory, t_edges::AbstractVector,
+        f_lab)
+    Tt = eltype(d.bvd_at_nodes)
+    n = length(t_edges)
+    out = Vector{Tt}(undef, n)
+    for k in 1:n
+        T_k = t_edges[k]
+        acc = zero(Tt)
+        @inbounds for j in eachindex(d.nodes)
+            s_j = d.nodes[j]
+            δ = T_k - s_j
+            δ <= zero(δ) && continue
+            acc += d.weights[j] * d.bvd_at_nodes[j] * pdf(f_lab, δ)
+        end
+        out[k] = acc
+    end
+    return out
+end
