@@ -144,13 +144,14 @@
 #   grounded: it simply spans the 10–20 day windows McCabe et al. sweep,
 #   with no independent estimate behind it, so the exports stream leans
 #   on an assumption rather than data.
-# - *Not all Uganda cases are confirmed exports.* The exports
-#   likelihood treats every Uganda case as imported from DRC, but the
-#   12 suspected cases reported in Kampala are not all confirmed to be
-#   importations — some may reflect onward transmission within Uganda
-#   or unrelated suspected cases later discarded. Counting non-exports
-#   as exports inflates the export signal and biases the implied
-#   outbreak size and ascertainment.
+# - *Exports treated as DRC importations only.* The exports likelihood
+#   conditions on the three WHO-confirmed travel-related cases in
+#   Uganda and excludes the two domestic contacts (a driver and a
+#   healthcare worker linked to the first import), so it no longer
+#   conflates onward transmission with importation. The residual caveat
+#   is that it relies on the source classification of each case as an
+#   importation: with only three counts, reclassifying any one case
+#   shifts the implied outbreak size and ascertainment.
 # - *Selection bias in deaths-among-exports.* The deaths-among-
 #   exports likelihood assumes Uganda's surveillance retains detected
 #   exports through to any subsequent death. If the system loses
