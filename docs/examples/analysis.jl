@@ -1115,13 +1115,10 @@ cfr_prior_fig #hide
 # $0.71$, $95\%$ interval $\sim 0.40$-$0.95$). As with the background
 # rate and the lab-delay above, no outbreak-specific data anchor it, so
 # this is a weakly informative prior that expresses only that a majority
-# — but not all — of suspected cases are sampled. The mass is kept away
-# from $0$ because a near-zero testing fraction drives the expected
-# tested volume to zero while the observed count is far from it, which
-# destabilises sampler initialisation. It is identified from the
-# absolute scale of the tests-analysed count against the suspected total
-# and the lab-delay integrals above, so the data can pull $\tau$ well
-# below the prior mean if that is what they imply.
+# — but not all — of suspected cases are sampled. It is identified from
+# the absolute scale of the tests-analysed count against the suspected
+# total and the lab-delay integrals above, so the data can pull $\tau$
+# well below the prior mean if that is what they imply.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_sensitivity_model</summary>
