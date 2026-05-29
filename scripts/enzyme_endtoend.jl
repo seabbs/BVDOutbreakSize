@@ -7,7 +7,7 @@
 
 using BVDOutbreakSize
 using BVDOutbreakSize: bvd_joint, load_observations, genetic_seeding_model,
-    nuts_sample
+                       nuts_sample
 using Turing
 using Turing: DynamicPPL
 using ADTypes: AutoMooncake, AutoEnzyme
@@ -22,18 +22,20 @@ obs = load_observations()
 genetic_seeding = T -> genetic_seeding_model(T, obs.genetic_tmrca_days;
     tmrca_days_sd = obs.genetic_tmrca_days_sd)
 fit_args = joint_obs(obs)
-build() = bvd_joint(obs.exported_cases, fit_args.deaths, fit_args.reported,
-    fit_args.export_deaths; fit_args.kw...,
-    first_export_detection_delta = obs.first_export_detection_delta,
-    genetic = genetic_seeding)
+function build()
+    bvd_joint(obs.exported_cases, fit_args.deaths, fit_args.reported,
+        fit_args.export_deaths; fit_args.kw...,
+        first_export_detection_delta = obs.first_export_detection_delta,
+        genetic = genetic_seeding)
+end
 
 # --- 1. does Enzyme reverse need runtime activity? ---------------------
 println("=== runtime-activity check ===")
 vi = DynamicPPL.link(DynamicPPL.VarInfo(build()), build())
 x0 = collect(vi[:])
 for (name, mode) in [("Enzyme.Reverse (no RTA)", Enzyme.Reverse),
-        ("set_runtime_activity(Enzyme.Reverse)",
-            Enzyme.set_runtime_activity(Enzyme.Reverse))]
+    ("set_runtime_activity(Enzyme.Reverse)",
+        Enzyme.set_runtime_activity(Enzyme.Reverse))]
     adt = AutoEnzyme(; mode = mode, function_annotation = Enzyme.Duplicated)
     l = DynamicPPL.LogDensityFunction(build(), DynamicPPL.getlogjoint, vi;
         adtype = adt)
@@ -51,9 +53,10 @@ end
 samples, chains = 500, 1
 adtypes = [
     ("Mooncake", AutoMooncake(; config = Mooncake.Config())),
-    ("Enzyme reverse", AutoEnzyme(;
-        mode = Enzyme.set_runtime_activity(Enzyme.Reverse),
-        function_annotation = Enzyme.Duplicated)),
+    ("Enzyme reverse",
+        AutoEnzyme(;
+            mode = Enzyme.set_runtime_activity(Enzyme.Reverse),
+            function_annotation = Enzyme.Duplicated))
 ]
 
 println("\n=== end-to-end NUTS (", samples, " draws, ", chains,

@@ -11,17 +11,19 @@ function _increments(v)
 end
 
 function joint_obs(o; observe = true)
-    _stream(h, s) = h === missing ?
-        (Union{Missing, Int}[observe ? s : missing], [0]) :
-        (observe ? _increments(h.values) :
-         fill(missing, length(h.values)), h.offsets)
+    _stream(h,
+        s) = h === missing ?
+             (Union{Missing, Int}[observe ? s : missing], [0]) :
+             (observe ? _increments(h.values) :
+              fill(missing, length(h.values)), h.offsets)
     rep, rep_off = _stream(o.reported_case_history, o.reported_cases)
     dth, dth_off = _stream(o.death_history, o.total_deaths)
     have_conf = o.confirmed_case_history !== missing ||
                 o.confirmed_cases !== missing
-    conf, conf_off = have_conf ?
-        _stream(o.confirmed_case_history, o.confirmed_cases) :
-        (Union{Missing, Int}[], Int[])
+    conf,
+    conf_off = have_conf ?
+               _stream(o.confirmed_case_history, o.confirmed_cases) :
+               (Union{Missing, Int}[], Int[])
     edaily = observe ? o.export_deaths_daily :
              fill(missing, length(o.export_deaths_daily))
     return (deaths = dth, reported = rep, export_deaths = edaily,

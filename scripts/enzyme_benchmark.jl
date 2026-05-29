@@ -45,11 +45,13 @@ backends = [
     ("Mooncake", AutoMooncake(; config = Mooncake.Config())),
     ("Enzyme reverse (RTA + Duplicated)",
         AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse),
-            function_annotation = Enzyme.Duplicated)),
+            function_annotation = Enzyme.Duplicated))
 ]
 
-ldf(adtype) = DynamicPPL.LogDensityFunction(model, DynamicPPL.getlogjoint,
-    vi; adtype = adtype)
+function ldf(adtype)
+    DynamicPPL.LogDensityFunction(model, DynamicPPL.getlogjoint,
+        vi; adtype = adtype)
+end
 
 # Finite-difference reference on the primal log-density.
 ldf_primal = DynamicPPL.LogDensityFunction(model, DynamicPPL.getlogjoint, vi)
