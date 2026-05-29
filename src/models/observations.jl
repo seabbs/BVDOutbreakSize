@@ -277,10 +277,10 @@ the cumulative confirmed likelihood.
     bvd_tested_unit = zero(Tt)
     Λ_prev = zero(Tt)
     for i in 1:n
-        bvd_inc = p_drc_per_bin[i] * ΔIlab0[i]
-        raw = s_test * τ_test * bvd_inc
-        μ_i = isfinite(raw) ? max(raw, eps(typeof(raw))) :
-              eps(typeof(raw))
+        raw_bvd = p_drc_per_bin[i] * ΔIlab0[i]
+        bvd_inc = isfinite(raw_bvd) ? max(raw_bvd, eps(typeof(raw_bvd))) :
+                  eps(typeof(raw_bvd))
+        μ_i = s_test * τ_test * bvd_inc
         conf_means[i] = μ_i
         Λ_prev += μ_i
         Λ_at_edges[i] = Λ_prev

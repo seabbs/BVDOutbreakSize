@@ -251,7 +251,10 @@ disable the factor entirely.
 
     ## Per-bin random-effect DRC ascertainment, shared between the
     ## reported and confirmed case streams. One length-`max(n_rep,
-    ## n_conf)` block is drawn and a prefix is indexed for each stream.
+    ## n_conf)` block is drawn and a prefix is indexed for each stream;
+    ## this assumes the two streams are aligned on the same oldest-first
+    ## vintages (true here — both start 18 May), so bin `v` is the same
+    ## calendar vintage in each.
     n_rep = length(reported_offsets)
     n_conf = length(confirmed_offsets)
     n_asc = max(n_rep, n_conf)
