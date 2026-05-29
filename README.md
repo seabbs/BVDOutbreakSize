@@ -12,9 +12,7 @@ data arrive, so the estimates change between updates.
 **Data as of:** 26 May 2026. DRC counts come from the situation reports
 of the Institut National de Santé Publique (INSP); Uganda imports come
 from WHO. Estimates are reported as of this date; it can lag the update
-date above. The DRC laboratory totals (confirmed and tests analysed)
-are held at the 23 May lab section, the latest with a structured
-source.
+date above.
 
 **Abstract.** An outbreak of Ebola disease caused by Bundibugyo virus
 (BVD) is ongoing in the Democratic Republic of the Congo (DRC),

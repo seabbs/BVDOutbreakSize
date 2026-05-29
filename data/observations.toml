@@ -70,14 +70,12 @@ values = [516, 575, 672, 745, 872, 905, 998, 1064]
 source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP situation reports published 18-26 May 2026. Values are cumulative DRC suspected cases summed across reporting health zones at each sitrep date. The 24 May vintage is omitted because two zones (Goma, Katwa) were revised downward, giving a cumulative sum (893) below 23 May; the 27 May vintage is omitted because reporting zones fell to 13, giving a sum (906) below 26 May."
 
 [confirmed_cases]
-value  = 101
-date   = "2026-05-23"
-source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul positifs`. The lab-section headline figure is six higher than the INRB-UMIE zone-summed transcription (95) because some confirmed samples were not yet linked to a reporting zone; we use the lab raw count to stay consistent with [cumulative_tests_analysed] below, which is also from the lab section. Held at the 23 May lab section: the INSP lab figures are not transcribed into the INRB-UMIE daily CSVs, so there is no structured source to refresh them to the 26 May cut-off. The per-vintage confirmed-case stream the joint model fits comes from [confirmed_case_history] (zone-summed) and does extend to 26 May; this scalar is only a single-total fallback."
+value  = 121
+source = "INSP SitRep 012 (data as of 26 May 2026) section IV.3 LABORATOIRE — `Cumul positifs`, read from the situation-report PDF. The lab-section headline figure is ten higher than the INRB-UMIE zone-summed transcription (111) because some confirmed samples are not yet linked to a reporting zone (`échantillons sans fiche`); we use the lab raw count to stay consistent with [cumulative_tests_analysed] below, which is also from the lab section. This scalar pairs with the testing volume for the per-test positivity; the per-vintage confirmed stream the joint model fits comes from [confirmed_case_history] (zone-summed)."
 
 [cumulative_tests_analysed]
-value  = 211
-date   = "2026-05-23"
-source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul échantillons analysés`. Cumulative number of suspected-case specimens that the Bunia/INRB pipeline has completed processing. The 418 received minus 207 unanalysed reflects the lab-pipeline backlog and gives a natural right-truncation handle on the per-test positivity rate (95/211 ≈ 45% on the zone-summed confirmed history). Held at the 23 May lab section (no structured source for newer lab figures) and observed at its own date via `date` above, so advancing the cut-off to 26 May does not silently re-date the testing volume."
+value  = 403
+source = "INSP SitRep 012 (data as of 26 May 2026) section IV.3 LABORATOIRE — `Cumul échantillons analysés`, read from the situation-report PDF. Cumulative number of suspected-case specimens that the Bunia/INRB pipeline has completed processing by the cut-off. Of 662 specimens received, 403 have been analysed, leaving a 259-specimen backlog; this gives a natural right-truncation handle on the per-test positivity rate (121/403 ≈ 30%). Testing in Ituri stalled mid-period (SitRep 011, 25 May: `Aucun échantillon n'a été analysé en Ituri`)."
 
 # Cumulative confirmed-case totals across INSP situation-report vintages.
 # Same caveats as `reported_case_history`: we trust each vintage's
