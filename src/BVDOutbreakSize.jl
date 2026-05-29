@@ -61,6 +61,7 @@ export REPORT_SCENARIOS,
        exports_detection_timing_model,
 # joint composers
        exports_only_model, deaths_only_model, cases_only_model,
+       confirmed_only_model,
        exports_deaths_only_model, bvd_joint, imperial_only_model
 
 include("docstrings.jl")

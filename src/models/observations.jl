@@ -170,10 +170,13 @@ fraction `τ_test` / background rate `λ_bg` directly from
 [`reported_cases_model`](@ref) so the same posterior trajectory drives
 both streams.
 
-If `tests_analysed` is missing, falls back to the cumulative-count
-NegBinomial form on `confirmed_cases` alone (mean
-``s\\cdot\\tau\\,\\text{BVD}_\\text{tested}``); if both are missing,
-the model is purely prior-predictive.
+Both likelihoods always run: when `tests_analysed` or
+`confirmed_cases` is `missing` the `~` becomes a sampling step (used by
+prior- and posterior-predictive callers via `predict`), and when a
+value is supplied the same line is a likelihood evaluation. The
+Binomial uses whichever `tests_analysed` was supplied or sampled, so
+the predictive distribution reaches both `tests_analysed` and
+`confirmed_cases`.
 """
 @model function confirmed_cases_model(
         confirmed_cases::Union{Missing, Integer},

@@ -67,6 +67,48 @@ reported-cases likelihood. See [`reported_cases_model`](@ref).
 end
 
 """
+Confirmed-and-tested-only composer (laboratory pipeline in isolation).
+Samples growth, dispersion, pooled ascertainment and the report-delay
+and test-positivity blocks, then conditions on the laboratory
+likelihood only. The reported-cases submodel is instantiated with
+`reported_cases = missing` so the BVD-suspected trajectory and the
+`λ_bg`/`τ_test` parameters it owns are available to the confirmed
+submodel, but the reported count itself contributes no likelihood. See
+[`confirmed_cases_model`](@ref). Use it for the per-stream comparison
+against the joint fit.
+"""
+@model function confirmed_only_model(
+        confirmed_cases::Union{Missing, Integer},
+        cumulative_tests_analysed::Union{Missing, Integer} = missing;
+        growth = exponential_growth_model(),
+        reported_cases_submodel = reported_cases_model,
+        confirmed = confirmed_cases_model,
+        dispersion = surveillance_dispersion_model(),
+        ascertainment = pooled_ascertainment_model(),
+        test_positivity = test_positivity_model(),
+        report_delay = report_delay_model(),
+        lab_delay = lab_delay_model(),
+        test_sensitivity = test_sensitivity_model())
+    growth_state ~ to_submodel(growth, false)
+    dispersion_state ~ to_submodel(dispersion, false)
+    asc_state ~ to_submodel(ascertainment, false)
+    k = dispersion_state.k
+
+    reported_state ~ to_submodel(
+        reported_cases_submodel(missing, growth_state, k, asc_state.p_drc;
+            report_delay = report_delay,
+            test_positivity = test_positivity), false)
+    confirmed_state ~ to_submodel(
+        confirmed(confirmed_cases, cumulative_tests_analysed,
+            reported_state.bvd_reported_at, growth_state, k,
+            reported_state.λ_bg, reported_state.τ_test;
+            lab_delay = lab_delay,
+            test_sensitivity = test_sensitivity), false)
+
+    cumulative_cases := growth_state.C_T
+end
+
+"""
 Deaths-among-exports-only composer. Samples growth, delay, CFR,
 detection window, traveller volume and ascertainment, then conditions
 on the dated export-deaths likelihood. See

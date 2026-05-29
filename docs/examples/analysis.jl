@@ -1450,6 +1450,8 @@ chn_joint = nuts_sample(
 chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
 chn_deaths = nuts_sample(deaths_only_model(obs.total_deaths));
 chn_cases = nuts_sample(cases_only_model(obs.reported_cases));
+chn_confirmed = nuts_sample(
+    confirmed_only_model(obs.confirmed_cases, obs.cumulative_tests_analysed));
 chn_exports_deaths = nuts_sample(
     exports_deaths_only_model(obs.export_deaths_daily));
 
@@ -1457,6 +1459,7 @@ posterior_C_joint = vec(Array(chn_joint[:cumulative_cases]));
 posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]));
 posterior_C_deaths = vec(Array(chn_deaths[:cumulative_cases]));
 posterior_C_cases = vec(Array(chn_cases[:cumulative_cases]));
+posterior_C_confirmed = vec(Array(chn_confirmed[:cumulative_cases]));
 posterior_C_exports_deaths = vec(Array(chn_exports_deaths[:cumulative_cases]));
 
 #md # ```@raw html
@@ -2291,9 +2294,10 @@ clock_sensitivity_r_fig #hide
 #
 # Each data stream constrains the latent outbreak size differently.
 # The table below puts the posteriors over $C(T)$ side by side — the
-# four single-stream fits and the joint — to show what each stream buys
+# five single-stream fits and the joint — to show what each stream buys
 # on its own and what the joint combination adds.
-# The single-stream fits cover the four count-based streams only; the
+# The single-stream fits cover the four count-based streams and the
+# laboratory pipeline (confirmed and tests-analysed fit together); the
 # joint additionally conditions on the export-detection-timing and
 # genetic seeding terms, which constrain $T$ rather than the size and
 # so are not fit in isolation.
@@ -2307,6 +2311,7 @@ streams_C_table = streams_table(
     "exports (deaths)" => posterior_C_exports_deaths,
     "deaths (DRC)" => posterior_C_deaths,
     "cases (DRC)" => posterior_C_cases,
+    "confirmed (DRC)" => posterior_C_confirmed,
     "joint" => posterior_C_joint);
 
 #md # ```@raw html
@@ -2315,10 +2320,12 @@ streams_C_table = streams_table(
 
 streams_C_table #hide
 
-# The 2×4 grid below has replicates from the per-stream fits on the
+# The grid below has replicates from the per-stream fits on the
 # top row and the joint fit on the bottom row, comparable column-wise
 # so it is easy to see what each per-stream fit constrains and how the
-# joint combination shifts the predictives.
+# joint combination shifts the predictives. The confirmed and
+# tests-analysed columns come from the laboratory-pipeline fit, which
+# conditions on both lab observations together.
 
 #md # ```@raw html
 #md # <details><summary>Per-stream vs joint posterior predictive grid</summary>
@@ -2334,20 +2341,32 @@ pp_exports_deaths_only = vec(sum.(predict(
     exports_deaths_only_model(fill(missing, length(obs.export_deaths_daily));
         pre_start_deaths = missing),
     chn_exports_deaths)[@varname(export_deaths_daily)]));
+## Laboratory-pipeline fit: predict both lab observations from the
+## confirmed-only posterior for the individual row of the grid.
+pp_confirmed_only_chn = predict(
+    confirmed_only_model(missing, missing), chn_confirmed);
+pp_confirmed_only = vec(Array(pp_confirmed_only_chn[:confirmed_cases]));
+pp_tests_only = vec(Array(pp_confirmed_only_chn[:tests_analysed]));
 
 ppc_grid_fig = plot_posterior_predictive_grid(;
     individual = (; exports = pp_exports_only,
         exports_deaths = pp_exports_deaths_only,
         deaths = pp_deaths_only,
-        cases = pp_cases_only),
+        cases = pp_cases_only,
+        tests = pp_tests_only,
+        confirmed = pp_confirmed_only),
     joint = (; exports = pp_exports,
         exports_deaths = pp_exports_deaths,
         deaths = pp_deaths,
-        cases = pp_cases),
+        cases = pp_cases,
+        tests = pp_tests,
+        confirmed = pp_confirmed),
     observed = (; exports = obs.exported_cases,
         exports_deaths = obs.exports_deaths,
         deaths = obs.total_deaths,
-        cases = obs.reported_cases)
+        cases = obs.reported_cases,
+        tests = obs.cumulative_tests_analysed,
+        confirmed = obs.confirmed_cases)
 );
 
 #md # ```@raw html
@@ -2356,7 +2375,7 @@ ppc_grid_fig = plot_posterior_predictive_grid(;
 
 ppc_grid_fig #hide
 
-# Overlaid posterior densities of $C(T)$ from the four fits:
+# Overlaid posterior densities of $C(T)$ from the five fits:
 
 #md # ```@raw html
 #md # <details><summary>Overlaid C_T density plot</summary>
@@ -2367,6 +2386,7 @@ cumulative_density_fig = plot_cumulative_cases(
     "exports (deaths)" => posterior_C_exports_deaths,
     "deaths (DRC)" => posterior_C_deaths,
     "cases (DRC)" => posterior_C_cases,
+    "confirmed (DRC)" => posterior_C_confirmed,
     "joint" => posterior_C_joint;
     scenarios = []);
 

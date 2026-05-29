@@ -247,14 +247,27 @@ function plot_posterior_predictive(
     return fig
 end
 
-"""
-Two-row × four-column comparison of posterior-predictive
-distributions. Top row: replicates from the per-stream fits. Bottom
-row: replicates from the joint fit, conditioning on all observed
-streams. Observed values shown as red vertical lines.
+## Panel painter for each stream key used by the comparison grid.
+const _GRID_PANELS = (
+    (:exports, _panel_exports!),
+    (:exports_deaths, _panel_exports_deaths!),
+    (:deaths, _panel_deaths!),
+    (:cases, _panel_cases!),
+    (:tests, _panel_tests!),
+    (:confirmed, _panel_confirmed!)
+)
 
-Each `NamedTuple` carries `(; exports, exports_deaths, deaths,
-cases)`. Each panel is a histogram of replicated counts; rows share
+"""
+Two-row comparison of posterior-predictive distributions, one column
+per stream. Top row: replicates from the per-stream fits. Bottom row:
+replicates from the joint fit, conditioning on all observed streams.
+Observed values shown as red vertical lines.
+
+Each `NamedTuple` carries a subset of `(; exports, exports_deaths,
+deaths, cases, tests, confirmed)`; columns are drawn in that canonical
+order for whichever streams are present in `individual` (the
+`confirmed`/`tests` columns appear only when the laboratory pipeline is
+included). Each panel is a histogram of replicated counts; rows share
 the same x-axis (the stream's count) so the per-stream and joint
 predictives are directly comparable.
 """
@@ -263,18 +276,18 @@ function plot_posterior_predictive_grid(;
         joint::NamedTuple,
         observed::NamedTuple
 )
-    fig = Figure(; size = (1600, 640))
+    streams = [(key, painter)
+               for (key, painter) in _GRID_PANELS
+               if hasproperty(individual, key)]
+    ncols = length(streams)
+    fig = Figure(; size = (400 * ncols, 640))
     rows = ((:individual, individual, "per-stream fit"),
         (:joint, joint, "joint fit"))
     for (i, (_, pp, label)) in enumerate(rows)
-        _panel_exports!(fig, (i, 1), pp.exports, observed.exports;
-            predictive_label = label)
-        _panel_exports_deaths!(fig, (i, 2), pp.exports_deaths,
-            observed.exports_deaths; predictive_label = label)
-        _panel_deaths!(fig, (i, 3), pp.deaths, observed.deaths;
-            predictive_label = label)
-        _panel_cases!(fig, (i, 4), pp.cases, observed.cases;
-            predictive_label = label)
+        for (j, (key, painter)) in enumerate(streams)
+            painter(fig, (i, j), getproperty(pp, key),
+                getproperty(observed, key); predictive_label = label)
+        end
     end
     return fig
 end
