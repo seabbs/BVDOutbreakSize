@@ -1580,7 +1580,8 @@ function joint_obs(o; observe = true)
         kw = (; reported_offsets = rep_off, death_offsets = dth_off,
             confirmed_cases = conf, confirmed_offsets = conf_off,
             tests_analysed = observe ? o.cumulative_tests_analysed :
-                             missing, tests_offset = 0))
+                             missing,
+            tests_offset = o.cumulative_tests_analysed_offset))
 end
 
 ## Dummy non-missing confirmed/tested counts instantiate the laboratory

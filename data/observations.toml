@@ -9,18 +9,22 @@
 # 17th Ebola epidemic (https://insp.cd/ebola-17eme-epidemie/), summed
 # across reporting health zones at each sitrep date.
 # Source: https://github.com/INRB-UMIE/Ebola_DRC_2026 (MIT licence;
-# manually transcribed from INSP PDFs). The 23 May 2026 cut-off uses
-# the last INSP sitrep where every reporting zone is monotonic in the
-# cumulative — the 24 May vintage revises two zones downward (Goma and
-# Katwa), giving a sum below 23 May.
+# manually transcribed from INSP PDFs). The 26 May 2026 cut-off is the
+# latest INSP sitrep with full zone coverage and no aggregate
+# down-revision. Two intermediate or later vintages are skipped: the
+# 24 May vintage revises two zones downward (Goma and Katwa), giving a
+# cases sum (893) below 23 May; the 27 May vintage drops to 13-16
+# reporting zones (from 19-20 on 26 May) with many zones revised
+# sharply downward (Bunia 279->249, Mongbalu 375->339, Nyankunde
+# 70->45), an incomplete backfill that understates the cumulative.
 #
 # Zone coverage grows over the trajectory: 7 zones reporting on 18 May,
-# 12 zones by 23 May. So a higher cumulative at a later sitrep may
-# partly reflect newly-reporting zones rather than incidence alone.
-# The 18 May INSP sum (516 cases, 131 deaths) matches the WHO AFRO
-# joint sitrep 01 figure exactly. The model uses suspected counts.
+# 12 by 23 May, 19-20 by 26 May. So a higher cumulative at a later
+# sitrep may partly reflect newly-reporting zones rather than incidence
+# alone. The 18 May INSP sum (516 cases, 131 deaths) matches the WHO
+# AFRO joint sitrep 01 figure exactly. The model uses suspected counts.
 
-as_of_date = "2026-05-23"
+as_of_date = "2026-05-26"
 
 [exported_cases]
 value  = 3
@@ -39,12 +43,12 @@ value  = ["2026-05-14"]
 source = "WHO DON 2026-DON602 — the fatal Uganda export (import #1) was hospital-admitted 11 May 2026 and died 14 May 2026 (hospital-recorded death date). A list of dated export deaths; loaded as a daily series and fitted with a binned-Poisson likelihood that bounds T."
 
 [total_deaths]
-value  = 220
-source = "INRB-UMIE/Ebola_DRC_2026 transcription of INSP SitRep 010 (data as of 23 May 2026) — DRC cumulative suspected deaths, summed across the 12 reporting health zones from insp_sitrep__cumulative_suspected_deaths__daily.csv."
+value  = 246
+source = "INRB-UMIE/Ebola_DRC_2026 transcription of the INSP situation report for 26 May 2026 — DRC cumulative suspected deaths, summed across the 20 reporting health zones from insp_sitrep__cumulative_suspected_deaths__daily.csv (ND zone entries dropped). The 27 May vintage is held back: it drops to 16 reporting zones, giving a lower sum (238)."
 
 [reported_cases]
-value  = 905
-source = "INRB-UMIE/Ebola_DRC_2026 transcription of INSP SitRep 010 (data as of 23 May 2026) — DRC cumulative suspected cases, summed across the 12 reporting health zones from insp_sitrep__cumulative_suspected_cases__daily.csv."
+value  = 1064
+source = "INRB-UMIE/Ebola_DRC_2026 transcription of the INSP situation report for 26 May 2026 — DRC cumulative suspected cases, summed across the 19 reporting health zones from insp_sitrep__cumulative_suspected_cases__daily.csv. The 27 May vintage is held back: it drops to 13 reporting zones with several revised downward, giving a lower sum (906)."
 
 # Cumulative reported-case totals across INSP situation-report vintages.
 # We trust each vintage's cumulative-at-date count but not the per-case
@@ -53,37 +57,41 @@ source = "INRB-UMIE/Ebola_DRC_2026 transcription of INSP SitRep 010 (data as of 
 # so the model fits the between-vintage increments rather than the
 # nested cumulative totals. Values are cumulative DRC suspected cases
 # summed across reporting health zones at each INSP sitrep date. The
-# cut-off vintage (23 May) matches `reported_cases`. The 14 and 15 May
+# cut-off vintage (26 May) matches `reported_cases`. The 14 and 15 May
 # vintages from INSP cover only 1 and 3 zones respectively and are
 # omitted here; we start the trajectory at 18 May (7 zones, matching
-# the WHO joint sitrep 01 total of 516) and grow to 12 zones by 23 May.
+# the WHO joint sitrep 01 total of 516) and grow to 19 zones by 26 May.
+# The 24 May vintage (down-revision) and the 27 May vintage (incomplete
+# zone coverage) are omitted; see the header comment.
 [reported_case_history]
 dates  = ["2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21",
-          "2026-05-22", "2026-05-23"]
-values = [516, 575, 672, 745, 872, 905]
-source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP SitReps 004-010 published 18-23 May 2026. Values are cumulative DRC suspected cases summed across reporting health zones at each sitrep date. The 24 May vintage is omitted because two zones (Goma, Katwa) were revised downward, giving a cumulative sum (893) below the 23 May figure."
+          "2026-05-22", "2026-05-23", "2026-05-25", "2026-05-26"]
+values = [516, 575, 672, 745, 872, 905, 998, 1064]
+source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP situation reports published 18-26 May 2026. Values are cumulative DRC suspected cases summed across reporting health zones at each sitrep date. The 24 May vintage is omitted because two zones (Goma, Katwa) were revised downward, giving a cumulative sum (893) below 23 May; the 27 May vintage is omitted because reporting zones fell to 13, giving a sum (906) below 26 May."
 
 [confirmed_cases]
 value  = 101
-source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul positifs`. The lab-section headline figure is six higher than the INRB-UMIE zone-summed transcription (95) because some confirmed samples were not yet linked to a reporting zone; we use the lab raw count to stay consistent with [cumulative_tests_analysed] below, which is also from the lab section."
+date   = "2026-05-23"
+source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul positifs`. The lab-section headline figure is six higher than the INRB-UMIE zone-summed transcription (95) because some confirmed samples were not yet linked to a reporting zone; we use the lab raw count to stay consistent with [cumulative_tests_analysed] below, which is also from the lab section. Held at the 23 May lab section: the INSP lab figures are not transcribed into the INRB-UMIE daily CSVs, so there is no structured source to refresh them to the 26 May cut-off. The per-vintage confirmed-case stream the joint model fits comes from [confirmed_case_history] (zone-summed) and does extend to 26 May; this scalar is only a single-total fallback."
 
 [cumulative_tests_analysed]
 value  = 211
-source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul échantillons analysés`. Cumulative number of suspected-case specimens that the Bunia/INRB pipeline has completed processing by the cut-off. The 418 received minus 207 unanalysed reflects the lab-pipeline backlog and gives a natural right-truncation handle on the per-test positivity rate (101/211 ≈ 47.9%)."
+date   = "2026-05-23"
+source = "INSP SitRep 009 (23 May 2026) section IV.3 LABORATOIRE — `Cumul échantillons analysés`. Cumulative number of suspected-case specimens that the Bunia/INRB pipeline has completed processing. The 418 received minus 207 unanalysed reflects the lab-pipeline backlog and gives a natural right-truncation handle on the per-test positivity rate (95/211 ≈ 45% on the zone-summed confirmed history). Held at the 23 May lab section (no structured source for newer lab figures) and observed at its own date via `date` above, so advancing the cut-off to 26 May does not silently re-date the testing volume."
 
 # Cumulative confirmed-case totals across INSP situation-report vintages.
 # Same caveats as `reported_case_history`: we trust each vintage's
 # cumulative-at-date but not per-case timing, so the daily likelihood
 # fits the between-vintage increments. Dates match the suspected
 # history so the two streams share day boundaries (and the bin-edge
-# diff for the daily likelihood is well defined). The cut-off vintage
-# (23 May) matches `confirmed_cases`. The 24 May vintage is omitted
-# because two zones revise the suspected sum downward.
+# diff for the daily likelihood is well defined). The 24 May and 27 May
+# vintages are omitted to share dates with the suspected history (see
+# the header comment for the down-revision and zone-coverage reasons).
 [confirmed_case_history]
 dates  = ["2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21",
-          "2026-05-22", "2026-05-23"]
-values = [33, 51, 57, 79, 83, 95]
-source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP SitReps 004-010 published 18-23 May 2026. Values are cumulative DRC laboratory-confirmed cases summed across reporting health zones at each sitrep date."
+          "2026-05-22", "2026-05-23", "2026-05-25", "2026-05-26"]
+values = [33, 51, 57, 79, 83, 95, 100, 111]
+source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP situation reports published 18-26 May 2026. Values are cumulative DRC laboratory-confirmed cases summed across reporting health zones at each sitrep date. Dates match the suspected history; the 24 and 27 May vintages are omitted for the reasons given there."
 
 # Cumulative suspected-death totals across INSP situation-report
 # vintages. Same caveats as `reported_case_history`: we trust each
@@ -91,12 +99,14 @@ source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026,
 # daily likelihood fits the between-vintage increments. Dates match the
 # suspected case history so the streams share day boundaries. The 18 May
 # sum (131 deaths) matches the WHO AFRO joint sitrep 01 figure and the
-# 23 May cut-off (220) matches `total_deaths`.
+# 26 May cut-off (246) matches `total_deaths`. One zone (Kilo) revises
+# its 24 May death count down to zero on 25 May, but the aggregate stays
+# monotone across the kept vintages.
 [death_history]
 dates  = ["2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21",
-          "2026-05-22", "2026-05-23"]
-values = [131, 148, 160, 175, 204, 220]
-source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP SitReps 004-010 published 18-23 May 2026. Values are cumulative DRC suspected deaths summed across reporting health zones at each sitrep date, from insp_sitrep__cumulative_suspected_deaths__daily.csv (ND zone entries dropped)."
+          "2026-05-22", "2026-05-23", "2026-05-25", "2026-05-26"]
+values = [131, 148, 160, 175, 204, 220, 238, 246]
+source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026, MIT licence), transcribed from INSP situation reports published 18-26 May 2026. Values are cumulative DRC suspected deaths summed across reporting health zones at each sitrep date, from insp_sitrep__cumulative_suspected_deaths__daily.csv (ND zone entries dropped). Dates match the suspected case history; the 24 and 27 May vintages are omitted for the reasons given there."
 
 [daily_outbound_travellers]
 value  = 1871

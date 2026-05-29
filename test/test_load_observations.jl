@@ -61,14 +61,37 @@
     @test hasproperty(dh, :values)
     @test dh.values isa AbstractVector{<:Integer}
     @test dh.offsets isa AbstractVector{<:Integer}
-    ## 18-23 May vintages: six entries (131, 148, 160, 175, 204, 220).
-    @test dh.values == [131, 148, 160, 175, 204, 220]
-    @test length(dh.offsets) == 6
+    ## 18-26 May vintages (24 and 27 May omitted): eight entries.
+    @test dh.values == [131, 148, 160, 175, 204, 220, 238, 246]
+    @test length(dh.offsets) == 8
     ## Offsets are days before cut-off, sorted ascending (oldest first,
     ## largest offset first), so edges = T - offset are ascending.
     @test issorted(dh.offsets; rev = true)
     @test obs.sources.death_history isa String
     @test !isempty(obs.sources.death_history)
+
+    ## The testing volume is anchored at its own lab-section date (23 May)
+    ## while the cut-off is 26 May, so its offset is three days.
+    @test obs.cumulative_tests_analysed_offset isa Integer
+    @test obs.cumulative_tests_analysed_offset == 3
+end
+
+@testitem "cumulative_tests_analysed_offset defaults to 0 without a date" begin
+    using BVDOutbreakSize: load_observations
+    mktempdir() do dir
+        path = joinpath(dir, "obs.toml")
+        open(path, "w") do io
+            write(io, "as_of_date = \"2026-05-26\"\n")
+            for k in ("exported_cases", "exports_deaths", "total_deaths",
+                "reported_cases", "daily_outbound_travellers",
+                "daily_outbound_travellers_sd", "source_population")
+                write(io, "[$k]\nvalue = 1\nsource = \"x\"\n")
+            end
+            write(io, "[cumulative_tests_analysed]\nvalue = 1\n",
+                "source = \"x\"\n")
+        end
+        @test load_observations(path).cumulative_tests_analysed_offset == 0
+    end
 end
 
 @testitem "export_deaths_daily is a daily series to the cut-off" begin

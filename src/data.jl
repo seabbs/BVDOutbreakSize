@@ -37,6 +37,11 @@ Fields returned:
   observation; right-truncation is handled inside the model by the lab
   delay CDF. `missing` when no `cumulative_tests_analysed` block is
   present.
+- `cumulative_tests_analysed_offset::Int` — elapsed time (days before
+  `as_of_date`) at which the testing volume was observed, from an
+  optional `date` under the `cumulative_tests_analysed` block; `0` when
+  absent (observed at the cut-off). Lets the lab volume lag the case
+  cut-off without being silently re-dated.
 - `daily_outbound_travellers::Real`
 - `daily_outbound_travellers_sd::Real`
 - `source_population::Int`
@@ -108,6 +113,14 @@ function load_observations(
         cumulative_tests_analysed = haskey(raw, "cumulative_tests_analysed") ?
                                     Int(_val("cumulative_tests_analysed")) :
                                     missing,
+        ## Elapsed time (days before the cut-off) at which the testing
+        ## volume was observed. Defaults to 0 (observed at the cut-off);
+        ## an optional `date` under the block anchors it earlier when the
+        ## lab section lags the case cut-off.
+        cumulative_tests_analysed_offset =
+        haskey(raw, "cumulative_tests_analysed") &&
+        haskey(raw["cumulative_tests_analysed"], "date") ?
+        _gap(raw["cumulative_tests_analysed"]["date"]) : 0,
         daily_outbound_travellers = float(
             _val("daily_outbound_travellers")),
         daily_outbound_travellers_sd = float(
