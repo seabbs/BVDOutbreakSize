@@ -19,6 +19,30 @@
     @test got > 0
 end
 
+@testitem "expected_exports closed form matches quadrature" begin
+    using BVDOutbreakSize: expected_exports
+    r = 0.05
+    cumulative = s -> exp(r * s)
+    p_uganda = 0.25
+    q = 1871 / 4_392_200
+    w = 15.0
+    ## The exact exponential antiderivative passed via `r` must agree
+    ## with the generic numerical integral on the same trajectory, at
+    ## the cut-off and at an earlier elapsed time (partial window).
+    for t in (90.0, 10.0)
+        closed = expected_exports(cumulative, p_uganda, q, t, w; r = r)
+        quad = expected_exports(cumulative, p_uganda, q, t, w)
+        @test closed ≈ quad rtol = 1e-6
+    end
+    ## Small growth rate: the expm1 form stays accurate where (b-a) is
+    ## the whole window.
+    r_small = 1e-6
+    cum_small = s -> exp(r_small * s)
+    closed = expected_exports(cum_small, p_uganda, q, 90.0, w; r = r_small)
+    quad = expected_exports(cum_small, p_uganda, q, 90.0, w)
+    @test closed ≈ quad rtol = 1e-6
+end
+
 @testitem "expected_exports grows with elapsed time" begin
     using BVDOutbreakSize: expected_exports
     r = 0.05

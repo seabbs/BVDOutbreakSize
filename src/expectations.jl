@@ -86,15 +86,30 @@ with `cumulative` the trajectory ``C(s)``, `p` the detection
 probability, `q` the per-capita travel rate, and `window` the detection
 window ``w``. Backs both the exports count likelihood (evaluated at
 `t = T`) and the first-export-detection survival term (evaluated at an
-earlier `t`). Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+earlier `t`).
+
+Pass `r` (the exponential growth rate) to use the exact closed form
+``\\int_a^b e^{r s}\\,ds = (e^{r b} - e^{r a})/r`` instead of numerical
+quadrature — faster and with a cleaner gradient under AD, used by the
+model where the growth trajectory is the exponential default. With
+`r = nothing` (the default) the window integral is evaluated
+numerically via [`CUMULATIVE_INTEGRAL_ALG`](@ref) for an arbitrary
+`cumulative`.
 """
 function expected_exports(cumulative, p, q, t, window;
-        alg = CUMULATIVE_INTEGRAL_ALG)
+        r = nothing, alg = CUMULATIVE_INTEGRAL_ALG)
     window_start = max(t - window, zero(t))
-    integral = integrate_cumulative(cumulative, window_start, t; alg)
+    integral = r === nothing ?
+               integrate_cumulative(cumulative, window_start, t; alg) :
+               _exp_cumulative_integral(r, window_start, t)
     raw = p * q * integral
     return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
 end
+
+## Exact ∫_a^b exp(r·s) ds for an exponential cumulative-incidence
+## trajectory. Written via `expm1` so it stays accurate as r → 0;
+## algebraically equal to (exp(r·b) − exp(r·a)) / r.
+_exp_cumulative_integral(r, a, b) = exp(r * a) * expm1(r * (b - a)) / r
 
 """
 Expected cumulative deaths among detected exports by elapsed time `t`,

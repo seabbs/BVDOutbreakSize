@@ -42,7 +42,8 @@ submodels internally.
     daily_travellers = travel_state.daily_travellers
 
     q = daily_travellers / source_population
-    expected_exports_T := expected_exports(cumulative, p_uganda, q, T, w)
+    expected_exports_T := expected_exports(cumulative, p_uganda, q, T, w;
+        r = growth_state.r)
 
     exported_cases ~ Poisson(expected_exports_T)
 
@@ -309,7 +310,8 @@ matching the at-risk export person-time intensity. Passing
         t1 = T - delta
         q = daily_travellers / source_population
         survived_exports := t1 <= zero(T) ? zero(T) :
-                            expected_exports(cumulative, p_uganda, q, t1, window)
+                            expected_exports(cumulative, p_uganda, q, t1,
+            window; r = growth_state.r)
         ## No detection before t1 as a Poisson observed at 0; `missing`
         ## generates it for predictive checks (see equation (22)).
         pre_detection_exports ~ Poisson(max(survived_exports, zero(T)))
