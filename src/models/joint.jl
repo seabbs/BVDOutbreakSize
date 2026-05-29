@@ -37,8 +37,12 @@ dispersion, then conditions on the deaths likelihood only. See
     dispersion_state ~ to_submodel(dispersion, false)
     k = dispersion_state.k
 
+    ## Single cumulative total at the cut-off: a length-1 vintage vector
+    ## whose only edge is `T`, so the per-vintage deaths likelihood
+    ## reduces to the cumulative single-total NegBinomial (Method 2).
+    deaths_vec = Union{Missing, Int}[total_deaths]
     deaths_state ~ to_submodel(
-        deaths(total_deaths, growth_state, k), false)
+        deaths(deaths_vec, growth_state, k, [growth_state.T]), false)
 
     cumulative_cases := growth_state.C_T
 end
@@ -59,27 +63,30 @@ reported-cases likelihood. See [`reported_cases_model`](@ref).
     asc_state ~ to_submodel(ascertainment, false)
     k = dispersion_state.k
 
+    ## Single cumulative total at the cut-off: a length-1 vintage vector
+    ## with the pooled scalar ascertainment and the single edge `T`, so
+    ## the per-vintage reported likelihood reduces to the cumulative
+    ## single-total NegBinomial.
+    reported_vec = Union{Missing, Int}[reported_cases]
     reported_state ~ to_submodel(
-        reported_cases_submodel(
-            reported_cases, growth_state, k, asc_state.p_drc), false)
+        reported_cases_submodel(reported_vec, growth_state, k,
+            [asc_state.p_drc], [growth_state.T]), false)
 
     cumulative_cases := growth_state.C_T
 end
 
 """
-Confirmed-and-tested-only composer (laboratory pipeline in isolation).
-Samples growth, dispersion, pooled ascertainment and the report-delay
-and test-positivity blocks, builds the BVD-suspected trajectory
-directly, then conditions on the laboratory likelihood only. Unlike a
-full reported-cases fit it does **not** instantiate the reported-count
-likelihood: sampling the discrete suspected count would introduce a
-latent NUTS cannot move, and only the confirmed/tested pair carries
-information here. See [`confirmed_cases_model`](@ref). Use it for the
-per-stream comparison against the joint fit.
+Confirmed-cases-only composer (laboratory pipeline in isolation).
+Samples growth, dispersion, pooled ascertainment, the background /
+testing-fraction prior and the report and lab delays, then conditions
+on the laboratory pipeline alone. The single cumulative confirmed count
+(and optional `tests_analysed`) is wrapped into the length-1 per-vintage
+form at the cut-off, so it reduces to the cumulative laboratory
+likelihood. See [`confirmed_cases_model`](@ref).
 """
 @model function confirmed_only_model(
         confirmed_cases::Union{Missing, Integer},
-        cumulative_tests_analysed::Union{Missing, Integer} = missing;
+        tests_analysed::Union{Missing, Integer} = missing;
         growth = exponential_growth_model(),
         confirmed = confirmed_cases_model,
         dispersion = surveillance_dispersion_model(),
@@ -94,22 +101,15 @@ per-stream comparison against the joint fit.
     report_state ~ to_submodel(report_delay, false)
     test_positivity_state ~ to_submodel(test_positivity, false)
     k = dispersion_state.k
-    p_drc = asc_state.p_drc
     λ_bg = test_positivity_state.λ_bg
     τ_test = test_positivity_state.τ_test
     f_rep = report_state.dist
-    r = growth_state.r
+    T = growth_state.T
 
-    ## BVD-suspected cumulative trajectory, mirroring the closure in
-    ## reported_cases_model so the confirmed submodel integrates the same
-    ## convolution against the lab-delay kernel.
-    bvd_reported_at = let r = r, p_drc = p_drc, f_rep = f_rep
-        u -> p_drc * delay_convolution(one(p_drc), r, u, f_rep)
-    end
-
+    confirmed_vec = Union{Missing, Int}[confirmed_cases]
     confirmed_state ~ to_submodel(
-        confirmed(confirmed_cases, cumulative_tests_analysed,
-            bvd_reported_at, growth_state, k, λ_bg, τ_test;
+        confirmed(confirmed_vec, tests_analysed, growth_state, k,
+            [asc_state.p_drc], λ_bg, τ_test, f_rep, [T], T;
             lab_delay = lab_delay,
             test_sensitivity = test_sensitivity), false)
 
@@ -155,21 +155,53 @@ on the dated export-deaths likelihood. See
 end
 
 """
-Joint composer over all data streams. Conditions on exports, deaths,
-reported cases, dated deaths-among-exports, optional
-export-detection timing and optional genetic seeding bound. Each
-stream argument may be passed as `missing` to drop it, so the same
-model doubles as a generator for prior- and posterior-predictive
-checks.
+Joint composer over all data streams. Conditions on exports, the DRC
+suspected-deaths, reported (suspected) and laboratory-confirmed case
+streams, the dated deaths-among-exports series, and optional
+export-detection timing and genetic seeding bound.
+
+The DRC deaths, reported and confirmed streams are fitted per
+sitrep vintage: `total_deaths`, `reported_cases` and `confirmed_cases`
+are cumulative-count vectors (index 1 = oldest) and the model fits the
+between-vintage increments. Each carries its own offsets vector
+(`death_offsets`, `reported_offsets`, `confirmed_offsets`; days before
+the cut-off), converted to elapsed times `T - offset` internally so the
+bin edges track the latent `T`. A length-1 vector with offset `0`
+reduces a stream to its cumulative single-total likelihood, recovering
+the McCabe et al. Method 2 configuration. Pass a vector of `missing`
+entries (with matching offsets) to drop a stream while keeping the model
+usable as a prior- and posterior-predictive generator.
+
+DRC ascertainment is a per-bin random effect drawn from the pooled
+hyperprior via [`daily_ascertainment_model`](@ref): each case bin sees
+its own `p_drc_t = logistic(μ_logit + τ_logit · z_drc_t)`. Reported and
+confirmed bins for the same vintage share their draw (the BVD pool is
+shared between the two streams). With a single bin the random effect is
+one draw from the same population as the pooled scalar `p_drc`.
+
+`tests_analysed` is a single cumulative testing-volume count observed at
+its own elapsed time `tests_offset` before the cut-off, so it stays
+robust if lab reporting lags or stops before the case cut-off. Per-test
+positivity is exposed as a derived quantity rather than re-observing the
+confirmed counts conditional on tests. Pass `tests_analysed = missing`
+to drop it.
+
+`deaths_ascertainment` samples a multiplicative drift factor `p_deaths`
+on the expected-deaths trajectory (see
+[`deaths_ascertainment_model`](@ref)); pass `p_deaths_fixed = 1.0` to
+disable the factor entirely.
 """
 @model function bvd_joint(
         exported_cases::Union{Missing, Integer},
-        total_deaths::Union{Missing, Integer},
-        reported_cases::Union{Missing, Integer} = missing,
+        total_deaths::AbstractVector,
+        reported_cases::AbstractVector,
         export_deaths_daily::AbstractVector = Int[];
-        confirmed_cases::Union{Missing, Integer} = missing,
-        cumulative_tests_analysed::Union{Missing, Integer} = missing,
-        predict_confirmed::Bool = false,
+        reported_offsets::AbstractVector,
+        death_offsets::AbstractVector = reported_offsets,
+        confirmed_cases::AbstractVector = Union{Missing, Int}[],
+        confirmed_offsets::AbstractVector = reported_offsets,
+        tests_analysed::Union{Missing, Integer} = missing,
+        tests_offset::Real = 0,
         growth = exponential_growth_model(),
         exports = exports_model,
         deaths = deaths_model,
@@ -179,6 +211,9 @@ checks.
         exports_detection_timing = exports_detection_timing_model,
         dispersion = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
+        daily_ascertainment = daily_ascertainment_model,
+        deaths_ascertainment = deaths_ascertainment_model(),
+        p_deaths_fixed::Union{Nothing, Real} = nothing,
         test_positivity = test_positivity_model(),
         report_delay = report_delay_model(),
         lab_delay = lab_delay_model(),
@@ -195,32 +230,54 @@ checks.
     dispersion_state ~ to_submodel(dispersion, false)
     asc_state ~ to_submodel(ascertainment, false)
     k = dispersion_state.k
-    p_drc = asc_state.p_drc
     p_uganda = asc_state.p_uganda
+    μ_logit = asc_state.μ_logit
+    τ_logit = asc_state.τ_logit
+    if p_deaths_fixed === nothing
+        deaths_asc_state ~ to_submodel(deaths_ascertainment, false)
+        p_deaths = deaths_asc_state.p_deaths
+    else
+        p_deaths = p_deaths_fixed
+    end
+    T = growth_state.T
 
     exports_state ~ to_submodel(
         exports(exported_cases, growth_state, p_uganda), false)
+
+    death_edges = [T - δ for δ in death_offsets]
     deaths_state ~ to_submodel(
-        deaths(total_deaths, growth_state, k), false)
+        deaths(total_deaths, growth_state, k, death_edges;
+            p_deaths = p_deaths), false)
+
+    ## Per-bin random-effect DRC ascertainment, shared between the
+    ## reported and confirmed case streams. One length-`max(n_rep,
+    ## n_conf)` block is drawn and a prefix is indexed for each stream.
+    n_rep = length(reported_offsets)
+    n_conf = length(confirmed_offsets)
+    n_asc = max(n_rep, n_conf)
+    daily_asc_state ~ to_submodel(
+        daily_ascertainment(n_asc, μ_logit, τ_logit), false)
+    p_drc_per_bin = daily_asc_state.p_drc_t
+
+    reported_edges = [T - δ for δ in reported_offsets]
     reported_state ~ to_submodel(
-        reported_cases_submodel(reported_cases, growth_state, k, p_drc;
+        reported_cases_submodel(reported_cases, growth_state, k,
+            p_drc_per_bin[1:n_rep], reported_edges;
             report_delay = report_delay,
             test_positivity = test_positivity), false)
-    ## Include the confirmed submodel when there is data to condition
-    ## on or when the caller explicitly opts in to predictive sampling
-    ## (`predict_confirmed = true`). Older snapshot fits with no
-    ## confirmed data should leave it off so NUTS does not attempt to
-    ## sample the discrete `tests_analysed` and `confirmed_cases`
-    ## variables.
-    if confirmed_cases !== missing || predict_confirmed
+
+    if !isempty(confirmed_cases)
+        confirmed_edges = [T - δ for δ in confirmed_offsets]
+        tests_edge = T - tests_offset
         confirmed_state ~ to_submodel(
-            confirmed(confirmed_cases, cumulative_tests_analysed,
-                reported_state.bvd_reported_at, growth_state, k,
-                reported_state.λ_bg, reported_state.τ_test;
+            confirmed(confirmed_cases, tests_analysed, growth_state, k,
+                p_drc_per_bin[1:n_conf], reported_state.λ_bg,
+                reported_state.τ_test, reported_state.report_delay_dist,
+                confirmed_edges, tests_edge;
                 lab_delay = lab_delay,
-                test_sensitivity = test_sensitivity),
-            false)
+                test_sensitivity = test_sensitivity), false)
     end
+
     exports_deaths_state ~ to_submodel(
         exports_deaths_model(export_deaths_daily, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;
@@ -266,8 +323,12 @@ only) fit.
         exports_state ~ to_submodel(
             exports(exported_cases, growth_state, p_uganda), false)
     end
+    ## Single cumulative deaths total at the cut-off (Method 2), kept
+    ## deliberately as one observation to mirror the McCabe et al.
+    ## configuration rather than the per-vintage fit.
+    deaths_vec = Union{Missing, Int}[total_deaths]
     deaths_state ~ to_submodel(
-        deaths(total_deaths, growth_state, k), false)
+        deaths(deaths_vec, growth_state, k, [growth_state.T]), false)
 
     cumulative_cases := growth_state.C_T
 end

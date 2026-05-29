@@ -7,7 +7,9 @@
     using BVDOutbreakSize: cases_only_model
     chn = sample(cases_only_model(missing), Prior(), 200;
         chain_type = FlexiChains.VNChain, progress = false)
-    rc = vec(Array(chn[:reported_cases]))
+    ## reported_cases is now a length-1 per-bin vector per draw;
+    ## flatten with only() to recover the scalar per draw.
+    rc = only.(vec(Array(chn[:reported_cases])))
     @test length(rc) == 200
     @test all(isfinite, rc)
     @test all(rc .>= 0)

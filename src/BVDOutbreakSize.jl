@@ -11,7 +11,7 @@ using Mooncake: Mooncake
 using ChainRulesCore: ChainRulesCore, NoTangent
 using SpecialFunctions: digamma, loggamma
 import SpecialFunctions
-using Turing: @model, MCMCThreads, NUTS, sample, to_submodel
+using Turing: @model, MCMCThreads, NUTS, sample, to_submodel, filldist
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
@@ -26,7 +26,7 @@ import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
 using CairoMakie: Figure, Axis, hist!, density!, vlines!, vspan!,
-                  lines!, scatter!
+                  lines!, scatter!, band!
 
 export REPORT_SCENARIOS,
        ITURI_POPULATION, ITURI_DAILY_TRAVEL,
@@ -41,10 +41,11 @@ export REPORT_SCENARIOS,
        integrate_cumulative, integrate_exports_deaths,
        expected_exports, expected_exports_deaths,
        ExportDeathDelay, EXPORT_DELAY_GRID_POINTS,
+       DailyBVDTrajectory, daily_increment_kernel,
        plot_cumulative_cases, plot_density_overlay, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
-       plot_cfr_prior,
+       plot_cfr_prior, plot_vintage_ppc,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
        forecast_vs_truth, plot_forecast_vs_truth,
@@ -54,6 +55,7 @@ export REPORT_SCENARIOS,
        test_positivity_model,
        cfr_model, detection_window_model, traveller_volume_model,
        surveillance_dispersion_model, pooled_ascertainment_model,
+       daily_ascertainment_model, deaths_ascertainment_model,
 # observation models
        exports_model, deaths_model,
        reported_cases_model, confirmed_cases_model,
@@ -62,7 +64,8 @@ export REPORT_SCENARIOS,
 # joint composers
        exports_only_model, deaths_only_model, cases_only_model,
        confirmed_only_model,
-       exports_deaths_only_model, bvd_joint, imperial_only_model
+       exports_deaths_only_model, bvd_joint,
+       imperial_only_model
 
 include("docstrings.jl")
 include("constants.jl")

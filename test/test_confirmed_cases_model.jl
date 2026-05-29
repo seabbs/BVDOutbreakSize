@@ -195,20 +195,38 @@ end
 end
 
 @testitem "bvd_joint initialises with tested + confirmed observations" tags=[:slow] begin
-    ## Regression test for the Binomial init failure: the live
-    ## `bvd_joint(...; cumulative_tests_analysed=...)` path must
-    ## produce finite log-densities under prior draws so NUTS can
-    ## find valid initial parameters. Exercises the full per-test
-    ## positivity Binomial branch with the real submodels.
+    ## Regression test for the Binomial init failure: the full
+    ## per-vintage `bvd_joint` path (deaths + reported + confirmed
+    ## histories, tests_analysed) must produce finite log-densities
+    ## under prior draws so NUTS can find valid initial parameters.
+    ## Exercises the full per-test positivity Binomial branch with the
+    ## real submodels and the real observation history.
     using Turing: sample, Prior
     import FlexiChains
     using BVDOutbreakSize: bvd_joint, load_observations
     obs = load_observations()
+    rh = obs.reported_case_history
+    ch = obs.confirmed_case_history
+    dh = obs.death_history
+    ## Models observe between-vintage increments, not cumulative totals.
+    function _inc(values)
+        out = similar(values, Int)
+        prev = 0
+        for i in eachindex(values)
+            out[i] = values[i] - prev
+            prev = values[i]
+        end
+        return out
+    end
     chn = sample(
-        bvd_joint(obs.exported_cases, obs.total_deaths,
-            obs.reported_cases, obs.export_deaths_daily;
-            confirmed_cases = obs.confirmed_cases,
-            cumulative_tests_analysed = obs.cumulative_tests_analysed,
+        bvd_joint(obs.exported_cases, _inc(dh.values), _inc(rh.values),
+            obs.export_deaths_daily;
+            reported_offsets = rh.offsets,
+            death_offsets = dh.offsets,
+            confirmed_cases = _inc(ch.values),
+            confirmed_offsets = ch.offsets,
+            tests_analysed = obs.cumulative_tests_analysed,
+            tests_offset = 0,
             first_export_detection_delta = obs.first_export_detection_delta),
         Prior(), 200;
         chain_type = FlexiChains.VNChain, progress = false)

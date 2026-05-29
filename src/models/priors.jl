@@ -185,3 +185,47 @@ and pooling strength `τ`. Used by [`reported_cases_model`](@ref),
     p_uganda := logistic(logit_p_uganda)
     return (; μ_logit, τ_logit, p_drc, p_uganda)
 end
+
+"""
+Per-bin random-effect DRC ascertainment for the per-vintage reported
+and confirmed streams. Given the pooled hyperparameters `μ_logit`
+and `τ_logit` from [`pooled_ascertainment_model`](@ref), draws `n` IID
+non-centred logit-scale offsets `z_drc_t ~ Normal(0, 1)` and exposes
+`p_drc_t = logistic(μ_logit + τ_logit · z_drc_t)` as a length-`n`
+vector. Used by [`reported_cases_model`](@ref) and
+[`confirmed_cases_model`](@ref) so each vintage bin draws its own
+ascertainment fraction from the same population distribution that the
+pooled scalar `p_drc` is drawn from. With `n = 1` the draw matches that
+pooled scalar.
+
+No autocorrelation is imposed: this is an IID random effect over bins,
+not a random walk. Identification leans on the pooling — `τ_logit`
+shrinks the per-bin draws back toward the hyperprior mean when the
+data are uninformative about a particular bin.
+"""
+@model function daily_ascertainment_model(n::Integer,
+        μ_logit::Real, τ_logit::Real)
+    z_drc_t ~ filldist(Normal(0, 1), n)
+    p_drc_t := logistic.(μ_logit .+ τ_logit .* z_drc_t)
+    return (; z_drc_t, p_drc_t)
+end
+
+"""
+Deaths-reporting ascertainment factor, allowing the observed
+*suspected* deaths to drift around the BVD-driven CFR-weighted
+expectation. Default `Normal(1.0, 0.05)` truncated at zero: ~95%
+prior mass within 10% of unity, but the prior allows both slight
+under-reporting (`p_deaths < 1`, missed BVD deaths) and slight
+over-reporting (`p_deaths > 1`, non-BVD deaths captured by the
+suspected case definition). The prior is judgement-based — there is
+no external surveillance-completeness study for this outbreak — and
+is intentionally tight so it cannot absorb the bulk of a
+data-vs-model conflict; widen `sd_prior` for sensitivity. Used by
+[`deaths_model`](@ref) (multiplies the expected-deaths trajectory).
+"""
+@model function deaths_ascertainment_model(;
+        ascertainment_prior = truncated(Normal(1.0, 0.05);
+        lower = 0))
+    p_deaths ~ ascertainment_prior
+    return (; p_deaths)
+end

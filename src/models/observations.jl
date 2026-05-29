@@ -52,55 +52,92 @@ submodels internally.
 end
 
 """
-Deaths likelihood (Method 2, back-calculation from deaths). Couples
-the observed cumulative deaths to `C(T)` through the CFR-weighted
-gamma convolution, with a NegativeBinomial likelihood sharing the
-dispersion `k` of [`surveillance_dispersion_model`](@ref). Samples
-the [`delay_model`](@ref) and [`cfr_model`](@ref) submodels
-internally.
+Deaths likelihood (Method 2, back-calculation from deaths). Couples the
+observed DRC suspected deaths to `C(T)` through the CFR-weighted gamma
+convolution. The observation is a per-vintage vector `total_deaths`
+aligned with `t_edges` (elapsed time since seeding to each sitrep date,
+ascending, latest = `T`); the model fits the between-vintage
+cumulative-count increments as independent NegBinomial terms sharing the
+dispersion `k` of [`surveillance_dispersion_model`](@ref). A single
+observation (`length 1`, `t_edges = [T]`) reduces to the cumulative
+single-total NegBinomial likelihood, matching the McCabe et al. Method 2
+configuration. Samples the [`delay_model`](@ref) and [`cfr_model`](@ref)
+submodels internally.
+
+`p_deaths` multiplies the expected-deaths trajectory to allow the
+observed *suspected* deaths to drift around the BVD-driven CFR-weighted
+expectation; pass it from [`deaths_ascertainment_model`](@ref) at the
+joint-composer level. Defaults to `1.0` so the single-stream paths
+reduce to the original likelihood.
 """
 @model function deaths_model(
-        total_deaths::Union{Missing, Integer},
-        growth_state, k::Real;
+        total_deaths::AbstractVector,
+        growth_state, k::Real, t_edges::AbstractVector;
         delay = delay_model(),
-        cfr = cfr_model())
-    C_T = growth_state.C_T
+        cfr = cfr_model(),
+        p_deaths::Real = 1.0)
     r = growth_state.r
-    T = growth_state.T
 
     delay_state ~ to_submodel(delay, false)
     cfr_state ~ to_submodel(cfr, false)
-
+    f_death = delay_state.dist
     CFR = cfr_state.CFR
 
-    ## NaN-safe clamp: extreme NUTS proposals during warmup can push
-    ## the expected count to NaN / Inf.
-    raw_deaths = delay_convolution(CFR, r, T, delay_state.dist)
-    expected_deaths_T := isfinite(raw_deaths) ?
-                         max(raw_deaths, eps(typeof(raw_deaths))) :
-                         eps(typeof(raw_deaths))
+    n = length(t_edges)
+    length(total_deaths) == n ||
+        error("total_deaths length must match t_edges (got " *
+              "$(length(total_deaths)) vs $n)")
 
-    total_deaths ~ safe_nbinomial(k, expected_deaths_T)
+    ## CFR-weighted cumulative expected deaths at each bin edge; the
+    ## drift factor `p_deaths` scales the whole trajectory. The
+    ## between-edge increment is the per-bin NegBinomial mean (with a
+    ## NaN / Inf-safe positive clamp via `daily_increment_kernel`).
+    Λ_at_edges = [s <= zero(s) ? zero(s) :
+                  p_deaths * delay_convolution(CFR, r, s, f_death)
+                  for s in t_edges]
+    bin_means = daily_increment_kernel(Λ_at_edges)
 
-    return (; CFR, delay_dist = delay_state.dist, expected_deaths_T)
+    for i in 1:n
+        total_deaths[i] ~ safe_nbinomial(k, bin_means[i])
+    end
+
+    expected_deaths_T := Λ_at_edges[end]
+    deaths_total := sum(total_deaths)
+
+    return (; CFR, p_deaths, delay_dist = f_death,
+        expected_deaths_T, Λ_at_edges)
 end
 
 """
 Reported (suspected) cases likelihood. Couples the observed DRC
-suspected-case count to `C(T)` as the sum of (i) a BVD-driven
-contribution `p_drc · ∫₀^T exp(r·s) · f_rep(T-s) ds` using the
+suspected-case counts to `C(T)` as the sum of (i) a BVD-driven
+contribution `p_drc · ∫₀^s exp(r·u) · f_rep(s-u) du` using the
 onset-to-report delay [`report_delay_model`](@ref) and (ii) a non-BVD
-background `λ_bg · T`, with `λ_bg` supplied by
-[`test_positivity_model`](@ref). The NegativeBinomial likelihood shares
-`k` with [`deaths_model`](@ref) and [`confirmed_cases_model`](@ref).
-Exposes the derived per-suspected positivity `μ_BVD / μ_cases` as a
-diagnostic and the BVD-suspected trajectory `bvd_reported_at` as a
-callable so the confirmed-cases submodel can re-use it without
-recomputing the convolution.
+background `λ_bg · s`, with `λ_bg` and the testing fraction `τ_test`
+supplied by [`test_positivity_model`](@ref).
+
+The observation is a per-vintage vector `reported_cases` aligned with
+`t_edges` (elapsed time since seeding to each sitrep date, ascending,
+latest = `T`); the model fits the between-vintage cumulative-count
+increments as independent NegBinomial terms sharing `k` with
+[`deaths_model`](@ref) and [`confirmed_cases_model`](@ref). Each bin
+carries its own ascertainment `p_drc_per_bin[v]` (a per-bin random
+effect from [`daily_ascertainment_model`](@ref)), applied to the
+between-edge BVD increment. The first bin's "increment" is the
+cumulative at the first edge, so a single observation (`length 1`,
+`t_edges = [T]`) reduces to the cumulative single-total likelihood used
+by McCabe et al.
+
+The unit-ascertainment BVD cumulative `μ_BVD,0(s)` is evaluated at every
+edge through the Gamma closed-form [`delay_convolution`](@ref). Returns
+`report_delay_dist = f_rep` so [`confirmed_cases_model`](@ref) can reuse
+the same onset-to-report kernel, and the derived per-suspected
+positivity `μ_BVD / μ_cases` at the cut-off as a diagnostic.
 """
 @model function reported_cases_model(
-        reported_cases::Union{Missing, Integer},
-        growth_state, k::Real, p_drc::Real;
+        reported_cases::AbstractVector,
+        growth_state, k::Real,
+        p_drc_per_bin::AbstractVector, t_edges::AbstractVector;
         report_delay = report_delay_model(),
         test_positivity = test_positivity_model())
     report_state ~ to_submodel(report_delay, false)
@@ -109,110 +146,167 @@ recomputing the convolution.
     τ_test = test_positivity_state.τ_test
     f_rep = report_state.dist
     r = growth_state.r
-    T = growth_state.T
 
-    ## BVD-suspected cumulative as a function of elapsed time τ:
-    ## reuses `delay_convolution` (i.e. ∫₀^τ exp(r·s)·f_rep(τ-s) ds)
-    ## under the unit-ascertainment convention. The confirmed-cases
-    ## submodel takes this closure directly and integrates it against
-    ## f_lab — no separate f_conf kernel needed.
-    bvd_reported_at = let r = r, p_drc = p_drc, f_rep = f_rep
-        τ -> p_drc * delay_convolution(one(p_drc), r, τ, f_rep)
+    n = length(t_edges)
+    n == length(p_drc_per_bin) ||
+        error("p_drc_per_bin length must match t_edges (got " *
+              "$(length(p_drc_per_bin)) vs $n)")
+    n == length(reported_cases) ||
+        error("reported_cases length must match t_edges (got " *
+              "$(length(reported_cases)) vs $n)")
+
+    ## Unit-ascertainment BVD cumulative at each bin edge (Gamma closed
+    ## form). Per-bin ascertainment is applied below on the between-edge
+    ## increment so each bin's mean tracks its own random-effect draw.
+    μ_BVD0_at_edges = [s <= zero(s) ? zero(s) :
+                       delay_convolution(one(eltype(p_drc_per_bin)),
+                           r, s, f_rep) for s in t_edges]
+    ΔμBVD0 = daily_increment_kernel(μ_BVD0_at_edges)
+
+    Tt = eltype(ΔμBVD0)
+    Λ_at_edges = Vector{Tt}(undef, n)
+    bin_means = Vector{Tt}(undef, n)
+    Λ_prev = zero(Tt)
+    for i in 1:n
+        s_k = t_edges[i]
+        Δt = i == 1 ? s_k : (s_k - t_edges[i - 1])
+        raw = p_drc_per_bin[i] * ΔμBVD0[i] + λ_bg * max(Δt, zero(Δt))
+        μ_i = isfinite(raw) ? max(raw, eps(typeof(raw))) :
+              eps(typeof(raw))
+        bin_means[i] = μ_i
+        Λ_prev += μ_i
+        Λ_at_edges[i] = Λ_prev
     end
 
-    μ_BVD_raw = bvd_reported_at(T)
-    μ_bg_raw = λ_bg * T
-    μ_BVD := isfinite(μ_BVD_raw) ?
-             max(μ_BVD_raw, eps(typeof(μ_BVD_raw))) :
-             eps(typeof(μ_BVD_raw))
-    μ_bg := isfinite(μ_bg_raw) ?
-            max(μ_bg_raw, eps(typeof(μ_bg_raw))) :
-            eps(typeof(μ_bg_raw))
-    expected_reports := μ_BVD + μ_bg
-    ## Implied per-suspected positivity at the cut-off. Exposed as a
-    ## derived quantity so it can be checked against the sitrep figure.
-    positivity := μ_BVD / expected_reports
+    for i in 1:n
+        reported_cases[i] ~ safe_nbinomial(k, bin_means[i])
+    end
 
-    reported_cases ~ safe_nbinomial(k, expected_reports)
+    ## Implied per-suspected positivity at the cut-off (BVD share of the
+    ## expected suspected total). Exposed for comparison with the sitrep.
+    μ_BVD_cum = sum(p_drc_per_bin[i] * ΔμBVD0[i] for i in 1:n)
+    positivity := μ_BVD_cum / Λ_at_edges[end]
 
-    return (; p_drc, λ_bg, τ_test,
-        expected_reports, reported_cases,
-        μ_BVD, μ_bg, positivity,
-        bvd_reported_at,
-        report_delay_dist = f_rep)
+    expected_reports_total := Λ_at_edges[end]
+    reported_cases_total := sum(reported_cases)
+
+    return (; p_drc_per_bin, λ_bg, τ_test,
+        expected_reports_total, positivity,
+        report_delay_dist = f_rep,
+        μ_BVD0_at_edges, Λ_at_edges)
 end
 
 """
-Laboratory pipeline likelihood. Models two coupled observations
-covering both the testing-volume gate and the per-test positivity
-contrast:
+Laboratory pipeline likelihood. Models the lab-confirmed cases over time
+and, where available, the testing volume that gates them.
 
-- `tests_analysed` (`Cumul échantillons analysés`): observed cumulative
-  count of suspected samples whose lab processing has completed by the
-  cut-off. NegativeBinomial mean
-  ``\\tau\\,(\\text{BVD}_\\text{tested} + \\text{bg}_\\text{tested})``,
-  with
-  ``\\text{BVD}_\\text{tested} = \\int_0^T \\text{BVD}_\\text{reported}(u)\\, f_\\text{lab}(T-u)\\,du``
-  and
-  ``\\text{bg}_\\text{tested} = \\lambda_\\text{bg}\\,\\int_0^T F_\\text{lab}(T-u)\\,du``.
-  The lab-delay CDF ``F_\\text{lab}`` only counts samples that have
-  finished processing by `T`, so right-truncation is handled by the
-  integration limits — no fudge needed.
-- `confirmed_cases` (`Cumul positifs`): observed positives among the
-  analysed samples. Binomial likelihood conditional on
-  `tests_analysed` with positivity probability
-  ``s\\,\\text{BVD}_\\text{tested}/(\\text{BVD}_\\text{tested}+\\text{bg}_\\text{tested})``
-  (PCR sensitivity times the BVD fraction in the tested pool;
-  specificity is assumed perfect, so non-BVD samples never test
-  positive).
+`confirmed_cases` (`Cumul positifs`) is a per-vintage vector aligned with
+`t_edges`; the model fits the between-vintage cumulative-count increments
+as independent NegBinomial terms with per-bin mean
 
-Takes the BVD-suspected trajectory `bvd_reported_at` and the testing
-fraction `τ_test` / background rate `λ_bg` directly from
-[`reported_cases_model`](@ref) so the same posterior trajectory drives
-both streams.
+```math
+\\mu_v^{conf} = p_{DRC,v} \\cdot s_{test} \\cdot \\tau_{test} \\cdot
+               \\bigl(I_{lab,0}(s_v) - I_{lab,0}(s_{v-1})\\bigr),
+\\qquad
+I_{lab,0}(s) = \\int_0^{s} \\mu_{BVD,0}(u)\\, f_{lab}(s - u)\\,du,
+```
 
-Both likelihoods always run: when `tests_analysed` or
-`confirmed_cases` is `missing` the `~` becomes a sampling step (used by
-prior- and posterior-predictive callers via `predict`), and when a
-value is supplied the same line is a likelihood evaluation. The
-Binomial uses whichever `tests_analysed` was supplied or sampled, so
-the predictive distribution reaches both `tests_analysed` and
-`confirmed_cases`.
+where `μ_BVD,0` is the unit-ascertainment onset-to-report BVD cumulative
+(kernel `f_rep` passed in from [`reported_cases_model`](@ref)) and
+`s_test` is the PCR sensitivity. A [`DailyBVDTrajectory`](@ref)
+precomputes `μ_BVD,0` once on a shared Gauss-Legendre node set so the
+outer quadrature of the lab convolution is reused across every edge.
+
+`tests_analysed` (`Cumul échantillons analysés`) is a single cumulative
+count observed at its own elapsed time `tests_edge` (which may lag the
+case cut-off `T` if lab reporting stops earlier). When present it enters
+as one NegBinomial term with mean
+``\\tau\\,(\\text{BVD}_\\text{tested} + \\text{bg}_\\text{tested})``
+accumulated to `tests_edge`; the background tested volume uses the
+lab-delay CDF ``F_\\text{lab}`` (via `_gamma_cdf`, finite α gradient
+under Mooncake, see #138) so right-truncation is handled by the
+integration limits. The per-test positivity
+`s · BVD_tested / (BVD_tested + bg_tested)` is exposed as a derived
+quantity for comparison with the sitrep figure; confirmed counts are not
+re-observed conditional on tests, so the two streams are not
+double-counted. Pass `tests_analysed = missing` to drop the testing
+stream.
+
+A single confirmed observation (`length 1`, `t_edges = [T]`) reduces to
+the cumulative confirmed likelihood.
 """
 @model function confirmed_cases_model(
-        confirmed_cases::Union{Missing, Integer},
+        confirmed_cases::AbstractVector,
         tests_analysed::Union{Missing, Integer},
-        bvd_reported_at, growth_state, k::Real,
-        λ_bg::Real, τ_test::Real;
+        growth_state, k::Real,
+        p_drc_per_bin::AbstractVector, λ_bg::Real, τ_test::Real, f_rep,
+        t_edges::AbstractVector, tests_edge::Real;
         lab_delay = lab_delay_model(),
         test_sensitivity = test_sensitivity_model())
     lab_state ~ to_submodel(lab_delay, false)
     sensitivity_state ~ to_submodel(test_sensitivity, false)
     f_lab = lab_state.dist
     s_test = sensitivity_state.s_test
+    r = growth_state.r
     T = growth_state.T
+    α_lab = lab_state.α
+    θ_lab = lab_state.θ
 
-    ## BVD samples that have completed lab processing by T (before
-    ## the τ gate): same kernel as the previous confirmed integrand,
-    ## ∫₀^T BVD_reported(u) · f_lab(T-u) du.
-    raw_bvd_tested = τ_test * delay_convolution(bvd_reported_at, T, f_lab)
+    n = length(t_edges)
+    n == length(p_drc_per_bin) ||
+        error("p_drc_per_bin length must match t_edges (got " *
+              "$(length(p_drc_per_bin)) vs $n)")
+    n == length(confirmed_cases) ||
+        error("confirmed_cases length must match t_edges (got " *
+              "$(length(confirmed_cases)) vs $n)")
+
+    ## Unit-ascertainment μ_BVD,0 at the shared Gauss-Legendre nodes over
+    ## [0, T]; the outer quadrature of I_lab,0 is reused across every bin
+    ## edge. Per-bin ascertainment is then applied on the between-edge
+    ## I_lab,0 increment so each bin's mean tracks its own draw.
+    trajectory = DailyBVDTrajectory(T, r, f_rep)
+    I_lab0_edges = delay_convolution(trajectory, t_edges, f_lab)
+    ΔIlab0 = daily_increment_kernel(I_lab0_edges)
+
+    Tt = eltype(I_lab0_edges)
+    conf_means = Vector{Tt}(undef, n)
+    Λ_at_edges = Vector{Tt}(undef, n)
+    ## Cumulative unit-ascertainment-weighted BVD tested volume (before
+    ## the τ gate) accumulated up to `tests_edge`, summing the same
+    ## per-bin ascertainment increments the confirmed likelihood uses.
+    bvd_tested_unit = zero(Tt)
+    Λ_prev = zero(Tt)
+    for i in 1:n
+        bvd_inc = p_drc_per_bin[i] * ΔIlab0[i]
+        raw = s_test * τ_test * bvd_inc
+        μ_i = isfinite(raw) ? max(raw, eps(typeof(raw))) :
+              eps(typeof(raw))
+        conf_means[i] = μ_i
+        Λ_prev += μ_i
+        Λ_at_edges[i] = Λ_prev
+        if t_edges[i] <= tests_edge + sqrt(eps(typeof(tests_edge)))
+            bvd_tested_unit += bvd_inc
+        end
+    end
+
+    for i in 1:n
+        confirmed_cases[i] ~ safe_nbinomial(k, conf_means[i])
+    end
+
+    ## Tested-volume mean at `tests_edge`: τ · (BVD tested + background
+    ## tested). The background arrives at constant rate λ_bg and is
+    ## convolved against F_lab so only samples processed by `tests_edge`
+    ## count.
+    raw_bvd_tested = τ_test * bvd_tested_unit
     BVD_tested := isfinite(raw_bvd_tested) ?
                   max(raw_bvd_tested, eps(typeof(raw_bvd_tested))) :
                   eps(typeof(raw_bvd_tested))
-
-    ## Non-BVD samples that have completed lab processing by T:
-    ## constant arrival rate λ_bg per day to the suspected pool,
-    ## convolved against the lab-delay CDF F_lab so right-truncation
-    ## is absorbed in the integration. τ gates the same sampling
-    ## fraction as the BVD branch. Uses `_gamma_cdf` rather than
-    ## raw `cdf(::Gamma, ·)` so the α derivative is finite under
-    ## Mooncake (see #138).
-    α_lab = lab_state.α
-    θ_lab = lab_state.θ
-    bg_integrand = let α_lab = α_lab, θ_lab = θ_lab, T = T
-        u -> _gamma_cdf(α_lab, θ_lab, T - u)
+    te = oftype(T, tests_edge)
+    bg_integrand = let α_lab = α_lab, θ_lab = θ_lab, te = te
+        u -> _gamma_cdf(α_lab, θ_lab, te - u)
     end
-    bg_integral = integrate(bg_integrand, zero(T), T,
+    bg_integral = te <= zero(te) ? zero(te) :
+                  integrate(bg_integrand, zero(te), te,
         _delay_scale(f_lab); alg = DEATH_INTEGRAL_ALG)
     raw_bg_tested = τ_test * λ_bg * bg_integral
     bg_tested := isfinite(raw_bg_tested) ?
@@ -220,11 +314,8 @@ the predictive distribution reaches both `tests_analysed` and
                  eps(typeof(raw_bg_tested))
 
     expected_tested := BVD_tested + bg_tested
-    ## Per-test positivity: s × BVD fraction in the tested pool.
-    ## Exposed for direct comparison against the sitrep `Taux de
-    ## positivité` figure. Clamped to `(eps, 1-eps)` so extreme NUTS
-    ## proposals during warmup do not fall outside the Binomial
-    ## domain.
+    ## Per-test positivity: s × BVD fraction in the tested pool. Exposed
+    ## for comparison against the sitrep `Taux de positivité`.
     p_pos_raw = s_test * BVD_tested / expected_tested
     p_positive := isfinite(p_pos_raw) ?
                   clamp(p_pos_raw,
@@ -232,19 +323,42 @@ the predictive distribution reaches both `tests_analysed` and
         one(p_pos_raw) - eps(typeof(p_pos_raw))) :
                   eps(typeof(p_pos_raw))
 
-    ## Testing-volume likelihood (NegBinomial). When `tests_analysed`
-    ## is `missing` (prior- and posterior-predictive callers) the `~`
-    ## becomes a sampling step that draws the predictive count; when
-    ## it is data the same line is a likelihood evaluation. The
-    ## subsequent Binomial uses whichever value was supplied or
-    ## sampled, so the predictive distribution reaches both
-    ## tests_analysed and confirmed_cases without an explicit fallback.
-    tests_analysed ~ safe_nbinomial(k, expected_tested)
-    confirmed_cases ~ Binomial(Int(tests_analysed), p_positive)
+    if !ismissing(tests_analysed)
+        tests_analysed ~ safe_nbinomial(k, expected_tested)
+    end
+
+    expected_confirmed_total := Λ_at_edges[end]
+    confirmed_cases_total := sum(confirmed_cases)
 
     return (; expected_tested, p_positive,
-        BVD_tested, bg_tested, s_test, τ_test,
-        lab_delay_dist = f_lab)
+        BVD_tested, bg_tested, s_test, τ_test, p_drc_per_bin,
+        expected_confirmed_total,
+        lab_delay_dist = f_lab,
+        I_lab0_edges, Λ_at_edges)
+end
+
+"""
+Bin-mean kernel for the per-vintage NegBinomial likelihoods. For `n`
+cumulative-intensity values ``\\Lambda(t_k)`` at the bin edges, returns
+the `n` between-vintage increments `[Λ(t_1), Λ(t_2)-Λ(t_1), ...]`
+clamped to be strictly positive and finite. Shared by
+[`reported_cases_model`](@ref), [`confirmed_cases_model`](@ref) and
+[`deaths_model`](@ref) so the bin-difference logic lives in one place.
+The first element is the cumulative at the first edge, so a single edge
+reduces to the cumulative single-total mean.
+"""
+function daily_increment_kernel(Λ_at_edges::AbstractVector)
+    n = length(Λ_at_edges)
+    Tt = eltype(Λ_at_edges)
+    means = Vector{Tt}(undef, n)
+    Λ_prev = zero(Tt)
+    @inbounds for i in 1:n
+        raw = Λ_at_edges[i] - Λ_prev
+        means[i] = isfinite(raw) ? max(raw, eps(typeof(raw))) :
+                   eps(typeof(raw))
+        Λ_prev = Λ_at_edges[i]
+    end
+    return means
 end
 
 """

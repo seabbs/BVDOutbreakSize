@@ -63,6 +63,7 @@ isempty(confirmed_at) && error("no confirmed vintage on $cut_off")
 
 cases_kept = @subset cases :date .<= cut_off
 confirmed_kept = @subset confirmed :date .<= cut_off
+deaths_kept = @subset deaths :date .<= cut_off
 
 println("Cut-off: $cut_off")
 println()
@@ -84,6 +85,10 @@ println("as_of_date = \"$cut_off\"")
 println()
 println("[total_deaths]")
 println("value  = $(deaths_at.total[1])")
+println()
+println("[death_history]")
+println("dates  = [", join(("\"$(d)\"" for d in deaths_kept.date), ", "), "]")
+println("values = [", join(deaths_kept.total, ", "), "]")
 println()
 println("[reported_cases]")
 println("value  = $(cases_at.total[1])")
