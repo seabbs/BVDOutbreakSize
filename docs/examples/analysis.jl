@@ -75,16 +75,19 @@
 #   et al.). Reported (suspected) counts are the BVD-driven
 #   onset-to-report convolution plus a non-BVD background. The lab
 #   pipeline takes a fraction $\tau$ of suspected through an
-#   onset-to-confirmation delay; per-test positivity falls out as a
-#   Binomial likelihood on the confirmed/tested pair. The lab-delay CDF
-#   handles right-truncation of the tested observation. PCR sensitivity
-#   and testing fraction are separately identified given both
-#   observations.
+#   onset-to-confirmation delay and models the confirmed and
+#   tests-analysed counts with a Binomial whose per-test positivity is
+#   the BVD share of the tested pool scaled by PCR sensitivity.
 # - *No-onward-transmission counterfactual* (not in McCabe et al.).
 #   Projects the future expected deaths from cases already infected
 #   by $T$, integrating $i(s)\cdot(1 - F_d(T - s))$ per draw — a
 #   lower bound on the eventual death toll if every onward
 #   transmission stopped today.
+# - *Posterior-predictive forecasts* (not in McCabe et al.). A
+#   one-week-ahead projection of each stream from the joint posterior,
+#   plus a retrospective check that refits the original report's data
+#   and projects it forward to the current cut-off to compare against
+#   the counts observed since.
 #
 # ## Limitations
 #

@@ -69,19 +69,18 @@ end
 """
 Confirmed-and-tested-only composer (laboratory pipeline in isolation).
 Samples growth, dispersion, pooled ascertainment and the report-delay
-and test-positivity blocks, then conditions on the laboratory
-likelihood only. The reported-cases submodel is instantiated with
-`reported_cases = missing` so the BVD-suspected trajectory and the
-`λ_bg`/`τ_test` parameters it owns are available to the confirmed
-submodel, but the reported count itself contributes no likelihood. See
-[`confirmed_cases_model`](@ref). Use it for the per-stream comparison
-against the joint fit.
+and test-positivity blocks, builds the BVD-suspected trajectory
+directly, then conditions on the laboratory likelihood only. Unlike a
+full reported-cases fit it does **not** instantiate the reported-count
+likelihood: sampling the discrete suspected count would introduce a
+latent NUTS cannot move, and only the confirmed/tested pair carries
+information here. See [`confirmed_cases_model`](@ref). Use it for the
+per-stream comparison against the joint fit.
 """
 @model function confirmed_only_model(
         confirmed_cases::Union{Missing, Integer},
         cumulative_tests_analysed::Union{Missing, Integer} = missing;
         growth = exponential_growth_model(),
-        reported_cases_submodel = reported_cases_model,
         confirmed = confirmed_cases_model,
         dispersion = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
@@ -92,16 +91,25 @@ against the joint fit.
     growth_state ~ to_submodel(growth, false)
     dispersion_state ~ to_submodel(dispersion, false)
     asc_state ~ to_submodel(ascertainment, false)
+    report_state ~ to_submodel(report_delay, false)
+    test_positivity_state ~ to_submodel(test_positivity, false)
     k = dispersion_state.k
+    p_drc = asc_state.p_drc
+    λ_bg = test_positivity_state.λ_bg
+    τ_test = test_positivity_state.τ_test
+    f_rep = report_state.dist
+    r = growth_state.r
 
-    reported_state ~ to_submodel(
-        reported_cases_submodel(missing, growth_state, k, asc_state.p_drc;
-            report_delay = report_delay,
-            test_positivity = test_positivity), false)
+    ## BVD-suspected cumulative trajectory, mirroring the closure in
+    ## reported_cases_model so the confirmed submodel integrates the same
+    ## convolution against the lab-delay kernel.
+    bvd_reported_at = let r = r, p_drc = p_drc, f_rep = f_rep
+        u -> p_drc * delay_convolution(one(p_drc), r, u, f_rep)
+    end
+
     confirmed_state ~ to_submodel(
         confirmed(confirmed_cases, cumulative_tests_analysed,
-            reported_state.bvd_reported_at, growth_state, k,
-            reported_state.λ_bg, reported_state.τ_test;
+            bvd_reported_at, growth_state, k, λ_bg, τ_test;
             lab_delay = lab_delay,
             test_sensitivity = test_sensitivity), false)
 
