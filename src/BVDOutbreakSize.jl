@@ -17,7 +17,7 @@ import FlexiChains
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
                            TYPEDFIELDS, TYPEDSIGNATURES
 using Distributions: Distribution, Gamma, cdf, ccdf, mgf, pdf, Poisson,
-                     NegativeBinomial, Binomial, Normal, LogNormal, Beta,
+                     NegativeBinomial, Normal, LogNormal, Beta,
                      truncated, censored
 using StatsFuns: logit, logistic
 using Integrals: IntegralProblem, GaussLegendre, solve
