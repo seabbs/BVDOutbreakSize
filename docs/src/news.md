@@ -27,37 +27,57 @@ each push to `main` also republishes the rendered analysis and the
 
 ### Modelling
 
-- Added a laboratory pipeline coupling cumulative tests analysed and
-  confirmed cases to the latent incidence, with a testing fraction, PCR
-  sensitivity and a report-to-confirmation (lab-turnaround) delay.
+- Added a laboratory pipeline coupling the cumulative tests-analysed and
+  confirmed-case streams to the latent incidence, introducing a testing
+  fraction, PCR sensitivity and a report-to-confirmation (lab-turnaround)
+  delay, with right-truncation of the tested observation handled by the
+  lab-delay CDF.
 - Rewrote the suspected-cases stream as a BVD-driven onset-to-report
-  convolution plus an additive non-BVD background rate.
+  convolution plus an additive non-BVD background rate, exposing the
+  implied per-suspected positivity as a derived quantity.
 - Fit the DRC suspected-case, laboratory-confirmed and suspected-death
   streams per sitrep vintage: `bvd_joint` conditions on the
-  between-vintage increments rather than a single cut-off total, a
-  single-vintage stream reducing to the cumulative McCabe et al.
-  configuration; each stream carries its own vintage offsets.
-- Added `confirmed_only_model` for the per-stream laboratory fit.
+  between-vintage increments rather than a single cut-off total, and a
+  single-vintage stream reduces exactly to the cumulative likelihood,
+  recovering the McCabe et al. configuration. Each case bin carries a
+  per-bin random-effect DRC ascertainment, confirmed cases enter as
+  per-vintage NegBinomial increments with per-test positivity a derived
+  quantity, and each stream carries its own vintage offsets so a lagging
+  stream is not assumed to run to the cut-off.
+- Added `confirmed_only_model`, a single-stream composer that fits the
+  laboratory pipeline in isolation for the per-stream comparison.
 - Added `forecast_vs_truth_trajectory`: scores the retrospective forecast
   against the observed cumulative at every sitrep date across the horizon,
   not just the endpoint.
 
 ### Outputs
 
-- Laboratory-pipeline pair plot, posterior-predictive panels for the
-  confirmed and tests-analysed streams, and the laboratory and
-  per-vintage time-series streams in the data table.
-- `plot_vintage_ppc`: posterior-predictive across the sitrep series,
-  overlaying the replicate and observed cumulative trajectories.
+- Posterior summary table and a laboratory-pipeline pair plot covering the
+  report and lab delays, PCR sensitivity, testing fraction, background
+  rate and the per-suspected and per-test positivity.
+- Posterior-predictive panels for the confirmed and tests-analysed
+  streams, included in the per-stream-versus-joint grid and the
+  one-week-ahead forecast; the laboratory streams and the per-vintage
+  time-series table also appear in the data table.
+- `plot_vintage_ppc`: a posterior-predictive-across-the-sitrep-series
+  figure that reconstructs the cumulative replicate at each vintage and
+  overlays the observed trajectory, checking the fit against the whole
+  series rather than only the latest total.
 
 ### Documentation
 
 - Surfaced the onset-to-report and report-to-lab delay priors as
-  equations and distributed the per-vintage increment maths into each
-  submodel section.
+  equations; the onset-to-death prior means are the BDBV reanalysis
+  estimates (about an 11-day mean) with standard deviations reproducing
+  its 95% credible intervals.
+- Clarified that the latent cumulative count is the true-case pool, not
+  the tested or confirmed count, and framed the testing-fraction prior as
+  weakly informative with no outbreak-specific data.
+- Distributed the per-vintage increment maths into each submodel section.
 - Cited the INSP situation reports and the INRB-UMIE archive.
-- Added limitations on the constant growth-rate assumption and on
-  per-sitrep increments mixing incidence with backfill and ascertainment.
+- Added limitations on the constant exponential growth-rate assumption
+  holding beyond the report period, and on per-sitrep increments mixing
+  true incidence with backfill and rising ascertainment.
 
 ## v1.2.0
 
