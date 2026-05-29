@@ -258,36 +258,25 @@ Random.seed!(20260518)
 #
 # The analysis uses a handful of aggregate counts. The DRC suspected
 # cases, suspected deaths and laboratory-confirmed cases are the
-# national cumulative figures from the INSP situation reports for the
-# 17th Ebola epidemic, read directly from the report PDFs (INRB-UMIE
-# archive, `data/insp_sitrep/raw`). We use the report headline and
-# laboratory-section totals rather than the published per-zone daily
-# CSVs: the CSVs are split by health zone and drop counts that cannot
-# be attributed to a zone (`échantillons sans fiche`) or that a zone
-# did not report, so their zone sums understate the national total.
-# The figures were transcribed from the PDFs with an LLM agent and
-# independently re-scanned by a second agent; where a report's headline
-# disagreed with the sum of its own per-zone table we took the
-# zone-table sum (the 23 May report prints 119 suspected deaths in
-# error against zone rows summing to 220). They are recorded in
-# `data/insp_sitrep_scanned.csv`. The 18-22 May points predate the
-# national-headline format and use WHO AFRO Weekly External Situation
-# Report 01, data as of 18 May 2026 [who_afro_sitrep01_2026](@cite).
-# The Uganda export-case counts and deaths come from WHO; the
-# first-export hospital-admission date and the dated death among the
-# exports come from WHO Disease Outbreak News DON602
-# [who_don_2026_602](@cite). The daily cross-border traveller volume
-# and source-area population are taken from the McCabe et al. report
-# [mccabe2026](@cite). The first table below lists each figure as of
-# the data cut-off with its source; the suspected counts are
-# unconfirmed. The three DRC streams
-# (suspected cases, laboratory-confirmed cases and suspected deaths) are
-# additionally resolved by sitrep vintage and fitted as a time series of
-# between-vintage increments; the second table shows that per-vintage
-# cumulative history. The source population is treated as fixed
-# (census data); the daily outbound traveller volume is given a normal
-# prior centred at the McCabe et al. figure with an SD covering point-
-# of-entry variation.
+# national cumulative totals from the INSP situation reports, read from
+# the report PDFs rather than the published per-zone CSVs (which drop
+# cases not yet attributed to a health zone, understating the national
+# total). They were read from the PDFs with an LLM agent and
+# independently re-scanned by a second agent; the values, with their
+# per-vintage sources and caveats, are recorded in
+# `data/insp_sitrep_scanned.csv` and `data/observations.toml`. The
+# 18-22 May points predate that reporting format and use WHO AFRO Weekly
+# External Situation Report 01 [who_afro_sitrep01_2026](@cite). The
+# Uganda export-case counts and deaths, the first-export detection date
+# and the dated export death come from WHO Disease Outbreak News DON602
+# [who_don_2026_602](@cite); the cross-border traveller volume and
+# source population from the McCabe et al. report [mccabe2026](@cite).
+# The first table lists each figure as of the cut-off (the suspected
+# counts are unconfirmed); the source population is fixed and the
+# traveller volume is given a normal prior around the McCabe et al.
+# figure. The three DRC streams are additionally resolved by sitrep
+# vintage and fitted as between-vintage increments, shown in the second
+# table.
 
 #md # ```@raw html
 #md # <details><summary>Loading observations and building the data table</summary>
