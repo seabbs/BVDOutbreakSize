@@ -244,6 +244,8 @@ observations_table = DataFrame(
         "exports_deaths",
         "total_deaths",
         "reported_cases",
+        "confirmed_cases",
+        "cumulative_tests_analysed",
         "daily_outbound_travellers",
         "daily_outbound_travellers_sd",
         "source_population"
@@ -253,6 +255,8 @@ observations_table = DataFrame(
         obs.exports_deaths,
         obs.total_deaths,
         obs.reported_cases,
+        obs.confirmed_cases,
+        obs.cumulative_tests_analysed,
         obs.daily_outbound_travellers,
         obs.daily_outbound_travellers_sd,
         obs.source_population
@@ -262,6 +266,8 @@ observations_table = DataFrame(
         obs.sources.exports_deaths,
         obs.sources.total_deaths,
         obs.sources.reported_cases,
+        obs.sources.confirmed_cases,
+        obs.sources.cumulative_tests_analysed,
         obs.sources.daily_outbound_travellers,
         obs.sources.daily_outbound_travellers_sd,
         obs.sources.source_population
@@ -311,32 +317,43 @@ observations_table #hide
 # submodels into the per-stream fits and the joint fit.
 #
 # The table below shows which building-block parameters feed each
-# observation submodel:
+# observation submodel. The *confirmed & tested* column covers the
+# laboratory pipeline, which observes the cumulative tests analysed and
+# the confirmed (PCR-positive) cases:
 #
-# | Parameter | Exports | Deaths | Cases | Export deaths (time-resolved) | First export-detection timing | Genetic seeding |
-# |---|:---:|:---:|:---:|:---:|:---:|:---:|
-# | Growth $C(s) = e^{rs}$ | ● | ● | ● | ● | ● | ● |
-# | Onset-to-death delay |  | ● |  | ● |  |  |
-# | Case-fatality ratio |  | ● |  | ● |  |  |
-# | Detection window | ● |  |  | ● | ● |  |
-# | Surveillance dispersion |  | ● | ● |  |  |  |
-# | Ascertainment | ● |  | ● | ● | ● |  |
-# | Traveller volume | ● |  |  | ● | ● |  |
+# | Parameter | Exports | Deaths | Cases | Confirmed & tested | Export deaths (time-resolved) | First export-detection timing | Genetic seeding |
+# |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+# | Growth $C(s) = e^{rs}$ | ● | ● | ● | ● | ● | ● | ● |
+# | Onset-to-death delay |  | ● |  |  | ● |  |  |
+# | Case-fatality ratio |  | ● |  |  | ● |  |  |
+# | Onset-to-report delay |  |  | ● | ● |  |  |  |
+# | Report-to-lab delay |  |  |  | ● |  |  |  |
+# | PCR sensitivity $s$ |  |  |  | ● |  |  |  |
+# | Testing fraction $\tau$ |  |  |  | ● |  |  |  |
+# | Background rate $\lambda_{\text{bg}}$ |  |  | ● | ● |  |  |  |
+# | Detection window | ● |  |  |  | ● | ● |  |
+# | Surveillance dispersion |  | ● | ● | ● |  |  |  |
+# | Ascertainment | ● |  | ● | ● | ● | ● |  |
+# | Traveller volume | ● |  |  |  | ● | ● |  |
 #
 # The model components, in the order they appear below:
 #
 # 1. **Building-block submodels** — one per parameter family
-#    (growth, onset-to-death delay, CFR, detection window, daily
+#    (growth, onset-to-death delay, CFR, onset-to-report delay,
+#    report-to-lab delay, PCR sensitivity, testing fraction and
+#    background rate, detection window, daily
 #    traveller volume, surveillance dispersion, ascertainment). Each
 #    samples its own
 #    priors and returns a small NamedTuple of values. These sections
 #    introduce only the maths for their own parameters.
-# 2. **Observation submodels** — exports, deaths, cases, deaths-among-
-#    exports (time-resolved), and the first export-detection timing.
-#    Each takes the growth state as input, introduces the
+# 2. **Observation submodels** — exports, deaths, cases, the
+#    laboratory pipeline (cumulative tests analysed and confirmed
+#    cases), deaths-among-exports (time-resolved), and the first
+#    export-detection timing. Each takes the growth state as input,
+#    introduces the
 #    forward integral it needs and the likelihood, and ties one data
 #    stream to the latent $C(T)$.
-# 3. **Composers** — one per analysis: the four single-stream fits, a
+# 3. **Composers** — one per analysis: the five single-stream fits, a
 #    two-stream reimplementation of the report's methods (exports and
 #    deaths), and the full joint fit. Each samples the building blocks
 #    and the relevant observation
@@ -1369,7 +1386,14 @@ cfr_prior_fig #hide
 #md # <details><summary>Sample the joint prior</summary>
 #md # ```
 
-prior_chn = sample(bvd_joint(missing, missing, missing, Int[]),
+## Dummy non-missing confirmed/tested counts instantiate the laboratory
+## submodel so its priors (α_lab, θ_lab, s, plus the derived per-test
+## positivity) appear in the prior chain for the lab-pipeline pair plot.
+## Under `Prior()` the likelihood is discarded, so the placeholder values
+## do not influence the sampled priors.
+prior_chn = sample(
+    bvd_joint(missing, missing, missing, Int[];
+        confirmed_cases = 0, cumulative_tests_analysed = 0),
     Prior(), 2_000; progress = false);
 
 prior_C_table = summary_table(prior_chn, [:cumulative_cases]; digits = 0);
@@ -1389,7 +1413,8 @@ prior_C_table #hide
 
 prior_pair_fig = plot_pair(prior_chn,
     [:τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k, :k,
-        :p_drc, :p_uganda, :τ_logit]);
+        :p_drc, :p_uganda, :τ_logit,
+        :λ_bg, :τ_test, :s_test, :positivity, :p_positive]);
 
 #md # ```@raw html
 #md # </details>
@@ -1738,8 +1763,13 @@ start_date_fig #hide
 # $r$, doubling-time multiplier $m$, days since seeding $T$, CFR, the
 # DRC and Uganda ascertainment fractions $p_{\text{DRC}}$ and $p_{\text{Uganda}}$, the
 # pooling SD $\tau_{\text{logit}}$, the surveillance dispersion on both
-# the sampled $1/\sqrt{k}$ scale and the more familiar $k$ scale, and
-# cumulative cases $C(T)$.
+# the sampled $1/\sqrt{k}$ scale and the more familiar $k$ scale, the
+# laboratory-pipeline parameters — onset-to-report delay shape and scale
+# $\alpha_{\text{rep}}$, $\theta_{\text{rep}}$, report-to-lab delay
+# $\alpha_{\text{lab}}$, $\theta_{\text{lab}}$, PCR sensitivity $s$,
+# testing fraction $\tau$, the non-BVD background rate
+# $\lambda_{\text{bg}}$, the per-suspected positivity $\pi$ and the
+# per-test positivity $p_{\text{pos}}$ — and cumulative cases $C(T)$.
 
 #md # ```@raw html
 #md # <details><summary>Joint posterior summary table</summary>
@@ -1747,7 +1777,9 @@ start_date_fig #hide
 
 joint_summary = summary_table(chn_joint,
     [:r, :m, :T, :CFR, :p_drc, :p_uganda, :τ_logit,
-        :inv_sqrt_k, :k, :cumulative_cases]; digits = 2);
+        :inv_sqrt_k, :k, :α_rep, :θ_rep, :α_lab, :θ_lab,
+        :s_test, :τ_test, :λ_bg, :positivity, :p_positive,
+        :cumulative_cases]; digits = 2);
 
 #md # ```@raw html
 #md # </details>
@@ -1774,6 +1806,32 @@ posterior_pair_fig = plot_pair(chn_joint,
 
 posterior_pair_fig #hide
 
+# A second pair plot covers the laboratory-pipeline parameters that the
+# confirmed and tests-analysed streams add: the onset-to-report delay
+# shape and scale $\alpha_{\text{rep}}$, $\theta_{\text{rep}}$, the
+# report-to-lab delay $\alpha_{\text{lab}}$, $\theta_{\text{lab}}$, PCR
+# sensitivity $s$, the testing fraction $\tau$ and the non-BVD background
+# rate $\lambda_{\text{bg}}$, against cumulative cases $C(T)$. The prior
+# is overlaid so the contribution of the lab observations to each
+# marginal is visible — the delay and sensitivity priors are only weakly
+# updated, while $\tau$ and $\lambda_{\text{bg}}$ are informed by the
+# testing-volume gate.
+
+#md # ```@raw html
+#md # <details><summary>Laboratory-pipeline pair plot (prior overlaid)</summary>
+#md # ```
+
+lab_pair_fig = plot_pair(chn_joint,
+    [:α_rep, :θ_rep, :α_lab, :θ_lab, :s_test, :τ_test,
+        :λ_bg, :cumulative_cases];
+    prior = prior_chn);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+lab_pair_fig #hide
+
 # The DRC reporting fraction $p_{\text{DRC}}$ is the share of true cases
 # that reach the reported suspected-case count. The reported total
 # therefore scales up to the cumulative case load by about
@@ -1799,6 +1857,7 @@ pp_joint = predict(
         fill(missing, length(obs.export_deaths_daily));
         confirmed_cases = missing,
         cumulative_tests_analysed = missing,
+        predict_confirmed = true,
         pre_start_deaths = missing,
         pre_detection_exports = missing,
         first_export_detection_delta = obs.first_export_detection_delta,
@@ -1807,6 +1866,8 @@ pp_joint = predict(
 pp_exports = vec(Array(pp_joint[:exported_cases]));
 pp_deaths = vec(Array(pp_joint[:total_deaths]));
 pp_cases = vec(Array(pp_joint[:reported_cases]));
+pp_confirmed = vec(Array(pp_joint[:confirmed_cases]));
+pp_tests = vec(Array(pp_joint[:tests_analysed]));
 ## Export deaths are a per-day series held as one vector-valued variable
 ## in the FlexiChains predictive; sum each draw's daily counts for the
 ## total-count posterior predictive.
@@ -1818,7 +1879,11 @@ joint_ppc_fig = plot_posterior_predictive(
     pp_cases = pp_cases,
     obs_cases = obs.reported_cases,
     pp_exports_deaths = pp_exports_deaths,
-    obs_exports_deaths = obs.exports_deaths);
+    obs_exports_deaths = obs.exports_deaths,
+    pp_tests = pp_tests,
+    obs_tests = obs.cumulative_tests_analysed,
+    pp_confirmed = pp_confirmed,
+    obs_confirmed = obs.confirmed_cases);
 
 #md # ```@raw html
 #md # </details>
@@ -1881,7 +1946,9 @@ forecast = forecast_reported(chn_joint;
     source_population = ITURI_POPULATION,
     obs_cases = obs.reported_cases,
     obs_deaths = obs.total_deaths,
-    obs_exports = EXPORTED_CASES);
+    obs_exports = EXPORTED_CASES,
+    obs_confirmed = obs.confirmed_cases,
+    obs_tests = obs.cumulative_tests_analysed);
 forecast_summary = forecast_table(forecast);
 
 #md # ```@raw html
@@ -1929,6 +1996,11 @@ posterior_C_joint_report = vec(Array(chn_joint_report[:cumulative_cases]));
 
 validation_horizon = value(Date(obs.as_of_date) - Date(obs_report.as_of_date))
 
+## The report-snapshot fit predates the laboratory streams (no
+## `confirmed_cases` or `cumulative_tests_analysed` in its observation
+## toml), so the chain does not carry the lab-pipeline parameters and
+## the validation forecast covers the three streams that were
+## available at the snapshot date only.
 forecast_validation = forecast_reported(chn_joint_report;
     horizon = validation_horizon,
     daily_travellers = ITURI_DAILY_TRAVEL,

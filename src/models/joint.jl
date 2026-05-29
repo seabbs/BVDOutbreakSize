@@ -119,6 +119,7 @@ checks.
         export_deaths_daily::AbstractVector = Int[];
         confirmed_cases::Union{Missing, Integer} = missing,
         cumulative_tests_analysed::Union{Missing, Integer} = missing,
+        predict_confirmed::Bool = false,
         growth = exponential_growth_model(),
         exports = exports_model,
         deaths = deaths_model,
@@ -155,7 +156,13 @@ checks.
         reported_cases_submodel(reported_cases, growth_state, k, p_drc;
             report_delay = report_delay,
             test_positivity = test_positivity), false)
-    if confirmed_cases !== missing
+    ## Include the confirmed submodel when there is data to condition
+    ## on or when the caller explicitly opts in to predictive sampling
+    ## (`predict_confirmed = true`). Older snapshot fits with no
+    ## confirmed data should leave it off so NUTS does not attempt to
+    ## sample the discrete `tests_analysed` and `confirmed_cases`
+    ## variables.
+    if confirmed_cases !== missing || predict_confirmed
         confirmed_state ~ to_submodel(
             confirmed(confirmed_cases, cumulative_tests_analysed,
                 reported_state.bvd_reported_at, growth_state, k,

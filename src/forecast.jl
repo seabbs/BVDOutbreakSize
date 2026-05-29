@@ -34,6 +34,25 @@ function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
            delay_convolution(bvd_reported_at, Th, d_lab; alg)
 end
 
+# Cumulative tests analysed at horizon `Th`: τ_test gates both the BVD
+# contribution (lab-completed BVD samples) and the non-BVD background
+# (constant arrival rate λ_bg convolved against F_lab).
+function _forecast_tests_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
+        p_drc, λ_bg, τ_test; alg = DEATH_INTEGRAL_ALG)
+    d_rep = Gamma(α_rep, θ_rep)
+    d_lab = Gamma(α_lab, θ_lab)
+    bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep, alg = alg
+        u -> p_drc * delay_convolution(one(p_drc), r, u, d_rep; alg)
+    end
+    bvd_tested = delay_convolution(bvd_reported_at, Th, d_lab; alg)
+    bg_integrand = let α_lab = α_lab, θ_lab = θ_lab, Th = Th
+        u -> _gamma_cdf(α_lab, θ_lab, Th - u)
+    end
+    bg_tested = λ_bg * integrate(bg_integrand, zero(Th), Th,
+        _delay_scale(d_lab); alg)
+    return τ_test * (bvd_tested + bg_tested)
+end
+
 function _nb_rand(rng, k, μ)
     μs = max(μ, eps(typeof(μ)))
     p = clamp(k / (k + μs), eps(typeof(k)), one(k) - eps(typeof(k)))
@@ -73,6 +92,7 @@ function forecast_reported(chn;
         obs_deaths::Real,
         obs_exports::Real,
         obs_confirmed::Union{Real, Missing} = missing,
+        obs_tests::Union{Real, Missing} = missing,
         seed::Integer = 20260520,
         alg = DEATH_INTEGRAL_ALG)
     r = _draws(chn, :r)
@@ -102,6 +122,7 @@ function forecast_reported(chn;
                    _draws(chn, :τ_test) :
                    (has_lab ? ones(length(r)) : nothing)
 
+    has_tests = has_lab && obs_tests !== missing
     rng = MersenneTwister(seed)
     n = length(r)
     q = daily_travellers / source_population
@@ -109,6 +130,7 @@ function forecast_reported(chn;
     deaths_cum = Vector{Int}(undef, n)
     exports_cum = Vector{Int}(undef, n)
     confirmed_cum = has_lab ? Vector{Int}(undef, n) : nothing
+    tests_cum = has_tests ? Vector{Int}(undef, n) : nothing
 
     @inbounds for i in 1:n
         Th = T[i] + horizon
@@ -130,6 +152,12 @@ function forecast_reported(chn;
                 α_rep[i], θ_rep[i], α_lab[i], θ_lab[i], pr[i],
                 s_test[i], τ_test_draws[i]; alg)
             confirmed_cum[i] = _nb_rand(rng, k[i], μ_confirmed)
+            if has_tests
+                μ_tests = _forecast_tests_mean(r[i], Th,
+                    α_rep[i], θ_rep[i], α_lab[i], θ_lab[i],
+                    pr[i], λ_bg[i], τ_test_draws[i]; alg)
+                tests_cum[i] = _nb_rand(rng, k[i], μ_tests)
+            end
         end
     end
 
@@ -145,6 +173,10 @@ function forecast_reported(chn;
     if has_lab
         df.confirmed_cum = confirmed_cum
         df.confirmed_new = _new(confirmed_cum, obs_confirmed)
+    end
+    if has_tests
+        df.tests_cum = tests_cum
+        df.tests_new = _new(tests_cum, obs_tests)
     end
     return df
 end
@@ -179,10 +211,16 @@ function forecast_table(fc::DataFrame; digits::Integer = 0)
             upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
     end
     rows = NamedTuple[]
-    for (label, cum, new) in (
+    streams = [
         ("DRC reported cases", :cases_cum, :cases_new),
         ("DRC deaths", :deaths_cum, :deaths_new),
-        ("Uganda exports", :exports_cum, :exports_new))
+        ("Uganda exports", :exports_cum, :exports_new)]
+    :tests_cum in propertynames(fc) &&
+        push!(streams, ("DRC tests analysed", :tests_cum, :tests_new))
+    :confirmed_cum in propertynames(fc) &&
+        push!(streams, ("DRC confirmed cases",
+            :confirmed_cum, :confirmed_new))
+    for (label, cum, new) in streams
         push!(rows, _row(label, "cumulative by T+7", fc[!, cum]))
         push!(rows, _row(label, "new this week", fc[!, new]))
     end
@@ -201,7 +239,10 @@ from an earlier data snapshot and check the now-known truth against the
 projection.
 """
 function forecast_vs_truth(fc::DataFrame;
-        cases::Real, deaths::Real, exports::Real, digits::Integer = 0)
+        cases::Real, deaths::Real, exports::Real,
+        confirmed::Union{Real, Missing} = missing,
+        tests::Union{Real, Missing} = missing,
+        digits::Integer = 0)
     _row(label,
         draws,
         obs) = begin
@@ -214,10 +255,18 @@ function forecast_vs_truth(fc::DataFrame;
             upper_60 = round(s.hi60; digits), upper_90 = hi,
             within_90 = lo <= obs <= hi ? "yes" : "no")
     end
-    rows = [
-        _row("DRC reported cases", fc[!, :cases_cum], cases),
-        _row("DRC deaths", fc[!, :deaths_cum], deaths),
-        _row("Uganda exports", fc[!, :exports_cum], exports)
-    ]
+    rows = NamedTuple[
+    _row("DRC reported cases", fc[!, :cases_cum], cases),
+    _row(
+        "DRC deaths", fc[!, :deaths_cum], deaths),
+    _row(
+        "Uganda exports", fc[!, :exports_cum], exports)
+]
+    tests !== missing && :tests_cum in propertynames(fc) &&
+        push!(rows,
+            _row("DRC tests analysed", fc[!, :tests_cum], tests))
+    confirmed !== missing && :confirmed_cum in propertynames(fc) &&
+        push!(rows,
+            _row("DRC confirmed cases", fc[!, :confirmed_cum], confirmed))
     return _prettify(DataFrame(rows))
 end

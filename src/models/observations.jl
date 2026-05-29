@@ -228,22 +228,15 @@ the model is purely prior-predictive.
         one(p_pos_raw) - eps(typeof(p_pos_raw))) :
                   eps(typeof(p_pos_raw))
 
-    ## Testing-volume likelihood. Skipped when no tests-analysed
-    ## observation is supplied — falls through to the cumulative
-    ## confirmed NegBinomial below for prior-predictive callers.
-    if !ismissing(tests_analysed)
-        tests_analysed ~ safe_nbinomial(k, expected_tested)
-        ## Confirmed-given-tested Binomial. `tests_analysed` is a data
-        ## integer here (not a sampled latent), so the discrete-trial
-        ## count of the Binomial is fixed by the observation.
-        confirmed_cases ~ Binomial(tests_analysed, p_positive)
-    else
-        ## No tests-analysed data: use the original cumulative-count
-        ## form on confirmed alone. Means scale by τ relative to the
-        ## pre-test-positivity form; equivalent up to that factor.
-        expected_confirmed := s_test * BVD_tested
-        confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
-    end
+    ## Testing-volume likelihood (NegBinomial). When `tests_analysed`
+    ## is `missing` (prior- and posterior-predictive callers) the `~`
+    ## becomes a sampling step that draws the predictive count; when
+    ## it is data the same line is a likelihood evaluation. The
+    ## subsequent Binomial uses whichever value was supplied or
+    ## sampled, so the predictive distribution reaches both
+    ## tests_analysed and confirmed_cases without an explicit fallback.
+    tests_analysed ~ safe_nbinomial(k, expected_tested)
+    confirmed_cases ~ Binomial(Int(tests_analysed), p_positive)
 
     return (; expected_tested, p_positive,
         BVD_tested, bg_tested, s_test, τ_test,
