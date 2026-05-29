@@ -10,26 +10,24 @@ each push to `main` also republishes the rendered analysis and the
 
 ### Data
 
-- Advanced the data cut-off to 26 May 2026 (INSP SitRep 012).
-- Switched the DRC suspected-case, suspected-death and
-  laboratory-confirmed counts to the national cumulative totals read
-  directly from the INSP situation-report PDFs, rather than summing the
-  published per-zone CSVs. The per-zone breakdown is inconsistent with
-  the national totals (its zone sums drop cases not yet attributed to a
-  health zone), so the national figures are used. Values were read from
-  the PDFs with a language-model agent and independently re-scanned by a
-  second agent, and are recorded in `data/insp_sitrep_scanned.csv`.
-- Cut-off figures (26 May): 1077 suspected cases, 238 suspected deaths,
-  121 laboratory-confirmed and 403 cumulative samples analysed. The
-  per-vintage history now runs 18-26 May and includes 24 May (the
-  national headline series is monotone). The 23 May suspected-death
-  total uses the SitRep 009 per-zone sum (220); the report headline
-  (119) is a data-entry error.
-- Refreshed the laboratory totals from the sitrep lab sections
-  (confirmed 101 to 121, cumulative samples analysed 211 to 403).
-- Added the laboratory streams and a per-vintage time-series table to
-  the reader-facing data table, and cited the INSP situation reports
-  and the INRB-UMIE archive.
+- Advanced the cut-off to 26 May 2026 and switched the DRC streams to the
+  national cumulative totals read from the INSP situation-report PDFs
+  (SitReps 009-012), rather than the per-zone CSVs whose zone sums drop
+  cases not yet attributed to a zone. Figures were read by a
+  language-model agent and independently re-scanned; recorded in
+  `data/insp_sitrep_scanned.csv`.
+- Cut-off (26 May): 1077 suspected cases, 238 suspected deaths, 121
+  confirmed, 403 samples analysed. The per-vintage history runs 18-26 May;
+  23 May deaths use the SitRep 009 zone-row sum (220), the headline (119)
+  being a data-entry error.
+- Showed the laboratory streams and the per-vintage time series in the
+  data table, and cited the INSP reports and the INRB-UMIE archive.
+
+### Modelling
+
+- Added `forecast_vs_truth_trajectory`: scores the retrospective forecast
+  against the observed cumulative at every sitrep date across the horizon,
+  not just the endpoint.
 
 ## v1.2.0
 
