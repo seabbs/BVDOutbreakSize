@@ -338,20 +338,23 @@ the cumulative confirmed likelihood.
 end
 
 """
-Bin-mean kernel for the per-vintage NegBinomial likelihoods. For `n`
+Bin-mean kernel for the per-bin count likelihoods. For `n`
 cumulative-intensity values ``\\Lambda(t_k)`` at the bin edges, returns
-the `n` between-vintage increments `[Λ(t_1), Λ(t_2)-Λ(t_1), ...]`
+the `n` between-edge increments `[Λ(t_1) - Λ_0, Λ(t_2)-Λ(t_1), ...]`
 clamped to be strictly positive and finite. Shared by
-[`reported_cases_model`](@ref), [`confirmed_cases_model`](@ref) and
-[`deaths_model`](@ref) so the bin-difference logic lives in one place.
-The first element is the cumulative at the first edge, so a single edge
-reduces to the cumulative single-total mean.
+[`reported_cases_model`](@ref), [`confirmed_cases_model`](@ref),
+[`deaths_model`](@ref) and [`exports_deaths_model`](@ref) so the
+bin-difference logic lives in one place. `init` is the cumulative value
+the first bin is measured from (`Λ_0`); it defaults to zero, so the
+first element is the cumulative at the first edge and a single edge
+reduces to the cumulative single-total mean. The exported-deaths stream
+passes its pre-death survival weight as `init`.
 """
-function daily_increment_kernel(Λ_at_edges::AbstractVector)
+function daily_increment_kernel(Λ_at_edges::AbstractVector; init = nothing)
     n = length(Λ_at_edges)
     Tt = eltype(Λ_at_edges)
     means = Vector{Tt}(undef, n)
-    Λ_prev = zero(Tt)
+    Λ_prev = init === nothing ? zero(Tt) : convert(Tt, init)
     @inbounds for i in 1:n
         raw = Λ_at_edges[i] - Λ_prev
         means[i] = isfinite(raw) ? max(raw, eps(typeof(raw))) :
@@ -393,13 +396,14 @@ likelihoods share person-time.
     pre = T - n > zero(T) ? Λ(T - n) : zero(T)
     pre_start_deaths ~ Poisson(max(pre, zero(pre)))
 
-    ## Carry the upper edge forward so each Λ is evaluated once.
-    λlo = pre
+    ## Per-day means via the shared between-edge differencing
+    ## (`daily_increment_kernel`), the same construction as the DRC
+    ## streams but starting from the pre-death survival weight `pre`
+    ## rather than zero.
+    Λ_at_edges = [Λ(T - n + i) for i in 1:n]
+    μ_day = daily_increment_kernel(Λ_at_edges; init = pre)
     for i in 1:n
-        λhi = Λ(T - n + i)
-        μ_day = max(λhi - λlo, eps(typeof(λhi)))
-        export_deaths_daily[i] ~ Poisson(μ_day)
-        λlo = λhi
+        export_deaths_daily[i] ~ Poisson(μ_day[i])
     end
 
     return (;)
