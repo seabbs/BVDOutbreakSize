@@ -74,6 +74,11 @@ each push to `main` also republishes the rendered analysis and the
   not the tested or confirmed count, and framed the testing-fraction
   prior as weakly informative with no outbreak-specific data.
 - Refreshed the Uganda-exports limitation for the three-import data.
+- Submodel source listings render only the code (via `@eval`), no
+  longer echoing the `@code_string` print statements above each block.
+- Clipped the overlaid per-stream C(T) density x-axis so the
+  heavy-tailed exports-deaths fit no longer compresses the other
+  curves.
 
 ## v1.1.0
 

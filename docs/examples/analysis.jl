@@ -437,10 +437,10 @@ observations_table #hide
 #md # <details><summary>Submodel: exponential_growth_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.exponential_growth_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.exponential_growth_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -482,11 +482,10 @@ observations_table #hide
 #md # <details><summary>Submodel: genetic_seeding_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.genetic_seeding_model(100.0, 50.0;
-#md #     tmrca_days_sd = 15.0))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.genetic_seeding_model(100.0, 50.0; tmrca_days_sd = 15.0)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -536,10 +535,10 @@ observations_table #hide
 #md # <details><summary>Submodel: delay_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.delay_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.delay_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -587,10 +586,10 @@ observations_table #hide
 #md # <details><summary>Submodel: report_delay_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.report_delay_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.report_delay_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -601,10 +600,10 @@ observations_table #hide
 #md # <details><summary>Submodel: lab_delay_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.lab_delay_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.lab_delay_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -635,10 +634,10 @@ observations_table #hide
 #md # <details><summary>Submodel: cfr_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.cfr_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.cfr_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -667,10 +666,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: detection_window_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.detection_window_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.detection_window_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -693,10 +692,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: traveller volume</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.traveller_volume_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.traveller_volume_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -748,10 +747,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: surveillance_dispersion_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.surveillance_dispersion_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.surveillance_dispersion_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -806,10 +805,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: pooled_ascertainment_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.pooled_ascertainment_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.pooled_ascertainment_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -828,10 +827,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Function: safe_nbinomial</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.safe_nbinomial(1.0, 1.0))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.safe_nbinomial(1.0, 1.0)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -907,10 +906,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: exports_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.exports_model(1, nothing, 0.25))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.exports_model(1, nothing, 0.25)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -949,10 +948,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: deaths_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.deaths_model(1, nothing, 1.0))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.deaths_model(1, nothing, 1.0)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1015,10 +1014,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: test_positivity_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.test_positivity_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.test_positivity_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1029,11 +1028,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: reported_cases_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.reported_cases_model(
-#md #     1, nothing, 1.0, 0.25))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.reported_cases_model( 1, nothing, 1.0, 0.25)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1124,10 +1122,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: test_sensitivity_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.test_sensitivity_model())
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.test_sensitivity_model()), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1138,11 +1136,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: confirmed_cases_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.confirmed_cases_model(
-#md #     1, 1, identity, nothing, 1.0, 1.0, 1.0))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.confirmed_cases_model( 1, 1, identity, nothing, 1.0, 1.0, 1.0)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1212,12 +1209,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: exports_deaths_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.exports_deaths_model(
-#md #     Int[], nothing, 0.33, nothing, 0.25;
-#md #     window = 15.0, daily_travellers = 1871.0))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.exports_deaths_model( Int[], nothing, 0.33, nothing, 0.25; window = 15.0, daily_travellers = 1871.0)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1245,12 +1240,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Submodel: exports_detection_timing_model</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.exports_detection_timing_model(
-#md #     nothing, 0.25;
-#md #     delta = missing, window = 15.0, daily_travellers = 1871.0))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.exports_detection_timing_model( nothing, 0.25; delta = missing, window = 15.0, daily_travellers = 1871.0)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1297,10 +1290,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Composer: exports-only fit</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.exports_only_model(1))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.exports_only_model(1)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1313,10 +1306,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Composer: deaths-only fit</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.deaths_only_model(1))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.deaths_only_model(1)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1328,10 +1321,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Composer: cases-only fit</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.cases_only_model(1))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.cases_only_model(1)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1343,10 +1336,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Composer: exports-deaths-only fit</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.exports_deaths_only_model(Int[]))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.exports_deaths_only_model(Int[])), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1365,10 +1358,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Composer: joint fit</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.bvd_joint(1, 1))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.bvd_joint(1, 1)), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1390,10 +1383,10 @@ cfr_prior_fig #hide
 #md # <details><summary>Composer: report reimplementation</summary>
 #md # ```
 
-#md # ```@example main
-#md # println("```julia")
-#md # print(@code_string BVDOutbreakSize.imperial_only_model(1, 1))
-#md # println("\n```")
+#md # ```@eval
+#md # using BVDOutbreakSize, CodeTracking, Markdown
+#md # Markdown.parse(string("```julia\n",
+#md #     (@code_string BVDOutbreakSize.imperial_only_model(1, 1)), "\n```"))
 #md # ```
 
 #md # ```@raw html
