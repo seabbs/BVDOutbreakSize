@@ -32,7 +32,7 @@ function plot_cumulative_cases(
            AoG.mapping(:C_T => "Cumulative cases C_T",
                color = :stream => "Data stream") *
            AoG.AlgebraOfGraphics.density() *
-           AoG.visual(linewidth = 2)
+           AoG.subvisual(:line, linewidth = 2)
     fg = AoG.draw(spec;
         axis = (; ylabel = "Posterior density",
             title = "Posterior C_T by data stream",
@@ -69,7 +69,7 @@ function plot_density_overlay(
     spec = AoG.data(df) *
            AoG.mapping(:value => xlabel, color = :stream => "Fit") *
            AoG.AlgebraOfGraphics.density() *
-           AoG.visual(linewidth = 2)
+           AoG.subvisual(:line, linewidth = 2)
     return AoG.draw(spec;
         axis = (; ylabel = "Posterior density", title = title),
         figure = (; size = (760, 420))
