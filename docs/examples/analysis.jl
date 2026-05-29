@@ -961,13 +961,15 @@ cfr_prior_fig #hide
 
 # ##### Reported cases
 #
-# $C(T)$ is the latent count of cases that will ultimately be
-# laboratory-confirmable. Suspected reports include test-negative
-# referrals — alternative differential diagnoses such as malaria or
-# other febrile illness — whose rate we assume is set by background
-# prevalence and surveillance intensity, not by BVD growth. We therefore
-# model the suspected stream as the sum of a BVD-driven component and a
-# non-BVD background that accrues with elapsed surveillance time:
+# $C(T)$ is the latent count of true BVD cases — those that would test
+# positive if sampled, not the count actually tested or confirmed (only
+# a fraction $\tau$ are tested, see the lab pipeline below). Suspected
+# reports include test-negative referrals — alternative differential
+# diagnoses such as malaria or other febrile illness — whose rate we
+# assume is set by background prevalence and surveillance intensity, not
+# by BVD growth. We therefore model the suspected stream as the sum of a
+# BVD-driven component and a non-BVD background that accrues with elapsed
+# surveillance time:
 #
 # ```math
 # \mu_{\text{BVD}} = p_{\text{DRC}}
@@ -982,9 +984,7 @@ cfr_prior_fig #hide
 #
 # $\lambda_{\text{bg}}$ is the expected non-BVD suspected reports per
 # day. The implied per-suspected positivity at the cut-off is
-# $\pi = \mu_{\text{BVD}} / \mu_{\text{cases}}$, a derived quantity
-# distinct from the per-test positivity used by the lab pipeline
-# below. Half-Normal prior:
+# $\pi = \mu_{\text{BVD}} / \mu_{\text{cases}}$. Half-Normal prior:
 #
 # ```math
 # \lambda_{\text{bg}} \sim \mathrm{Normal}^{+}(0,\ 10)\ \text{per day}. \tag{20}
@@ -1043,7 +1043,7 @@ cfr_prior_fig #hide
 # ##### Tested-volume and confirmed cases
 #
 # The laboratory pipeline gives us two coupled observations. A fraction
-# $\tau$ of every suspected case gets routed to the lab; among samples
+# $\tau$ of suspected cases gets routed to the lab; among samples
 # whose processing has completed by $T$, BVD-positive ones return a
 # positive PCR with sensitivity $s$. Non-BVD samples are assumed never
 # to test positive (perfect specificity).
@@ -1069,8 +1069,8 @@ cfr_prior_fig #hide
 #     \tau\,\lambda_{\text{bg}} \int_0^T F_{\text{lab}}(T - u)\, du. \tag{22}
 # ```
 #
-# Cumulative tests analysed are NegBinomial; positive tests conditional
-# on the analysed denominator are Binomial:
+# Cumulative tests analysed follow a negative binomial; positive tests
+# conditional on the analysed denominator follow a binomial:
 #
 # ```math
 # Y_{\text{test}} \sim \mathrm{NegBinomial}(\mu_{\text{BVD,test}}
@@ -1085,12 +1085,13 @@ cfr_prior_fig #hide
 #     + \mu_{\text{bg,test}}}. \tag{24}
 # ```
 #
-# `τ_test` and `s` are separately identified once both `Y_test` and
-# `Y_conf` are observed: the absolute scale of `Y_test` pins `τ` (given
+# The testing fraction $\tau$ and sensitivity $s$ are separately
+# identified once both $Y_{\text{test}}$ and $Y_{\text{conf}}$ are
+# observed: the absolute scale of $Y_{\text{test}}$ pins $\tau$ (given
 # the BVD trajectory inferred jointly with the other streams), and the
-# `Y_conf / Y_test` ratio pins `s · BVD_fraction`. Without the
-# tests-analysed observation the two would be multiplicatively
-# confounded.
+# $Y_{\text{conf}} / Y_{\text{test}}$ ratio pins $s$ times the BVD share
+# of the tested pool. Without the tests-analysed observation the two
+# would be multiplicatively confounded.
 #
 # Beta prior on the PCR sensitivity, and a Beta prior on the fraction
 # of suspected cases that get routed to the lab:
@@ -1111,13 +1112,16 @@ cfr_prior_fig #hide
 # field handling, and the lack of Bundibugyo-specific validations.
 #
 # The testing fraction $\tau$ has a $\mathrm{Beta}(5, 2)$ prior (mean
-# $0.71$, $95\%$ interval $\sim 0.40$-$0.95$). The prior is pulled
-# away from $0$ because the model is sensitive to tiny $\tau$ values at
-# NUTS warmup — `expected_tested` then collapses to near-zero while
-# the observation `tests_analysed` is $\gg 0$. Posterior is identified
-# from the absolute scale of `tests_analysed` against the suspected
-# total and the lab-delay CDF integrals above, so the data can pull
-# $\tau$ well below the prior mean if that is what it implies.
+# $0.71$, $95\%$ interval $\sim 0.40$-$0.95$). As with the background
+# rate and the lab-delay above, no outbreak-specific data anchor it, so
+# this is a weakly informative prior that expresses only that a majority
+# — but not all — of suspected cases are sampled. The mass is kept away
+# from $0$ because a near-zero testing fraction drives the expected
+# tested volume to zero while the observed count is far from it, which
+# destabilises sampler initialisation. It is identified from the
+# absolute scale of the tests-analysed count against the suspected total
+# and the lab-delay integrals above, so the data can pull $\tau$ well
+# below the prior mean if that is what they imply.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_sensitivity_model</summary>
