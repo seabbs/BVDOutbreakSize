@@ -263,10 +263,13 @@ Random.seed!(20260518)
 # hospital-admission date and the dated death among the exports come
 # from WHO Disease Outbreak News DON602 [who_don_2026_602](@cite).
 # The daily cross-border traveller volume and source-area population
-# are taken from the McCabe et al. report [mccabe2026](@cite). All are
-# point-in-time totals as of the data cut-off, not time series, and
-# the suspected counts are unconfirmed. The table below lists each
-# figure with its source. The source population is treated as fixed
+# are taken from the McCabe et al. report [mccabe2026](@cite). The
+# first table below lists each figure as of the data cut-off with its
+# source; the suspected counts are unconfirmed. The three DRC streams
+# (suspected cases, laboratory-confirmed cases and suspected deaths) are
+# additionally resolved by sitrep vintage and fitted as a time series of
+# between-vintage increments; the second table shows that per-vintage
+# cumulative history. The source population is treated as fixed
 # (census data); the daily outbound traveller volume is given a normal
 # prior centred at the McCabe et al. figure with an SD covering point-
 # of-entry variation.
@@ -322,6 +325,30 @@ const EXPORTS_DEATHS = obs.exports_deaths
 #md # ```
 
 observations_table #hide
+
+# The per-vintage cumulative history of the three DRC sitrep streams,
+# summed across reporting health zones at each INSP situation-report
+# date. The joint model fits the between-vintage increments of these
+# series (a single vintage reduces to the cut-off total). Values are
+# auditable zone sums; see `data/observations.toml` for the per-stream
+# sources and the vintages held back.
+
+#md # ```@raw html
+#md # <details><summary>Building the per-vintage time-series table</summary>
+#md # ```
+
+vintage_table = DataFrame(
+    sitrep_date = obs.reported_case_history.dates,
+    suspected_cases = obs.reported_case_history.values,
+    confirmed_cases = obs.confirmed_case_history.values,
+    suspected_deaths = obs.death_history.values
+);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+vintage_table #hide
 
 # ### Model
 #

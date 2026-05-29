@@ -100,6 +100,12 @@ source = "INRB-UMIE/Ebola_DRC_2026 (https://github.com/INRB-UMIE/Ebola_DRC_2026,
 # 26 May cut-off (246) matches `total_deaths`. One zone (Kilo) revises
 # its 24 May death count down to zero on 25 May, but the aggregate stays
 # monotone across the kept vintages.
+# Note: the 23 May INSP sitrep (009) headline dashboard prints 119
+# cumulative suspected deaths, but that is a data-entry slip — the
+# per-zone rows in Tableau IV of the same report sum to 220, which is
+# the value used here (and what the zone-summed CSV gives). We use the
+# auditable zone sum throughout rather than the headline totals, which
+# carry occasional transcription errors like this one.
 [death_history]
 dates  = ["2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21",
           "2026-05-22", "2026-05-23", "2026-05-25", "2026-05-26"]
