@@ -27,6 +27,12 @@ StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Turing = "fce5fe82-541a-59a6-adf8-730c64b5f9a0"
 
+[weakdeps]
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+
+[extensions]
+BVDOutbreakSizeEnzymeExt = "Enzyme"
+
 [compat]
 ADTypes = "1.22"
 AlgebraOfGraphics = "0.10, 0.11"
@@ -38,6 +44,7 @@ DataFramesMeta = "0.15"
 Dates = "1"
 Distributions = "0.25"
 DocStringExtensions = "0.9"
+Enzyme = "0.13"
 FastGaussQuadrature = "1.2"
 FlexiChains = "0.6"
 Integrals = "4"
