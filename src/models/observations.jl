@@ -323,9 +323,12 @@ the cumulative confirmed likelihood.
         one(p_pos_raw) - eps(typeof(p_pos_raw))) :
                   eps(typeof(p_pos_raw))
 
-    if !ismissing(tests_analysed)
-        tests_analysed ~ safe_nbinomial(k, expected_tested)
-    end
+    ## Single tested-volume NegBinomial at the laboratory stream's own
+    ## cut-off. Sampled unconditionally so it conditions on the data when
+    ## present and is generated for posterior-predictive checks when
+    ## `missing`. Confirmed counts are not re-observed conditional on it,
+    ## so the two lab streams are not double-counted.
+    tests_analysed ~ safe_nbinomial(k, expected_tested)
 
     expected_confirmed_total := Λ_at_edges[end]
     confirmed_cases_total := sum(confirmed_cases)

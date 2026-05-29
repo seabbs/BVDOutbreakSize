@@ -173,8 +173,12 @@ end
     ## Exercises the real production submodels through the
     ## confirmed-and-tested-only composer: a prior fit conditioned on
     ## both lab observations must give finite C(T), and `predict` on the
-    ## same composer with missing observations must populate both
-    ## `tests_analysed` and `confirmed_cases` predictive draws.
+    ## same composer with missing observations must populate both the
+    ## `tests_analysed` and per-vintage `confirmed_cases` predictive
+    ## draws. The confirmed and tested streams enter as two independent
+    ## NegBinomials (per-test positivity is a derived quantity, not a
+    ## Binomial coupling), so a single confirmed draw is not bounded by
+    ## its tested draw.
     using Turing: sample, Prior, predict
     import FlexiChains
     using BVDOutbreakSize: confirmed_only_model
@@ -184,14 +188,16 @@ end
     @test length(C) == 200
     @test all(isfinite, C)
     @test all(C .> 0)
+    ## Per-test positivity exposed as a derived quantity in (0, 1).
+    pos = vec(Array(chn[:p_positive]))
+    @test all(0 .< pos .< 1)
 
     pp = predict(confirmed_only_model(missing, missing), chn)
-    cc = vec(Array(pp[:confirmed_cases]))
+    ## Single confirmed vintage stored as a length-1 vector per draw.
+    cc = reduce(vcat, vec(Array(pp[:confirmed_cases])))
     tt = vec(Array(pp[:tests_analysed]))
     @test all(cc .>= 0)
     @test all(tt .>= 0)
-    ## Confirmed positives can never exceed the tests they come from.
-    @test all(cc .<= tt)
 end
 
 @testitem "bvd_joint initialises with tested + confirmed observations" tags=[:slow] begin

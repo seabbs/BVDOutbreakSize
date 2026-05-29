@@ -31,11 +31,12 @@ each push to `main` also republishes the rendered analysis and the
   day (a driver and a healthcare worker) are domestic contacts of the
   first import and are excluded from `exported_cases` because the
   model treats Uganda as imports only.
-- Added a `reported_case_history` block in `data/observations.toml`
-  with six INSP sitrep vintages (18 May to 23 May 2026), ready for
-  the cumulative-trajectory likelihood once it merges. The 14 and
-  15 May vintages are omitted because they cover only 1 and 3
-  reporting zones respectively.
+- Added `reported_case_history`, `confirmed_case_history` and
+  `death_history` blocks in `data/observations.toml`, six INSP sitrep
+  vintages each (18 May to 23 May 2026), now consumed by the
+  per-vintage likelihoods. Cumulative suspected deaths run 131 to 220
+  over the window. The 14 and 15 May vintages are omitted because they
+  cover only 1 and 3 reporting zones respectively.
 - Added the laboratory observations from SitRep 009 (section IV.3
   LABORATOIRE): 211 cumulative tests analysed and 101 cumulative
   confirmed (PCR-positive) cases, as `cumulative_tests_analysed` and
@@ -55,6 +56,18 @@ each push to `main` also republishes the rendered analysis and the
   implied per-suspected positivity as a derived quantity.
 - Added `confirmed_only_model`, a single-stream composer that fits the
   laboratory pipeline in isolation for the per-stream comparison.
+- Fit the DRC suspected-case, laboratory-confirmed and suspected-death
+  streams per sitrep vintage: `bvd_joint` now models the new cases and
+  deaths reported in each sitrep, conditioning on the between-vintage
+  increments rather than a single total at the cut-off, which sharpens
+  the growth rate. A stream with a single vintage reduces exactly to
+  the cumulative single-total likelihood, recovering the McCabe et al.
+  configuration. Each case bin carries a per-bin random-effect DRC
+  ascertainment, and each stream carries its own vintage offsets so a
+  stream that lags or stops reporting is not assumed to run to the
+  cut-off. Confirmed cases now enter as per-vintage NegBinomial
+  increments with per-test positivity exposed as a derived quantity;
+  the single tests-analysed count is anchored at its own date.
 
 ### Outputs
 
@@ -84,6 +97,17 @@ each push to `main` also republishes the rendered analysis and the
 - Clipped the overlaid per-stream C(T) density x-axis so the
   heavy-tailed exports-deaths fit no longer compresses the other
   curves.
+- Added a posterior-predictive-across-the-sitrep-series figure
+  (`plot_vintage_ppc`) that reconstructs the cumulative replicate at
+  each vintage and overlays the observed series, checking the fit
+  against the whole trajectory rather than only the latest total.
+- Distributed the per-vintage increment maths into each submodel
+  section and reframed the streams as modelling the new cases and
+  deaths reported in each sitrep.
+- Added a limitation that the constant exponential growth rate is
+  assumed to hold through and beyond the report period despite the
+  response the first reports likely triggered, and that per-sitrep
+  increments mix true incidence with backfill and rising ascertainment.
 
 ### Infrastructure
 
