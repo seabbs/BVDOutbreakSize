@@ -1,0 +1,5 @@
+sitrep,report_date,suspected_cases,suspected_deaths,confirmed_cases,samples_received,samples_analysed,positives,notes
+009,2026-05-23,904,220,101,418,211,101,"front-page headline prints 119 suspected deaths in error; Tableau IV per-zone rows sum to 220 (value used)"
+010,2026-05-24,906,223,105,431,295,105,"report notes a data-entry error (erreur de saisie); 4 positives received without sample detail; 257 samples sent to INRB Kinshasa"
+011,2026-05-25,998,238,106,431,295,106,"aucun echantillon analyse en Ituri this day; 203 unanalysed samples sent to Kinshasa; samples analysed flat at 295"
+012,2026-05-26,1077,238,121,662,403,121,"cut-off vintage; no per-zone case table in this report to cross-check the headline"

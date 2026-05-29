@@ -257,19 +257,29 @@ Random.seed!(20260518)
 # ### Data
 #
 # The analysis uses a handful of aggregate counts. The DRC suspected
-# cases and suspected deaths and the Uganda export-case counts and
-# deaths come from WHO AFRO Weekly External Situation Report 01, data
-# as of 18 May 2026 [who_afro_sitrep01_2026](@cite); the first-export
-# hospital-admission date and the dated death among the exports come
-# from WHO Disease Outbreak News DON602 [who_don_2026_602](@cite).
-# The daily cross-border traveller volume and source-area population
-# are taken from the McCabe et al. report [mccabe2026](@cite). All are
-# point-in-time totals as of the data cut-off, not time series, and
-# the suspected counts are unconfirmed. The table below lists each
-# figure with its source. The source population is treated as fixed
-# (census data); the daily outbound traveller volume is given a normal
-# prior centred at the McCabe et al. figure with an SD covering point-
-# of-entry variation.
+# cases, suspected deaths and laboratory-confirmed cases are the
+# national cumulative totals from the INSP situation reports
+# [insp_sitrep_2026](@cite), read from the report PDFs (archived by
+# INRB-UMIE [inrb_umie_2026](@cite)). We draw straight from the sitreps
+# rather than the published per-zone CSVs because the regional (health
+# zone) breakdown is inconsistent with the national totals: the zone
+# sums omit cases not yet attributed to a zone, understating the count.
+# The figures were read from the PDFs with an LLM agent and
+# independently re-scanned by a second agent; the values, with their
+# per-vintage sources and caveats, are recorded in
+# `data/insp_sitrep_scanned.csv` and `data/observations.toml`. The
+# 18-22 May points predate that reporting format and use WHO AFRO Weekly
+# External Situation Report 01 [who_afro_sitrep01_2026](@cite). The
+# Uganda export-case counts and deaths, the first-export detection date
+# and the dated export death come from WHO Disease Outbreak News DON602
+# [who_don_2026_602](@cite); the cross-border traveller volume and
+# source population from the McCabe et al. report [mccabe2026](@cite).
+# The first table lists each figure as of the cut-off (the suspected
+# counts are unconfirmed); the source population is fixed and the
+# traveller volume is given a normal prior around the McCabe et al.
+# figure. The three DRC streams are additionally resolved by sitrep
+# vintage and fitted as between-vintage increments, shown in the second
+# table.
 
 #md # ```@raw html
 #md # <details><summary>Loading observations and building the data table</summary>
@@ -322,6 +332,31 @@ const EXPORTS_DEATHS = obs.exports_deaths
 #md # ```
 
 observations_table #hide
+
+# The per-vintage cumulative history of the three DRC sitrep streams,
+# the national totals at each INSP situation-report date. The joint
+# model fits the between-vintage increments of these series (a single
+# vintage reduces to the cut-off total). The 23-26 May points are the
+# report totals; 18-22 May use the WHO AFRO / early-report baseline.
+# See `data/observations.toml` and `data/insp_sitrep_scanned.csv` for
+# the per-stream sources.
+
+#md # ```@raw html
+#md # <details><summary>Building the per-vintage time-series table</summary>
+#md # ```
+
+vintage_table = DataFrame(
+    sitrep_date = obs.reported_case_history.dates,
+    suspected_cases = obs.reported_case_history.values,
+    confirmed_cases = obs.confirmed_case_history.values,
+    suspected_deaths = obs.death_history.values
+);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+vintage_table #hide
 
 # ### Model
 #
@@ -2295,6 +2330,35 @@ forecast_validation_fig = plot_forecast_vs_truth(forecast_validation;
 #md # ```
 
 forecast_validation_fig #hide
+
+# The check above scores only the endpoint at the current cut-off. Since
+# the INSP reports give a cumulative count at every sitrep date, we can
+# score the whole horizon: project the same original-report fit forward
+# to each vintage date between the report and now, and compare against
+# the count observed at that date. Each row is one stream at one date,
+# with the 90% predictive interval and whether the observed cumulative
+# fell inside it, so forecast coverage can be read across the horizon
+# rather than at a single point.
+
+#md # ```@raw html
+#md # <details><summary>Score the report fit against the observed daily trajectory</summary>
+#md # ```
+
+forecast_trajectory_table = forecast_vs_truth_trajectory(chn_joint_report;
+    dates = obs.reported_case_history.dates,
+    cases = obs.reported_case_history.values,
+    deaths = obs.death_history.values,
+    snapshot_date = obs_report.as_of_date,
+    daily_travellers = ITURI_DAILY_TRAVEL,
+    source_population = ITURI_POPULATION,
+    baseline_cases = obs_report.reported_cases,
+    baseline_deaths = obs_report.total_deaths);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+forecast_trajectory_table #hide
 
 # ### Delay sensitivity
 #

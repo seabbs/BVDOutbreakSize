@@ -270,3 +270,67 @@ function forecast_vs_truth(fc::DataFrame;
             _row("DRC confirmed cases", fc[!, :confirmed_cum], confirmed))
     return _prettify(DataFrame(rows))
 end
+
+"""
+Validate a fitted chain's projection against the full observed daily
+trajectory rather than a single endpoint.
+
+Given the per-vintage observed cumulative series (`dates`, with `cases`
+and `deaths` the cumulative DRC reported cases and suspected deaths at
+each date) and the fit's data cut-off `snapshot_date`, project the chain
+forward to every vintage date that falls *after* the cut-off and compare
+the predicted cumulative count against the observed one. This scores the
+whole forecast horizon, not just its endpoint.
+
+Returns a `DataFrame` with one row per (stream, date): the horizon in
+days, the observed count, the equal-tailed 30/60/90% predictive
+intervals (the same endpoints as the other tables) and whether the
+observed count falls within the 90% interval. Streams with no
+per-vintage series (Uganda exports) stay with [`forecast_vs_truth`](@ref).
+
+`baseline_cases` / `baseline_deaths` are the fit's cut-off counts; they
+only feed the unused `*_new` columns of the per-horizon projection.
+"""
+function forecast_vs_truth_trajectory(chn;
+        dates::AbstractVector,
+        cases::AbstractVector,
+        deaths::AbstractVector,
+        snapshot_date,
+        daily_travellers::Real,
+        source_population::Real,
+        baseline_cases::Real = 0,
+        baseline_deaths::Real = 0,
+        seed::Integer = 20260520,
+        digits::Integer = 0,
+        alg = DEATH_INTEGRAL_ALG)
+    length(dates) == length(cases) == length(deaths) ||
+        error("dates, cases and deaths must be equal length (got " *
+              "$(length(dates)), $(length(cases)), $(length(deaths)))")
+    snap = date2epochdays(Date(snapshot_date))
+    rows = NamedTuple[]
+    for i in eachindex(dates)
+        ## Only vintages strictly after the fit cut-off are a forecast.
+        h = date2epochdays(Date(dates[i])) - snap
+        h > 0 || continue
+        fc = forecast_reported(chn; horizon = h,
+            daily_travellers, source_population,
+            obs_cases = baseline_cases, obs_deaths = baseline_deaths,
+            obs_exports = 0, seed, alg)
+        for (label, col, obs) in (
+            ("DRC reported cases", :cases_cum, cases[i]),
+            ("DRC deaths", :deaths_cum, deaths[i]))
+            s = posterior_summary(fc[!, col])
+            lo = round(s.lo90; digits)
+            hi = round(s.hi90; digits)
+            push!(rows,
+                (stream = label, date = string(dates[i]),
+                    horizon_days = h, observed = round(obs; digits),
+                    lower_90 = lo, lower_60 = round(s.lo60; digits),
+                    lower_30 = round(s.lo30; digits),
+                    upper_30 = round(s.hi30; digits),
+                    upper_60 = round(s.hi60; digits), upper_90 = hi,
+                    within_90 = lo <= obs <= hi ? "yes" : "no"))
+        end
+    end
+    return _prettify(DataFrame(rows))
+end
