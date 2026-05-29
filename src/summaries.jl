@@ -31,6 +31,8 @@ const _PRETTY_COLS = Dict(
     "narrowest_interval" => "Narrowest interval",
     "observed" => "Observed",
     "within_90" => "Within 90% PI",
+    "date" => "Date",
+    "horizon_days" => "Horizon (days)",
     "lower_90" => "Lower 90%", "lower_60" => "Lower 60%",
     "lower_30" => "Lower 30%", "upper_30" => "Upper 30%",
     "upper_60" => "Upper 60%", "upper_90" => "Upper 90%"

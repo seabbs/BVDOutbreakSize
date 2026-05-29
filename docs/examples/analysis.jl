@@ -2331,6 +2331,35 @@ forecast_validation_fig = plot_forecast_vs_truth(forecast_validation;
 
 forecast_validation_fig #hide
 
+# The check above scores only the endpoint at the current cut-off. Since
+# the INSP reports give a cumulative count at every sitrep date, we can
+# score the whole horizon: project the same original-report fit forward
+# to each vintage date between the report and now, and compare against
+# the count observed at that date. Each row is one stream at one date,
+# with the 90% predictive interval and whether the observed cumulative
+# fell inside it, so forecast coverage can be read across the horizon
+# rather than at a single point.
+
+#md # ```@raw html
+#md # <details><summary>Score the report fit against the observed daily trajectory</summary>
+#md # ```
+
+forecast_trajectory_table = forecast_vs_truth_trajectory(chn_joint_report;
+    dates = obs.reported_case_history.dates,
+    cases = obs.reported_case_history.values,
+    deaths = obs.death_history.values,
+    snapshot_date = obs_report.as_of_date,
+    daily_travellers = ITURI_DAILY_TRAVEL,
+    source_population = ITURI_POPULATION,
+    baseline_cases = obs_report.reported_cases,
+    baseline_deaths = obs_report.total_deaths);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+forecast_trajectory_table #hide
+
 # ### Delay sensitivity
 #
 # Refit under the community-only onset-to-death delay: the baseline and

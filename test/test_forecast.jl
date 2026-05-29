@@ -145,3 +145,52 @@ end
     fig=plot_forecast_vs_truth(fc; cases = 600, deaths = 150, exports = 3)
     @test fig !== nothing
 end
+
+@testitem "forecast_vs_truth_trajectory scores the daily trajectory" tags=[:slow] setup=[
+    ForecastFixtures] begin
+    using DataFrames: DataFrame, nrow
+    using BVDOutbreakSize: forecast_vs_truth_trajectory
+
+    chn=_forecast_chain(200)
+    ## 16 May is the fit cut-off; 18-22 May are the post-cut-off
+    ## vintages that should be scored.
+    dates=["2026-05-16", "2026-05-18", "2026-05-20", "2026-05-22"]
+    cases=[336, 516, 672, 872]
+    deaths=[88, 131, 160, 204]
+
+    tbl=forecast_vs_truth_trajectory(chn;
+        dates = dates, cases = cases, deaths = deaths,
+        snapshot_date = "2026-05-16",
+        daily_travellers = 1871, source_population = 4_392_200,
+        baseline_cases = 336, baseline_deaths = 88)
+
+    @test tbl isa DataFrame
+    ## Two streams x three post-snapshot vintages; the snapshot date
+    ## itself (horizon 0) is excluded.
+    @test nrow(tbl) == 6
+    @test !("2026-05-16" in tbl[!, "Date"])
+    @test Set(tbl[!, "Date"]) ==
+          Set(["2026-05-18", "2026-05-20", "2026-05-22"])
+    @test Set(tbl[!, "Stream"]) ==
+          Set(["DRC reported cases", "DRC deaths"])
+    @test sort(unique(tbl[!, "Horizon (days)"])) == [2, 4, 6]
+
+    ## Coverage flag agrees with the reported 90% endpoints.
+    for row in eachrow(tbl)
+        covered=row["Lower 90%"]<=row.Observed<=row["Upper 90%"]
+        @test row["Within 90% PI"] == (covered ? "yes" : "no")
+    end
+
+    ## Vintages at or before the cut-off yield no rows.
+    empty=forecast_vs_truth_trajectory(chn;
+        dates = ["2026-05-14", "2026-05-16"], cases = [200, 336],
+        deaths = [50, 88], snapshot_date = "2026-05-16",
+        daily_travellers = 1871, source_population = 4_392_200)
+    @test nrow(empty) == 0
+
+    ## Mismatched input lengths error.
+    @test_throws ErrorException forecast_vs_truth_trajectory(chn;
+        dates = ["2026-05-18"], cases = [1, 2], deaths = [1],
+        snapshot_date = "2026-05-16",
+        daily_travellers = 1871, source_population = 4_392_200)
+end
