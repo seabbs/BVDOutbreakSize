@@ -258,10 +258,13 @@ Random.seed!(20260518)
 #
 # The analysis uses a handful of aggregate counts. The DRC suspected
 # cases, suspected deaths and laboratory-confirmed cases are the
-# national cumulative totals from the INSP situation reports, read from
-# the report PDFs rather than the published per-zone CSVs (which drop
-# cases not yet attributed to a health zone, understating the national
-# total). They were read from the PDFs with an LLM agent and
+# national cumulative totals from the INSP situation reports
+# [insp_sitrep_2026](@cite), read from the report PDFs (archived by
+# INRB-UMIE [inrb_umie_2026](@cite)). We draw straight from the sitreps
+# rather than the published per-zone CSVs because the regional (health
+# zone) breakdown is inconsistent with the national totals: the zone
+# sums omit cases not yet attributed to a zone, understating the count.
+# The figures were read from the PDFs with an LLM agent and
 # independently re-scanned by a second agent; the values, with their
 # per-vintage sources and caveats, are recorded in
 # `data/insp_sitrep_scanned.csv` and `data/observations.toml`. The
