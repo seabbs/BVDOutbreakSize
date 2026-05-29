@@ -22,6 +22,43 @@
     @test analytic ≈ numerical rtol = 1e-6
 end
 
+@testitem "_gamma_cdf_integral matches numerical integration" tags=[:ad] begin
+    using Distributions: Gamma
+    using BVDOutbreakSize: integrate
+    using BVDOutbreakSize: _gamma_cdf, _gamma_cdf_integral
+
+    ## ∫₀ˣ F(v; α, θ) dv against a fresh quadrature of the CDF, over a
+    ## range of (α, θ, x) including α < 1 and x past the bulk. The closed
+    ## form is exact, so the tolerance is set by the reference
+    ## quadrature's own error rather than by the identity.
+    for (α, θ) in ((0.7, 1.0), (2.5, 1.5), (4.3, 2.6))
+        for x in (0.5, 8.0, 40.0)
+            ref = integrate(v -> _gamma_cdf(α, θ, v), 0.0, x)
+            @test _gamma_cdf_integral(α, θ, x) ≈ ref rtol = 1e-4
+        end
+    end
+    @test _gamma_cdf_integral(2.5, 1.5, 0.0) == 0.0
+    @test _gamma_cdf_integral(2.5, 1.5, -3.0) == 0.0
+end
+
+@testitem "_gamma_cdf_integral differentiates through _gamma_cdf" tags=[:ad] begin
+    using Mooncake: Mooncake
+    using Random: MersenneTwister
+    using BVDOutbreakSize: _gamma_cdf_integral
+
+    ## No bespoke rule: the closed form composes `_gamma_cdf` (which
+    ## carries the rule) with arithmetic, so Mooncake differentiates the
+    ## α and θ paths the lab-background term exercises.
+    α, θ, x = 4.3, 2.6, 30.0
+    Mooncake.TestUtils.test_rule(
+        MersenneTwister(20260520),
+        _gamma_cdf_integral, α, θ, x;
+        is_primitive = false,
+        perf_flag = :none,
+        mode = Mooncake.ReverseMode
+    )
+end
+
 @testitem "_gamma_cdf Mooncake rule at reference point" tags=[:ad] begin
     using Mooncake: Mooncake
     using Random: MersenneTwister

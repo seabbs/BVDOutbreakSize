@@ -27,8 +27,11 @@ function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
         p_drc, s_test, τ_test; alg = DEATH_INTEGRAL_ALG)
     d_rep = Gamma(α_rep, θ_rep)
     d_lab = Gamma(α_lab, θ_lab)
-    bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep, alg = alg
-        u -> p_drc * delay_convolution(one(p_drc), r, u, d_rep; alg)
+    ## Inner BVD-reported trajectory in closed form; only the outer lab
+    ## convolution is a quadrature. Omitting `alg` selects the Gamma
+    ## analytic `delay_convolution` method.
+    bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep
+        u -> p_drc * delay_convolution(one(p_drc), r, u, d_rep)
     end
     return s_test * τ_test *
            delay_convolution(bvd_reported_at, Th, d_lab; alg)
@@ -41,15 +44,16 @@ function _forecast_tests_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
         p_drc, λ_bg, τ_test; alg = DEATH_INTEGRAL_ALG)
     d_rep = Gamma(α_rep, θ_rep)
     d_lab = Gamma(α_lab, θ_lab)
-    bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep, alg = alg
-        u -> p_drc * delay_convolution(one(p_drc), r, u, d_rep; alg)
+    ## Inner BVD-reported trajectory in closed form; only the outer lab
+    ## convolution is a quadrature. Omitting `alg` selects the Gamma
+    ## analytic `delay_convolution` method.
+    bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep
+        u -> p_drc * delay_convolution(one(p_drc), r, u, d_rep)
     end
     bvd_tested = delay_convolution(bvd_reported_at, Th, d_lab; alg)
-    bg_integrand = let α_lab = α_lab, θ_lab = θ_lab, Th = Th
-        u -> _gamma_cdf(α_lab, θ_lab, Th - u)
-    end
-    bg_tested = λ_bg * integrate(bg_integrand, zero(Th), Th,
-        _delay_scale(d_lab); alg)
+    ## Background tested volume at `Th`: ∫₀^Th F_lab(Th - u) du =
+    ## ∫₀^Th F_lab(v) dv, the closed form `_gamma_cdf_integral`.
+    bg_tested = λ_bg * _gamma_cdf_integral(α_lab, θ_lab, Th)
     return τ_test * (bvd_tested + bg_tested)
 end
 

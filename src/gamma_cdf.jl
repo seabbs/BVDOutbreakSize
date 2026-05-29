@@ -18,6 +18,28 @@ with `y = x/θ`, `P` the regularized lower incomplete gamma and `ψ` is the diga
 _gamma_cdf(α, θ, x) = cdf(Gamma(α, θ), x)
 
 """
+Integral of the Gamma(α, θ) CDF over `[0, x]`,
+
+```math
+\\int_0^x F(v;\\, α, θ)\\, dv = x\\, F(x;\\, α, θ) - α θ\\, F(x;\\, α + 1, θ),
+```
+
+from integration by parts (the second term is
+``\\int_0^x v\\, f(v)\\,dv = α θ\\, F(x;\\, α + 1, θ)``). Backs the
+background-tested volume of the confirmed-cases lab stream: a non-BVD
+background arriving at constant rate, convolved against the lab-delay
+CDF and right-truncated at the testing cut-off, reduces to this
+integral. Two [`_gamma_cdf`](@ref) evaluations replace a full
+quadrature, and the α / θ derivatives flow through the existing
+`_gamma_cdf` rrule with no extra rule. Returns zero for `x ≤ 0`.
+"""
+function _gamma_cdf_integral(α, θ, x)
+    x <= zero(x) &&
+        return zero(float(promote_type(typeof(α), typeof(θ), typeof(x))))
+    return x * _gamma_cdf(α, θ, x) - α * θ * _gamma_cdf(α + one(α), θ, x)
+end
+
+"""
 Series sum of term derivatives for `∂_α P(α, z)`, using the
 absolutely-convergent Kummer expansion
 
