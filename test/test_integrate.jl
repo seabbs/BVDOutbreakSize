@@ -17,7 +17,7 @@
     using Distributions: Gamma, ccdf, pdf
     using Integrals: IntegralProblem, QuadGKJL, solve
 
-    function _expected_deaths_ref(CFR, r, T, delay_dist)
+    function _delay_convolution_ref(CFR, r, T, delay_dist)
         f(s, p) = (T - s) > 0 ? exp(r * s) * pdf(delay_dist, T - s) : 0.0
         prob = IntegralProblem(f, (0.0, T), nothing)
         return CFR * solve(prob, QuadGKJL(); reltol = 1e-12, abstol = 1e-14).u
@@ -44,27 +44,27 @@ end
     @test integrate(f, 50.0, 50.0, 5.0) == 0.0
 end
 
-@testitem "expected_deaths: accurate for a typical delay" setup=[IntegrateRefs] begin
+@testitem "delay_convolution: accurate for a typical delay" setup=[IntegrateRefs] begin
     using Distributions: Gamma
-    using BVDOutbreakSize: expected_deaths
+    using BVDOutbreakSize: delay_convolution
     CFR, r, T = 0.3, log(2) / 14, 100.0
     delay = Gamma(4.3, 2.6)
-    val = expected_deaths(CFR, r, T, delay)
-    ref = _expected_deaths_ref(CFR, r, T, delay)
+    val = delay_convolution(CFR, r, T, delay)
+    ref = _delay_convolution_ref(CFR, r, T, delay)
     @test isapprox(val, ref; rtol = 1e-4)
 end
 
-@testitem "expected_deaths: accurate for a narrow delay over wide T" setup=[IntegrateRefs] begin
+@testitem "delay_convolution: accurate for a narrow delay over wide T" setup=[IntegrateRefs] begin
     using Distributions: Gamma
-    using BVDOutbreakSize: expected_deaths
+    using BVDOutbreakSize: delay_convolution
     # θ = 0.1 → delay std ≈ 0.21 d, peak ≈ 0.33 d before T; T = 360 d.
     # A uniform rule spreads 64 nodes over 360 d and resolves the delay
     # peak near T too coarsely (~20% error). The clustered rule must
     # still match the reference.
     CFR, r, T = 0.3, log(2) / 14, 360.0
     delay = Gamma(4.3, 0.1)
-    val = expected_deaths(CFR, r, T, delay)
-    ref = _expected_deaths_ref(CFR, r, T, delay)
+    val = delay_convolution(CFR, r, T, delay)
+    ref = _delay_convolution_ref(CFR, r, T, delay)
     @test ref > 0
     @test isapprox(val, ref; rtol = 1e-3)
 end

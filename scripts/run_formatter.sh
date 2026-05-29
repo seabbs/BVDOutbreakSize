@@ -6,6 +6,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 julia --project=test/formatter -e '
+using Pkg
+Pkg.instantiate()
 using JuliaFormatter
 dirs = ["src", "test", "docs", "scripts"]
 all_ok = all(d -> JuliaFormatter.format(d; overwrite = true), dirs)

@@ -3,50 +3,74 @@
 # expected deaths-among-exports.
 
 """
-Expected cumulative deaths by time `T` from a single seeding case under
+Delay-convolved cumulative-incidence count by time `T` under
 exponential growth at rate `r`:
 
 ```math
-\\mathbb{E}[D_T] = \\mathrm{CFR} \\cdot
+\\text{scale} \\cdot
     \\int_0^T e^{r s}\\, f(T - s)\\, ds,
 ```
 
-with `f` the `delay_dist` onset-to-death density. The integrand returns
-zero past `T` so the convolution support is respected. Integrated with
-the clustered [`integrate`](@ref) so the quadrature nodes pack near `T`,
+with `f` the `delay_dist` density (per-event delay from incidence to
+the observed event class — e.g. onset-to-death for deaths,
+infection-to-report for suspected cases). The integrand returns zero
+past `T` so the convolution support is respected. Integrated with the
+clustered [`integrate`](@ref) so the quadrature nodes pack near `T`,
 where `f(T − s)` has mass, over a window set by the delay scale (see
 [`DELAY_SUPPORT_K`](@ref)). Uses [`DEATH_INTEGRAL_ALG`](@ref).
 """
-function expected_deaths(CFR, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
-    scale = _delay_scale(delay_dist)
+function delay_convolution(scale, r, T, delay_dist; alg = DEATH_INTEGRAL_ALG)
+    s_lo = zero(T)
+    s_scale = _delay_scale(delay_dist)
     g = let r = r, T = T, delay_dist = delay_dist
         s -> begin
             d = T - s
             d <= 0 ? zero(r) : exp(r * s) * pdf(delay_dist, d)
         end
     end
-    return CFR * integrate(g, zero(T), T, scale; alg)
+    return scale * integrate(g, s_lo, T, s_scale; alg)
 end
 
 """
-Expected cumulative deaths by time `T` from a single seeding case under
-exponential growth at rate `r`, using analytic result specific to the
-Gamma distribution:
+[`delay_convolution`](@ref) specialised to the Gamma family, using the
+analytic closed form
 
 ```math
-\\mathbb{E}[D_T] = \\mathrm{CFR} \\cdot
-    \\int_0^T e^{r s}\\, f(T - s)\\, ds = \\mathrm{CFR} \\cdot e^{r T} \\cdot M(-r) \\cdot F(T (1 + \\theta r)),
+\\text{scale} \\cdot
+    \\int_0^T e^{r s}\\, f(T - s)\\, ds
+  = \\text{scale} \\cdot e^{r T} \\cdot M(-r) \\cdot F(T (1 + \\theta r)),
 ```
 
-where f is the Gamma(α, θ) density, M is its moment-generating function,
-and F is its CDF. The CDF is routed through [`_gamma_cdf`](@ref) so
-Mooncake reverse-mode AD picks up a shape-parameter gradient (computed
-internally with ForwardDiff).
+where ``f`` is the Gamma(α, θ) density, ``M`` its moment-generating
+function and ``F`` its CDF.
 """
-function expected_deaths(CFR, r, T, delay_dist::Gamma)
+function delay_convolution(scale, r, T, delay_dist::Gamma)
     α, θ = delay_dist.α, delay_dist.θ
-    return CFR * exp(r * T) * mgf(delay_dist, -r) *
+    return scale * exp(r * T) * mgf(delay_dist, -r) *
            _gamma_cdf(α, θ, T * (1 + θ * r))
+end
+
+"""
+Variant accepting an arbitrary cumulative-incidence trajectory
+`cumulative(s)` in place of the ``e^{r s}`` proxy:
+
+```math
+\\int_0^T \\text{cumulative}(s)\\, f(T - s)\\, ds.
+```
+
+Used by the confirmed-cases likelihood, where `cumulative` is the
+reported-cases submodel's BVD convolution as a function of time.
+"""
+function delay_convolution(cumulative::Function, T, delay_dist;
+        alg = DEATH_INTEGRAL_ALG)
+    scale = _delay_scale(delay_dist)
+    g = let cumulative = cumulative, T = T, delay_dist = delay_dist
+        s -> begin
+            d = T - s
+            d <= 0 ? zero(T) : cumulative(s) * pdf(delay_dist, d)
+        end
+    end
+    return integrate(g, zero(T), T, scale; alg)
 end
 
 """
@@ -62,15 +86,30 @@ with `cumulative` the trajectory ``C(s)``, `p` the detection
 probability, `q` the per-capita travel rate, and `window` the detection
 window ``w``. Backs both the exports count likelihood (evaluated at
 `t = T`) and the first-export-detection survival term (evaluated at an
-earlier `t`). Uses [`CUMULATIVE_INTEGRAL_ALG`](@ref).
+earlier `t`).
+
+Pass `r` (the exponential growth rate) to use the exact closed form
+``\\int_a^b e^{r s}\\,ds = (e^{r b} - e^{r a})/r`` instead of numerical
+quadrature — faster and with a cleaner gradient under AD, used by the
+model where the growth trajectory is the exponential default. With
+`r = nothing` (the default) the window integral is evaluated
+numerically via [`CUMULATIVE_INTEGRAL_ALG`](@ref) for an arbitrary
+`cumulative`.
 """
 function expected_exports(cumulative, p, q, t, window;
-        alg = CUMULATIVE_INTEGRAL_ALG)
+        r = nothing, alg = CUMULATIVE_INTEGRAL_ALG)
     window_start = max(t - window, zero(t))
-    integral = integrate_cumulative(cumulative, window_start, t; alg)
+    integral = r === nothing ?
+               integrate_cumulative(cumulative, window_start, t; alg) :
+               _exp_cumulative_integral(r, window_start, t)
     raw = p * q * integral
     return isfinite(raw) ? max(raw, eps(typeof(raw))) : eps(typeof(raw))
 end
+
+## Exact ∫_a^b exp(r·s) ds for an exponential cumulative-incidence
+## trajectory. Written via `expm1` so it stays accurate as r → 0;
+## algebraically equal to (exp(r·b) − exp(r·a)) / r.
+_exp_cumulative_integral(r, a, b) = exp(r * a) * expm1(r * (b - a)) / r
 
 """
 Expected cumulative deaths among detected exports by elapsed time `t`,

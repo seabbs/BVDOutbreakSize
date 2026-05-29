@@ -46,12 +46,12 @@ end
 """
 Cases-only composer (ascertainment extension). Samples growth,
 dispersion and pooled ascertainment, then conditions on the
-reported-cases likelihood. See [`cases_model`](@ref).
+reported-cases likelihood. See [`reported_cases_model`](@ref).
 """
 @model function cases_only_model(
         reported_cases::Union{Missing, Integer};
         growth = exponential_growth_model(),
-        cases = cases_model,
+        reported_cases_submodel = reported_cases_model,
         dispersion = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model())
     growth_state ~ to_submodel(growth, false)
@@ -59,8 +59,59 @@ reported-cases likelihood. See [`cases_model`](@ref).
     asc_state ~ to_submodel(ascertainment, false)
     k = dispersion_state.k
 
-    cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, asc_state.p_drc), false)
+    reported_state ~ to_submodel(
+        reported_cases_submodel(
+            reported_cases, growth_state, k, asc_state.p_drc), false)
+
+    cumulative_cases := growth_state.C_T
+end
+
+"""
+Confirmed-and-tested-only composer (laboratory pipeline in isolation).
+Samples growth, dispersion, pooled ascertainment and the report-delay
+and test-positivity blocks, builds the BVD-suspected trajectory
+directly, then conditions on the laboratory likelihood only. Unlike a
+full reported-cases fit it does **not** instantiate the reported-count
+likelihood: sampling the discrete suspected count would introduce a
+latent NUTS cannot move, and only the confirmed/tested pair carries
+information here. See [`confirmed_cases_model`](@ref). Use it for the
+per-stream comparison against the joint fit.
+"""
+@model function confirmed_only_model(
+        confirmed_cases::Union{Missing, Integer},
+        cumulative_tests_analysed::Union{Missing, Integer} = missing;
+        growth = exponential_growth_model(),
+        confirmed = confirmed_cases_model,
+        dispersion = surveillance_dispersion_model(),
+        ascertainment = pooled_ascertainment_model(),
+        test_positivity = test_positivity_model(),
+        report_delay = report_delay_model(),
+        lab_delay = lab_delay_model(),
+        test_sensitivity = test_sensitivity_model())
+    growth_state ~ to_submodel(growth, false)
+    dispersion_state ~ to_submodel(dispersion, false)
+    asc_state ~ to_submodel(ascertainment, false)
+    report_state ~ to_submodel(report_delay, false)
+    test_positivity_state ~ to_submodel(test_positivity, false)
+    k = dispersion_state.k
+    p_drc = asc_state.p_drc
+    λ_bg = test_positivity_state.λ_bg
+    τ_test = test_positivity_state.τ_test
+    f_rep = report_state.dist
+    r = growth_state.r
+
+    ## BVD-suspected cumulative trajectory, mirroring the closure in
+    ## reported_cases_model so the confirmed submodel integrates the same
+    ## convolution against the lab-delay kernel.
+    bvd_reported_at = let r = r, p_drc = p_drc, f_rep = f_rep
+        u -> p_drc * delay_convolution(one(p_drc), r, u, f_rep)
+    end
+
+    confirmed_state ~ to_submodel(
+        confirmed(confirmed_cases, cumulative_tests_analysed,
+            bvd_reported_at, growth_state, k, λ_bg, τ_test;
+            lab_delay = lab_delay,
+            test_sensitivity = test_sensitivity), false)
 
     cumulative_cases := growth_state.C_T
 end
@@ -116,14 +167,22 @@ checks.
         total_deaths::Union{Missing, Integer},
         reported_cases::Union{Missing, Integer} = missing,
         export_deaths_daily::AbstractVector = Int[];
+        confirmed_cases::Union{Missing, Integer} = missing,
+        cumulative_tests_analysed::Union{Missing, Integer} = missing,
+        predict_confirmed::Bool = false,
         growth = exponential_growth_model(),
         exports = exports_model,
         deaths = deaths_model,
-        cases = cases_model,
+        reported_cases_submodel = reported_cases_model,
+        confirmed = confirmed_cases_model,
         exports_deaths_model = exports_deaths_model,
         exports_detection_timing = exports_detection_timing_model,
         dispersion = surveillance_dispersion_model(),
         ascertainment = pooled_ascertainment_model(),
+        test_positivity = test_positivity_model(),
+        report_delay = report_delay_model(),
+        lab_delay = lab_delay_model(),
+        test_sensitivity = test_sensitivity_model(),
         genetic = nothing,
         source_population::Real = ITURI_POPULATION,
         pre_start_deaths::Union{Missing, Integer} = 0,
@@ -143,8 +202,25 @@ checks.
         exports(exported_cases, growth_state, p_uganda), false)
     deaths_state ~ to_submodel(
         deaths(total_deaths, growth_state, k), false)
-    cases_state ~ to_submodel(
-        cases(reported_cases, growth_state, k, p_drc), false)
+    reported_state ~ to_submodel(
+        reported_cases_submodel(reported_cases, growth_state, k, p_drc;
+            report_delay = report_delay,
+            test_positivity = test_positivity), false)
+    ## Include the confirmed submodel when there is data to condition
+    ## on or when the caller explicitly opts in to predictive sampling
+    ## (`predict_confirmed = true`). Older snapshot fits with no
+    ## confirmed data should leave it off so NUTS does not attempt to
+    ## sample the discrete `tests_analysed` and `confirmed_cases`
+    ## variables.
+    if confirmed_cases !== missing || predict_confirmed
+        confirmed_state ~ to_submodel(
+            confirmed(confirmed_cases, cumulative_tests_analysed,
+                reported_state.bvd_reported_at, growth_state, k,
+                reported_state.λ_bg, reported_state.τ_test;
+                lab_delay = lab_delay,
+                test_sensitivity = test_sensitivity),
+            false)
+    end
     exports_deaths_state ~ to_submodel(
         exports_deaths_model(export_deaths_daily, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;

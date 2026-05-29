@@ -1,22 +1,22 @@
-## Tests for the analytic Gamma method of `expected_deaths`.
+## Tests for the analytic Gamma method of `delay_convolution`.
 
 # Reference parameter values. α, θ match the Gamma onset-to-death
 # prior means; CFR, r, T are mid-run state. x_cdf is the CDF argument
-# that expected_deaths(::Gamma) actually feeds to `_gamma_cdf`,
+# that delay_convolution(::Gamma) actually feeds to `_gamma_cdf`,
 # i.e. T*(1 + θ*r) — testing at this point keeps the AD checks
 # aligned with the path the sampler will exercise.
 #
 # For α = 4.3, we do not have numerical stability issues in the α-derivative,
 # see below for stronger tests on just the analytic form.
 
-@testitem "expected_deaths Gamma analytic matches integration" tags=[:ad] begin
+@testitem "delay_convolution Gamma analytic matches integration" tags=[:ad] begin
     using Distributions: Gamma
-    using BVDOutbreakSize: expected_deaths
+    using BVDOutbreakSize: delay_convolution
 
     α, θ, CFR, r, T = 4.3, 2.6, 0.3, 0.05, 30.0
     dist = Gamma(α, θ)
-    analytic = expected_deaths(CFR, r, T, dist)
-    numerical = invoke(expected_deaths,
+    analytic = delay_convolution(CFR, r, T, dist)
+    numerical = invoke(delay_convolution,
         Tuple{Any, Any, Any, Any},
         CFR, r, T, dist) #avoid the analytic method dispatch
     @test analytic ≈ numerical rtol = 1e-6

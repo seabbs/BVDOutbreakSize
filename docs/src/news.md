@@ -32,8 +32,58 @@ each push to `main` also republishes the rendered analysis and the
   first import and are excluded from `exported_cases` because the
   model treats Uganda as imports only.
 - Added a `reported_case_history` block in `data/observations.toml`
-  with eight INSP sitrep vintages (14 May to 23 May 2026), ready for
-  the cumulative-trajectory likelihood once it merges.
+  with six INSP sitrep vintages (18 May to 23 May 2026), ready for
+  the cumulative-trajectory likelihood once it merges. The 14 and
+  15 May vintages are omitted because they cover only 1 and 3
+  reporting zones respectively.
+- Added the laboratory observations from SitRep 009 (section IV.3
+  LABORATOIRE): 211 cumulative tests analysed and 101 cumulative
+  confirmed (PCR-positive) cases, as `cumulative_tests_analysed` and
+  `confirmed_cases` in `data/observations.toml`.
+
+### Modelling
+
+- Added a laboratory pipeline coupling two new observations to the
+  latent incidence: cumulative tests analysed (negative binomial) and
+  confirmed cases (binomial on the tested pool, with per-test
+  positivity the BVD share of the pool scaled by PCR sensitivity).
+  Introduces a testing fraction, PCR sensitivity and a
+  report-to-confirmation (lab-turnaround) delay; right-truncation of
+  the tested observation is handled by the lab-delay CDF.
+- Rewrote the suspected-cases stream as a BVD-driven onset-to-report
+  convolution plus an additive non-BVD background rate, exposing the
+  implied per-suspected positivity as a derived quantity.
+- Added `confirmed_only_model`, a single-stream composer that fits the
+  laboratory pipeline in isolation for the per-stream comparison.
+
+### Outputs
+
+- Posterior summary table and a new laboratory-pipeline pair plot cover
+  the report and lab delays, PCR sensitivity, testing fraction,
+  background rate and the per-suspected and per-test positivity.
+- Posterior-predictive plot gains confirmed-cases and tests-analysed
+  panels, and the per-stream versus joint grid includes the laboratory
+  fit.
+- One-week-ahead forecast, its summary table and plots cover the
+  confirmed and tests-analysed streams.
+- Data table and the parameter-by-stream summary include the confirmed
+  and tests-analysed streams.
+
+### Documentation
+
+- Surfaced the onset-to-report and report-to-lab delay priors as
+  equations, and stated that the onset-to-death prior means are the
+  BDBV reanalysis estimates with standard deviations reproducing its
+  95% credible intervals (prior mean delay about 11 days).
+- Clarified that the latent cumulative count is the true-case pool,
+  not the tested or confirmed count, and framed the testing-fraction
+  prior as weakly informative with no outbreak-specific data.
+- Refreshed the Uganda-exports limitation for the three-import data.
+- Submodel source listings render only the code (via `@eval`), no
+  longer echoing the `@code_string` print statements above each block.
+- Clipped the overlaid per-stream C(T) density x-axis so the
+  heavy-tailed exports-deaths fit no longer compresses the other
+  curves.
 
 ### Infrastructure
 

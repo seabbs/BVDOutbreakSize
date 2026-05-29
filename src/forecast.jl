@@ -7,9 +7,50 @@
 # uncertainty.
 
 # Deaths convolution evaluated at horizon `Th = T + h`, sharing the
-# package-wide `expected_deaths` integrator.
+# package-wide `delay_convolution` integrator.
 function _forecast_deaths_mean(r, Th, α, θ, CFR; alg = DEATH_INTEGRAL_ALG)
-    return expected_deaths(CFR, r, Th, Gamma(α, θ); alg)
+    return delay_convolution(CFR, r, Th, Gamma(α, θ); alg)
+end
+
+# Reported (suspected) cases at horizon `Th`: the truth-anchored BVD
+# contribution plus the non-BVD background. The BVD contribution reuses
+# `delay_convolution` as a delay-convolved cumulative integrator at unit
+# ascertainment to compute `∫₀^{Th} exp(r·s) · f_rep(Th-s) ds`; the
+# background contribution `λ_bg · Th` accrues with elapsed time.
+function _forecast_cases_mean(r, Th, α_rep, θ_rep, p_drc, λ_bg;
+        alg = DEATH_INTEGRAL_ALG)
+    conv = delay_convolution(one(p_drc), r, Th, Gamma(α_rep, θ_rep); alg)
+    return p_drc * conv + λ_bg * Th
+end
+
+function _forecast_confirmed_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
+        p_drc, s_test, τ_test; alg = DEATH_INTEGRAL_ALG)
+    d_rep = Gamma(α_rep, θ_rep)
+    d_lab = Gamma(α_lab, θ_lab)
+    bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep, alg = alg
+        u -> p_drc * delay_convolution(one(p_drc), r, u, d_rep; alg)
+    end
+    return s_test * τ_test *
+           delay_convolution(bvd_reported_at, Th, d_lab; alg)
+end
+
+# Cumulative tests analysed at horizon `Th`: τ_test gates both the BVD
+# contribution (lab-completed BVD samples) and the non-BVD background
+# (constant arrival rate λ_bg convolved against F_lab).
+function _forecast_tests_mean(r, Th, α_rep, θ_rep, α_lab, θ_lab,
+        p_drc, λ_bg, τ_test; alg = DEATH_INTEGRAL_ALG)
+    d_rep = Gamma(α_rep, θ_rep)
+    d_lab = Gamma(α_lab, θ_lab)
+    bvd_reported_at = let r = r, p_drc = p_drc, d_rep = d_rep, alg = alg
+        u -> p_drc * delay_convolution(one(p_drc), r, u, d_rep; alg)
+    end
+    bvd_tested = delay_convolution(bvd_reported_at, Th, d_lab; alg)
+    bg_integrand = let α_lab = α_lab, θ_lab = θ_lab, Th = Th
+        u -> _gamma_cdf(α_lab, θ_lab, Th - u)
+    end
+    bg_tested = λ_bg * integrate(bg_integrand, zero(Th), Th,
+        _delay_scale(d_lab); alg)
+    return τ_test * (bvd_tested + bg_tested)
 end
 
 function _nb_rand(rng, k, μ)
@@ -29,12 +70,19 @@ per draw and columns:
 - `:cases_new`, `:deaths_new`, `:exports_new` — new counts over the
   coming week (`*_cum` minus the corresponding observed count at `T`,
   floored at zero).
+- `:confirmed_cum`, `:confirmed_new` — laboratory-confirmed counterparts
+  when the chain carries the lab-turnaround delay (`:α_lab`, `:θ_lab`)
+  and `obs_confirmed` is supplied. Otherwise these columns are absent.
 
-Reads `:r, :T, :CFR, :α, :θ, :w, :p_drc, :p_uganda, :k` from `chn`. DRC
-reported cases use the DRC ascertainment fraction `p_drc`; exports use
-`p_uganda · q` with `q = daily_travellers / source_population`. Assumes
-growth continues unchanged over the horizon (no interventions, no
-saturation).
+DRC reported cases follow the additive expectation
+`p_drc · ∫₀^{T+h} exp(r·s) · f_rep(T+h-s) ds + λ_bg · (T+h)`, with
+`f_rep = Gamma(α_rep, θ_rep)` for the BVD-driven contribution and
+`λ_bg` the per-day non-BVD background. Laboratory-confirmed cases
+follow `s_test · p_drc · ∫₀^{T+h} exp(r·s) · f_conf(T+h-s) ds`, with
+`f_conf` the moment-matched Gamma of `f_rep ∗ f_lab` and `s_test` the
+PCR sensitivity. Exports use `p_uganda · q` with
+`q = daily_travellers / source_population`. Assumes growth continues
+unchanged over the horizon (no interventions, no saturation).
 """
 function forecast_reported(chn;
         horizon::Real = 7,
@@ -43,6 +91,8 @@ function forecast_reported(chn;
         obs_cases::Real,
         obs_deaths::Real,
         obs_exports::Real,
+        obs_confirmed::Union{Real, Missing} = missing,
+        obs_tests::Union{Real, Missing} = missing,
         seed::Integer = 20260520,
         alg = DEATH_INTEGRAL_ALG)
     r = _draws(chn, :r)
@@ -54,18 +104,40 @@ function forecast_reported(chn;
     pr = _draws(chn, :p_drc)
     pu = _draws(chn, :p_uganda)
     k = _draws(chn, :k)
+    α_rep = _draws(chn, :α_rep)
+    θ_rep = _draws(chn, :θ_rep)
+    λ_bg = _draws(chn, :λ_bg)
+    ## Lab-turnaround and PCR sensitivity draws live on the joint chain
+    ## only; their absence drops the confirmed-cases columns.
+    has_lab = all(haskey_chain(chn, n) for n in (:α_lab, :θ_lab, :s_test)) &&
+              obs_confirmed !== missing
+    α_lab = has_lab ? _draws(chn, :α_lab) : nothing
+    θ_lab = has_lab ? _draws(chn, :θ_lab) : nothing
+    s_test = has_lab ? _draws(chn, :s_test) : nothing
+    ## τ_test is optional on the chain: when absent (older fits or
+    ## synthetic chains predating the testing-rate extension) fall back
+    ## to τ = 1, matching the previous "all suspected get tested"
+    ## assumption.
+    τ_test_draws = (has_lab && haskey_chain(chn, :τ_test)) ?
+                   _draws(chn, :τ_test) :
+                   (has_lab ? ones(length(r)) : nothing)
 
+    has_tests = has_lab && obs_tests !== missing
     rng = MersenneTwister(seed)
     n = length(r)
     q = daily_travellers / source_population
     cases_cum = Vector{Int}(undef, n)
     deaths_cum = Vector{Int}(undef, n)
     exports_cum = Vector{Int}(undef, n)
+    confirmed_cum = has_lab ? Vector{Int}(undef, n) : nothing
+    tests_cum = has_tests ? Vector{Int}(undef, n) : nothing
 
     @inbounds for i in 1:n
         Th = T[i] + horizon
-        ## DRC reported cases: p_drc · C(T+h).
-        μ_cases = pr[i] * exp(r[i] * Th)
+        ## DRC reported cases: p_drc · ∫₀^{T+h} exp(r·s) · f_rep(T+h-s) ds
+        ## + λ_bg · (T+h).
+        μ_cases = _forecast_cases_mean(r[i], Th, α_rep[i], θ_rep[i],
+            pr[i], λ_bg[i]; alg)
         cases_cum[i] = _nb_rand(rng, k[i], μ_cases)
         ## DRC deaths: CFR · ∫_0^{T+h} exp(r·s) f(T+h−s) ds.
         μ_deaths = _forecast_deaths_mean(r[i], Th, α[i], θ[i], CFR[i]; alg)
@@ -75,10 +147,22 @@ function forecast_reported(chn;
         lo = max(Th - w[i], zero(Th))
         μ_exports = pu[i] * q * (exp(r[i] * Th) - exp(r[i] * lo)) / r[i]
         exports_cum[i] = rand(rng, Poisson(max(μ_exports, eps(μ_exports))))
+        if has_lab
+            μ_confirmed = _forecast_confirmed_mean(r[i], Th,
+                α_rep[i], θ_rep[i], α_lab[i], θ_lab[i], pr[i],
+                s_test[i], τ_test_draws[i]; alg)
+            confirmed_cum[i] = _nb_rand(rng, k[i], μ_confirmed)
+            if has_tests
+                μ_tests = _forecast_tests_mean(r[i], Th,
+                    α_rep[i], θ_rep[i], α_lab[i], θ_lab[i],
+                    pr[i], λ_bg[i], τ_test_draws[i]; alg)
+                tests_cum[i] = _nb_rand(rng, k[i], μ_tests)
+            end
+        end
     end
 
     _new(cum, obs) = max.(cum .- round(Int, obs), 0)
-    return DataFrame(
+    df = DataFrame(
         cases_cum = cases_cum,
         deaths_cum = deaths_cum,
         exports_cum = exports_cum,
@@ -86,6 +170,27 @@ function forecast_reported(chn;
         deaths_new = _new(deaths_cum, obs_deaths),
         exports_new = _new(exports_cum, obs_exports)
     )
+    if has_lab
+        df.confirmed_cum = confirmed_cum
+        df.confirmed_new = _new(confirmed_cum, obs_confirmed)
+    end
+    if has_tests
+        df.tests_cum = tests_cum
+        df.tests_new = _new(tests_cum, obs_tests)
+    end
+    return df
+end
+
+## Best-effort presence check for a chain key across the FlexiChains /
+## MCMCChains containers in use. Avoids loading the FlexiChains type
+## just to dispatch.
+function haskey_chain(chn, name::Symbol)
+    try
+        chn[name]
+        return true
+    catch
+        return false
+    end
 end
 
 """
@@ -106,10 +211,16 @@ function forecast_table(fc::DataFrame; digits::Integer = 0)
             upper_60 = round(s.hi60; digits), upper_90 = round(s.hi90; digits))
     end
     rows = NamedTuple[]
-    for (label, cum, new) in (
+    streams = [
         ("DRC reported cases", :cases_cum, :cases_new),
         ("DRC deaths", :deaths_cum, :deaths_new),
-        ("Uganda exports", :exports_cum, :exports_new))
+        ("Uganda exports", :exports_cum, :exports_new)]
+    :tests_cum in propertynames(fc) &&
+        push!(streams, ("DRC tests analysed", :tests_cum, :tests_new))
+    :confirmed_cum in propertynames(fc) &&
+        push!(streams, ("DRC confirmed cases",
+            :confirmed_cum, :confirmed_new))
+    for (label, cum, new) in streams
         push!(rows, _row(label, "cumulative by T+7", fc[!, cum]))
         push!(rows, _row(label, "new this week", fc[!, new]))
     end
@@ -128,7 +239,10 @@ from an earlier data snapshot and check the now-known truth against the
 projection.
 """
 function forecast_vs_truth(fc::DataFrame;
-        cases::Real, deaths::Real, exports::Real, digits::Integer = 0)
+        cases::Real, deaths::Real, exports::Real,
+        confirmed::Union{Real, Missing} = missing,
+        tests::Union{Real, Missing} = missing,
+        digits::Integer = 0)
     _row(label,
         draws,
         obs) = begin
@@ -141,10 +255,18 @@ function forecast_vs_truth(fc::DataFrame;
             upper_60 = round(s.hi60; digits), upper_90 = hi,
             within_90 = lo <= obs <= hi ? "yes" : "no")
     end
-    rows = [
-        _row("DRC reported cases", fc[!, :cases_cum], cases),
-        _row("DRC deaths", fc[!, :deaths_cum], deaths),
-        _row("Uganda exports", fc[!, :exports_cum], exports)
-    ]
+    rows = NamedTuple[
+    _row("DRC reported cases", fc[!, :cases_cum], cases),
+    _row(
+        "DRC deaths", fc[!, :deaths_cum], deaths),
+    _row(
+        "Uganda exports", fc[!, :exports_cum], exports)
+]
+    tests !== missing && :tests_cum in propertynames(fc) &&
+        push!(rows,
+            _row("DRC tests analysed", fc[!, :tests_cum], tests))
+    confirmed !== missing && :confirmed_cum in propertynames(fc) &&
+        push!(rows,
+            _row("DRC confirmed cases", fc[!, :confirmed_cum], confirmed))
     return _prettify(DataFrame(rows))
 end

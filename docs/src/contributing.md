@@ -9,7 +9,7 @@ conventions to follow when changing it.
 
 - `src/BVDOutbreakSize.jl` — the package: data loading
   (`load_observations`), NUTS sampling (`nuts_sample`), the shared
-  Gauss-Legendre integrators (`integrate`, `expected_deaths`,
+  Gauss-Legendre integrators (`integrate`, `delay_convolution`,
   `integrate_cumulative`, `integrate_exports_deaths`), summary and
   comparison tables, plotting, the no-onward-deaths projection
   (`predict_no_onward_deaths`) and forecast helpers
@@ -92,8 +92,9 @@ its own priors:
 
 **Observation submodels**, one per data stream, each taking the growth
 state, adding its forward integral and likelihood: `exports_model`
-(Poisson), `deaths_model` (NegBinomial), `cases_model` (NegBinomial),
-and `exports_deaths_model` (Poisson).
+(Poisson), `deaths_model` (NegBinomial), `reported_cases_model`
+(NegBinomial), `confirmed_cases_model` (NegBinomial), and
+`exports_deaths_model` (Poisson).
 
 **Composers** stitch the blocks into full generative models:
 `exports_only_model`, `deaths_only_model`, `cases_only_model`,

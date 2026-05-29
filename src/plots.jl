@@ -123,6 +123,48 @@ function _panel_deaths!(fig, pos, pp, obs; predictive_label = "Posterior")
     return ax
 end
 
+function _panel_confirmed!(fig, pos, pp, obs;
+        predictive_label = "Posterior")
+    r, c = _panel_pos(pos)
+    upper = max(1.0, quantile(pp, 0.995))
+    if obs !== nothing
+        upper = max(upper, 1.05 * obs)
+    end
+    ax = Axis(fig[r, c];
+        xlabel = "Replicated confirmed cases",
+        ylabel = "$(predictive_label) predictive frequency",
+        title = "Confirmed cases (DRC)",
+        limits = ((0, upper), nothing)
+    )
+    hist!(ax, pp; bins = range(0, upper; length = 40),
+        color = (:goldenrod, 0.7))
+    if obs !== nothing
+        vlines!(ax, [obs]; color = :red, linewidth = 2)
+    end
+    return ax
+end
+
+function _panel_tests!(fig, pos, pp, obs;
+        predictive_label = "Posterior")
+    r, c = _panel_pos(pos)
+    upper = max(1.0, quantile(pp, 0.995))
+    if obs !== nothing
+        upper = max(upper, 1.05 * obs)
+    end
+    ax = Axis(fig[r, c];
+        xlabel = "Replicated tests analysed",
+        ylabel = "$(predictive_label) predictive frequency",
+        title = "Tests analysed (DRC)",
+        limits = ((0, upper), nothing)
+    )
+    hist!(ax, pp; bins = range(0, upper; length = 40),
+        color = (:teal, 0.7))
+    if obs !== nothing
+        vlines!(ax, [obs]; color = :red, linewidth = 2)
+    end
+    return ax
+end
+
 function _panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior")
     r, c = _panel_pos(pos)
     upper = max(1.0, quantile(pp, 0.995))
@@ -159,6 +201,10 @@ function plot_posterior_predictive(
         obs_cases::Union{Nothing, Real} = nothing,
         pp_exports_deaths::Union{Nothing, AbstractVector} = nothing,
         obs_exports_deaths::Union{Nothing, Real} = nothing,
+        pp_confirmed::Union{Nothing, AbstractVector} = nothing,
+        obs_confirmed::Union{Nothing, Real} = nothing,
+        pp_tests::Union{Nothing, AbstractVector} = nothing,
+        obs_tests::Union{Nothing, Real} = nothing,
         predictive_label::AbstractString = "Posterior")
     panels = Tuple{Symbol, Any, Any}[]
     pp_exports === nothing ||
@@ -170,11 +216,16 @@ function plot_posterior_predictive(
         push!(panels, (:deaths, pp_deaths, obs_deaths))
     pp_cases === nothing ||
         push!(panels, (:cases, pp_cases, obs_cases))
+    pp_tests === nothing ||
+        push!(panels, (:tests, pp_tests, obs_tests))
+    pp_confirmed === nothing ||
+        push!(panels, (:confirmed, pp_confirmed, obs_confirmed))
 
     isempty(panels) && error(
         "plot_posterior_predictive needs at least one stream")
 
-    ncols = length(panels) >= 4 ? 2 : length(panels)
+    ncols = length(panels) >= 4 ? 3 : length(panels)
+    ncols = min(ncols, length(panels))
     nrows = cld(length(panels), ncols)
     fig = Figure(; size = (450 * ncols, 380 * nrows))
     for (i, (kind, pp, obs)) in enumerate(panels)
@@ -185,21 +236,38 @@ function plot_posterior_predictive(
             _panel_exports_deaths!(fig, pos, pp, obs; predictive_label)
         elseif kind === :deaths
             _panel_deaths!(fig, pos, pp, obs; predictive_label)
-        else
+        elseif kind === :cases
             _panel_cases!(fig, pos, pp, obs; predictive_label)
+        elseif kind === :tests
+            _panel_tests!(fig, pos, pp, obs; predictive_label)
+        else
+            _panel_confirmed!(fig, pos, pp, obs; predictive_label)
         end
     end
     return fig
 end
 
-"""
-Two-row × four-column comparison of posterior-predictive
-distributions. Top row: replicates from the per-stream fits. Bottom
-row: replicates from the joint fit, conditioning on all observed
-streams. Observed values shown as red vertical lines.
+## Panel painter for each stream key used by the comparison grid.
+const _GRID_PANELS = (
+    (:exports, _panel_exports!),
+    (:exports_deaths, _panel_exports_deaths!),
+    (:deaths, _panel_deaths!),
+    (:cases, _panel_cases!),
+    (:tests, _panel_tests!),
+    (:confirmed, _panel_confirmed!)
+)
 
-Each `NamedTuple` carries `(; exports, exports_deaths, deaths,
-cases)`. Each panel is a histogram of replicated counts; rows share
+"""
+Two-row comparison of posterior-predictive distributions, one column
+per stream. Top row: replicates from the per-stream fits. Bottom row:
+replicates from the joint fit, conditioning on all observed streams.
+Observed values shown as red vertical lines.
+
+Each `NamedTuple` carries a subset of `(; exports, exports_deaths,
+deaths, cases, tests, confirmed)`; columns are drawn in that canonical
+order for whichever streams are present in `individual` (the
+`confirmed`/`tests` columns appear only when the laboratory pipeline is
+included). Each panel is a histogram of replicated counts; rows share
 the same x-axis (the stream's count) so the per-stream and joint
 predictives are directly comparable.
 """
@@ -208,18 +276,18 @@ function plot_posterior_predictive_grid(;
         joint::NamedTuple,
         observed::NamedTuple
 )
-    fig = Figure(; size = (1600, 640))
+    streams = [(key, painter)
+               for (key, painter) in _GRID_PANELS
+               if hasproperty(individual, key)]
+    ncols = length(streams)
+    fig = Figure(; size = (400 * ncols, 640))
     rows = ((:individual, individual, "per-stream fit"),
         (:joint, joint, "joint fit"))
     for (i, (_, pp, label)) in enumerate(rows)
-        _panel_exports!(fig, (i, 1), pp.exports, observed.exports;
-            predictive_label = label)
-        _panel_exports_deaths!(fig, (i, 2), pp.exports_deaths,
-            observed.exports_deaths; predictive_label = label)
-        _panel_deaths!(fig, (i, 3), pp.deaths, observed.deaths;
-            predictive_label = label)
-        _panel_cases!(fig, (i, 4), pp.cases, observed.cases;
-            predictive_label = label)
+        for (j, (key, painter)) in enumerate(streams)
+            painter(fig, (i, j), getproperty(pp, key),
+                getproperty(observed, key); predictive_label = label)
+        end
     end
     return fig
 end
@@ -234,10 +302,15 @@ function plot_prior_predictive(
         obs_exports::Union{Nothing, Real},
         obs_deaths::Union{Nothing, Real};
         pp_cases::Union{Nothing, AbstractVector} = nothing,
-        obs_cases::Union{Nothing, Real} = nothing)
+        obs_cases::Union{Nothing, Real} = nothing,
+        pp_confirmed::Union{Nothing, AbstractVector} = nothing,
+        obs_confirmed::Union{Nothing, Real} = nothing,
+        pp_tests::Union{Nothing, AbstractVector} = nothing,
+        obs_tests::Union{Nothing, Real} = nothing)
     return plot_posterior_predictive(
         pp_exports, pp_deaths, obs_exports, obs_deaths;
-        pp_cases, obs_cases, predictive_label = "Prior")
+        pp_cases, obs_cases, pp_confirmed, obs_confirmed,
+        pp_tests, obs_tests, predictive_label = "Prior")
 end
 
 """
@@ -393,14 +466,26 @@ Three-panel histogram of the new-this-week forecast counts (cases,
 deaths, exports) from [`forecast_reported`](@ref).
 """
 function plot_forecast(fc::DataFrame)
-    fig = Figure(; size = (1100, 360))
-    cols = ((:cases_new, "New reported cases (DRC)", :steelblue),
-        (:deaths_new, "New deaths (DRC)", :firebrick),
-        (:exports_new, "New exports (Uganda)", :seagreen))
+    cols = Tuple{Symbol, String, Symbol}[
+    (
+        :cases_new, "New reported cases (DRC)", :steelblue),
+    (
+        :deaths_new, "New deaths (DRC)", :firebrick),
+    (
+        :exports_new, "New exports (Uganda)", :seagreen)
+]
+    :tests_new in propertynames(fc) && push!(cols,
+        (:tests_new, "New tests analysed (DRC)", :teal))
+    :confirmed_new in propertynames(fc) && push!(cols,
+        (:confirmed_new, "New confirmed cases (DRC)", :goldenrod))
+    ncols = min(length(cols), 3)
+    nrows = cld(length(cols), ncols)
+    fig = Figure(; size = (370 * ncols, 360 * nrows))
     for (i, (col, title, colour)) in enumerate(cols)
         v = fc[!, col]
         upper = max(1.0, quantile(v, 0.995))
-        ax = Axis(fig[1, i];
+        r, c = cld(i, ncols), mod1(i, ncols)
+        ax = Axis(fig[r, c];
             xlabel = title, ylabel = "Predictive frequency",
             title = "One week ahead", limits = ((0, upper), nothing))
         hist!(ax, v; bins = range(0, upper; length = 30),
@@ -422,9 +507,31 @@ observed new count is the cumulative truth minus the baseline.
 """
 function plot_forecast_vs_truth(fc::DataFrame;
         cases::Real, deaths::Real, exports::Real,
+        confirmed::Union{Real, Missing} = missing,
+        tests::Union{Real, Missing} = missing,
         baseline_cases::Real = 0, baseline_deaths::Real = 0,
-        baseline_exports::Real = 0)
-    fig = Figure(; size = (1100, 680))
+        baseline_exports::Real = 0,
+        baseline_confirmed::Real = 0,
+        baseline_tests::Real = 0)
+    streams = Vector{Tuple{Symbol, Symbol, String, Symbol, Float64, Float64}}([
+        (:cases_cum, :cases_new, "reported cases (DRC)", :steelblue,
+            float(cases), float(cases) - float(baseline_cases)),
+        (:deaths_cum, :deaths_new, "deaths (DRC)", :firebrick,
+            float(deaths), float(deaths) - float(baseline_deaths)),
+        (:exports_cum, :exports_new, "exports (Uganda)", :seagreen,
+            float(exports), float(exports) - float(baseline_exports))
+    ])
+    tests !== missing && :tests_cum in propertynames(fc) &&
+        push!(streams,
+            (:tests_cum, :tests_new, "tests analysed (DRC)", :teal,
+                float(tests), float(tests) - float(baseline_tests)))
+    confirmed !== missing && :confirmed_cum in propertynames(fc) &&
+        push!(streams,
+            (:confirmed_cum, :confirmed_new, "confirmed cases (DRC)",
+                :goldenrod, float(confirmed),
+                float(confirmed) - float(baseline_confirmed)))
+    ncols = length(streams)
+    fig = Figure(; size = (370 * ncols, 680))
     function panel!(row, col, v, obs, title, colour)
         lo = quantile(v, 0.05)
         hi = quantile(v, 0.95)
@@ -437,13 +544,6 @@ function plot_forecast_vs_truth(fc::DataFrame;
             color = (colour, 0.7))
         vlines!(ax, [obs]; color = :black, linestyle = :dash, linewidth = 2)
     end
-    streams = (
-        (:cases_cum, :cases_new, "reported cases (DRC)", :steelblue,
-            float(cases), float(cases) - float(baseline_cases)),
-        (:deaths_cum, :deaths_new, "deaths (DRC)", :firebrick,
-            float(deaths), float(deaths) - float(baseline_deaths)),
-        (:exports_cum, :exports_new, "exports (Uganda)", :seagreen,
-            float(exports), float(exports) - float(baseline_exports)))
     for (j, (ccol, ncol, name, colour, obs_cum, obs_new)) in
         enumerate(streams)
         panel!(1, j, fc[!, ccol], obs_cum, "Cumulative $name", colour)

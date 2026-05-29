@@ -9,6 +9,8 @@
     @test obs.exports_deaths isa Integer
     @test obs.total_deaths isa Integer
     @test obs.reported_cases isa Integer
+    @test obs.confirmed_cases isa Integer
+    @test obs.cumulative_tests_analysed isa Integer
     @test obs.source_population isa Integer
     @test obs.daily_outbound_travellers isa Real
     @test obs.daily_outbound_travellers_sd isa Real
@@ -21,6 +23,10 @@
     @test obs.exports_deaths >= 0
     @test obs.total_deaths >= 0
     @test obs.reported_cases >= 0
+    @test obs.confirmed_cases >= 0
+    @test obs.confirmed_cases <= obs.reported_cases
+    @test obs.cumulative_tests_analysed >= obs.confirmed_cases
+    @test obs.cumulative_tests_analysed <= obs.reported_cases
     @test obs.daily_outbound_travellers > 0
     @test obs.daily_outbound_travellers_sd > 0
     @test obs.source_population > 0
@@ -37,6 +43,8 @@
     @test obs.sources.exports_deaths isa String
     @test obs.sources.total_deaths isa String
     @test obs.sources.reported_cases isa String
+    @test obs.sources.confirmed_cases isa String
+    @test obs.sources.cumulative_tests_analysed isa String
     @test obs.sources.daily_outbound_travellers isa String
     @test obs.sources.daily_outbound_travellers_sd isa String
     @test obs.sources.source_population isa String

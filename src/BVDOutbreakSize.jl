@@ -17,7 +17,7 @@ import FlexiChains
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
                            TYPEDFIELDS, TYPEDSIGNATURES
 using Distributions: Distribution, Gamma, cdf, ccdf, mgf, pdf, Poisson,
-                     NegativeBinomial, Normal, LogNormal, Beta,
+                     NegativeBinomial, Binomial, Normal, LogNormal, Beta,
                      truncated, censored
 using StatsFuns: logit, logistic
 using Integrals: IntegralProblem, GaussLegendre, solve
@@ -37,7 +37,7 @@ export REPORT_SCENARIOS,
        streams_table, comparison_table,
        nuts_sample, default_adtype,
        DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
-       integrate, expected_deaths,
+       integrate, delay_convolution,
        integrate_cumulative, integrate_exports_deaths,
        expected_exports, expected_exports_deaths,
        ExportDeathDelay, EXPORT_DELAY_GRID_POINTS,
@@ -50,13 +50,18 @@ export REPORT_SCENARIOS,
        forecast_vs_truth, plot_forecast_vs_truth,
 # prior submodels
        exponential_growth_model, genetic_seeding_model, delay_model,
+       report_delay_model, lab_delay_model, test_sensitivity_model,
+       test_positivity_model,
        cfr_model, detection_window_model, traveller_volume_model,
        surveillance_dispersion_model, pooled_ascertainment_model,
 # observation models
-       exports_model, deaths_model, cases_model, exports_deaths_model,
+       exports_model, deaths_model,
+       reported_cases_model, confirmed_cases_model,
+       exports_deaths_model,
        exports_detection_timing_model,
 # joint composers
        exports_only_model, deaths_only_model, cases_only_model,
+       confirmed_only_model,
        exports_deaths_only_model, bvd_joint, imperial_only_model
 
 include("docstrings.jl")

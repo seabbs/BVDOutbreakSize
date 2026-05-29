@@ -3,14 +3,39 @@
 ## then checks the returned DataFrame contract.
 
 @testsnippet ForecastFixtures begin
-    using Turing: sample, Prior
+    using Turing: Turing, @model, sample, Prior
+    using Distributions: Beta, Normal, truncated
     import FlexiChains
     using BVDOutbreakSize: bvd_joint
 
-    ## A prior draw from the real joint model exposes every parameter
-    ## name (:r, :T, :CFR, :α, :θ, :w, :p_drc, :p_uganda, :k) that
-    ## `forecast_reported` reads.
-    _forecast_chain(n) = sample(bvd_joint(missing, missing), Prior(), n;
+    ## Synthetic prior carrying every parameter name that
+    ## `forecast_reported` reads. `include_lab = true` adds the
+    ## lab-turnaround delay and PCR sensitivity draws so the
+    ## confirmed-cases columns are populated.
+    @model function _forecast_test(; include_lab::Bool = false)
+        r ~ truncated(Normal(0.05, 0.01); lower = 1e-3)
+        T ~ truncated(Normal(100.0, 10.0); lower = 1.0)
+        CFR ~ Beta(6.0, 14.0)
+        α ~ truncated(Normal(4.3, 0.5); lower = 0.5)
+        θ ~ truncated(Normal(2.6, 0.3); lower = 0.2)
+        w ~ truncated(Normal(15.0, 2.0); lower = 1.0)
+        p_drc ~ Beta(2.0, 6.0)
+        p_uganda ~ Beta(2.0, 6.0)
+        inv_sqrt_k ~ truncated(Normal(0.0, 1.0); lower = 1e-3)
+        k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
+        α_rep ~ truncated(Normal(4.0, 0.5); lower = 0.5)
+        θ_rep ~ truncated(Normal(3.0, 0.3); lower = 0.2)
+        λ_bg ~ truncated(Normal(0.0, 10.0); lower = 0)
+        if include_lab
+            α_lab ~ truncated(Normal(2.0, 0.5); lower = 0.5)
+            θ_lab ~ truncated(Normal(1.5, 0.3); lower = 0.2)
+            s_test ~ Beta(15.0, 2.0)
+        end
+        return nothing
+    end
+
+    _forecast_chain(n;
+        include_lab::Bool = false) = sample(_forecast_test(; include_lab), Prior(), n;
         chain_type = FlexiChains.VNChain, progress = false)
 end
 
@@ -41,6 +66,26 @@ end
     ## New-this-week cannot exceed the cumulative forecast.
     @test all(fc.cases_new .<= fc.cases_cum)
     @test all(fc.deaths_new .<= fc.deaths_cum)
+    ## No lab-turnaround draws in this fixture → no confirmed columns.
+    @test !(:confirmed_cum in propertynames(fc))
+end
+
+@testitem "forecast_reported adds confirmed columns when lab delay sampled" tags=[:slow] setup=[ForecastFixtures] begin
+    using DataFrames: DataFrame
+    using BVDOutbreakSize: forecast_reported
+
+    chn=_forecast_chain(200; include_lab = true)
+    fc=forecast_reported(chn;
+        horizon = 7, daily_travellers = 1871,
+        source_population = 4_392_200,
+        obs_cases = 514, obs_deaths = 136, obs_exports = 2,
+        obs_confirmed = 33)
+
+    @test :confirmed_cum in propertynames(fc)
+    @test :confirmed_new in propertynames(fc)
+    @test all(fc.confirmed_cum .>= 0)
+    @test all(fc.confirmed_new .>= 0)
+    @test all(fc.confirmed_new .<= fc.confirmed_cum)
 end
 
 @testitem "forecast_table and plot_forecast" tags=[:slow] setup=[

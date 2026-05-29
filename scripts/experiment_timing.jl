@@ -42,7 +42,8 @@ end
     p_uganda = asc_state.p_uganda
     exports_state ~ to_submodel(exports_model(ec, growth_state, p_uganda), false)
     deaths_state ~ to_submodel(deaths_model(td, growth_state, k), false)
-    cases_state ~ to_submodel(cases_model(rc, growth_state, k, p_drc), false)
+    cases_state ~ to_submodel(
+        reported_cases_model(rc, growth_state, k, p_drc), false)
     xd_state ~ to_submodel(
         count_xd_model(xd_total, growth_state,
             deaths_state.CFR, deaths_state.delay_dist, p_uganda;
