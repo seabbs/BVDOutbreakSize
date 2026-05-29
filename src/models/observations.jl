@@ -300,12 +300,11 @@ the cumulative confirmed likelihood.
                   max(raw_bvd_tested, eps(typeof(raw_bvd_tested))) :
                   eps(typeof(raw_bvd_tested))
     te = oftype(T, tests_edge)
-    bg_integrand = let α_lab = α_lab, θ_lab = θ_lab, te = te
-        u -> _gamma_cdf(α_lab, θ_lab, te - u)
-    end
-    bg_integral = te <= zero(te) ? zero(te) :
-                  integrate(bg_integrand, zero(te), te,
-        _delay_scale(f_lab); alg = DEATH_INTEGRAL_ALG)
+    ## Background tested volume at `te`: constant-rate λ_bg arrivals
+    ## convolved against the lab-delay CDF and right-truncated at `te`,
+    ## which is ∫₀^te F_lab(te - u) du = ∫₀^te F_lab(v) dv, the closed
+    ## form `_gamma_cdf_integral`.
+    bg_integral = _gamma_cdf_integral(α_lab, θ_lab, te)
     raw_bg_tested = τ_test * λ_bg * bg_integral
     bg_tested := isfinite(raw_bg_tested) ?
                  max(raw_bg_tested, eps(typeof(raw_bg_tested))) :

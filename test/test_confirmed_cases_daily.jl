@@ -107,3 +107,47 @@ end
     @test all(fast .> 0)
     @test maximum(abs.(fast .- ref) ./ ref) < 0.05
 end
+
+@testitem "DailyBVDTrajectory Gamma fast path matches generic" tags=[:slow] begin
+    using BVDOutbreakSize: DailyBVDTrajectory, delay_convolution
+    using Distributions: Gamma
+
+    r = 0.12
+    f_rep = Gamma(4.0, 3.0)
+    f_lab = Gamma(2.3, 1.4)
+    T_max = 28.0
+    d = DailyBVDTrajectory(T_max, r, f_rep)
+    edges = [6.0, 11.0, 17.0, 23.0, 28.0]
+
+    ## The Gamma-specialised method hoists the density normalisation out
+    ## of the double loop; it must reproduce the generic `pdf`-based
+    ## reference (reached via `invoke`) to machine precision.
+    fast = delay_convolution(d, edges, f_lab)
+    generic = invoke(delay_convolution,
+        Tuple{typeof(d), typeof(edges), Any}, d, edges, f_lab)
+    @test fast ≈ generic rtol = 1e-12
+end
+
+@testitem "DailyBVDTrajectory convolution is AD-stable" tags=[:ad] begin
+    using BVDOutbreakSize: DailyBVDTrajectory, delay_convolution
+    using Distributions: Gamma
+    using Mooncake: Mooncake
+    using Random: MersenneTwister
+
+    f_rep = Gamma(4.0, 3.0)
+    edges = [6.0, 11.0, 17.0, 23.0, 28.0]
+    T = 28.0
+    ## The lab convolution sums over the precomputed trajectory and the
+    ## hoisted Gamma normalisation, with gradients flowing through the
+    ## lab-delay shape / scale (α, θ) and the growth rate `r` that builds
+    ## the trajectory. Check the composed rule against finite differences.
+    loss(α, θ, r) = sum(delay_convolution(
+        DailyBVDTrajectory(T, r, f_rep), edges, Gamma(α, θ)))
+    Mooncake.TestUtils.test_rule(
+        MersenneTwister(20260520),
+        loss, 2.3, 1.4, 0.12;
+        is_primitive = false,
+        perf_flag = :none,
+        mode = Mooncake.ReverseMode
+    )
+end

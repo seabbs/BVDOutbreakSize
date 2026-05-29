@@ -206,6 +206,7 @@ struct DailyBVDTrajectory{T}
     nodes::Vector{T}           # incidence-time samples s_j ∈ [0, T_max]
     weights::Vector{T}         # quadrature weights (scaled to T_max / 2)
     bvd_at_nodes::Vector{T}    # μ_BVD,0(s_j) — propagates the AD type
+    w_bvd::Vector{T}           # weights[j] · bvd_at_nodes[j], edge-independent
     T_max::T
 end
 
@@ -233,7 +234,9 @@ function DailyBVDTrajectory(T_max::Real, r::Real, f_rep;
     nodes = Tt[half * (u + one(u)) for u in raw_nodes]
     weights = Tt[half * w for w in raw_weights]
     bvd = Tt[delay_convolution(one(Tt), r, s, f_rep) for s in nodes]
-    return DailyBVDTrajectory{Tt}(nodes, weights, bvd, convert(Tt, T_max))
+    w_bvd = weights .* bvd
+    return DailyBVDTrajectory{Tt}(nodes, weights, bvd, w_bvd,
+        convert(Tt, T_max))
 end
 
 """
@@ -260,12 +263,45 @@ function delay_convolution(d::DailyBVDTrajectory, t_edges::AbstractVector,
         T_k = t_edges[k]
         acc = zero(Tt)
         @inbounds for j in eachindex(d.nodes)
-            s_j = d.nodes[j]
-            δ = T_k - s_j
+            δ = T_k - d.nodes[j]
             δ <= zero(δ) && continue
-            acc += d.weights[j] * d.bvd_at_nodes[j] * pdf(f_lab, δ)
+            ## `w_bvd[j]` folds in the edge-independent weight × μ_BVD,0
+            ## product, leaving only the per-edge lab-delay density.
+            acc += d.w_bvd[j] * pdf(f_lab, δ)
         end
         out[k] = acc
+    end
+    return out
+end
+
+"""
+[`delay_convolution`](@ref) over a [`DailyBVDTrajectory`](@ref)
+specialised to a `Gamma` lab-delay distribution. The Gamma density
+``f(δ) = δ^{α-1} e^{-δ/θ} / (Γ(α)\\, θ^{α})`` splits into a
+node-dependent shape ``δ^{α-1} e^{-δ/θ}`` and the constant
+``1 / (Γ(α)\\, θ^{α})``. The constant is evaluated once per call — so
+`loggamma(α)` is computed once rather than at every (edge, node) pair —
+and factored back in per edge. Numerically identical to the generic
+`pdf`-based method.
+"""
+function delay_convolution(d::DailyBVDTrajectory, t_edges::AbstractVector,
+        f_lab::Gamma)
+    α, θ = f_lab.α, f_lab.θ
+    αm1 = α - one(α)
+    invθ = inv(θ)
+    Z = exp(-loggamma(α) - α * log(θ))   # 1 / (Γ(α) θ^α)
+    Tt = promote_type(eltype(d.bvd_at_nodes), typeof(Z), typeof(invθ))
+    n = length(t_edges)
+    out = Vector{Tt}(undef, n)
+    for k in 1:n
+        T_k = t_edges[k]
+        acc = zero(Tt)
+        @inbounds for j in eachindex(d.nodes)
+            δ = T_k - d.nodes[j]
+            δ <= zero(δ) && continue
+            acc += d.w_bvd[j] * exp(αm1 * log(δ) - δ * invθ)
+        end
+        out[k] = acc * Z
     end
     return out
 end
