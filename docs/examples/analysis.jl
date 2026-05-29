@@ -516,17 +516,21 @@ observations_table #hide
 # The McCabe et al. report uses the point estimate of
 # [rosello2015](@cite). We instead use the companion Bayesian reanalysis
 # of the same Isiro line list [bdbv_linelist_analysis_2026](@cite),
-# which re-estimates the delay with uncertainty. We carry that
-# uncertainty into the fit through truncated Normal priors centred on
-# its estimates:
+# which re-estimates the delay with uncertainty. The two prior means are
+# that reanalysis' posterior estimates of the gamma shape and scale, and
+# the two standard deviations are set so each prior reproduces the
+# reanalysis' 95% credible interval on that parameter. The published
+# uncertainty therefore enters the fit directly, rather than collapsing
+# onto a single point estimate:
 #
 # ```math
 # \alpha \sim \mathrm{Normal}^{+}(4.3,\ 1.22), \qquad
 # \theta \sim \mathrm{Normal}^{+}(2.6,\ 0.82). \tag{5}
 # ```
 #
-# The delay estimation in that reanalysis follows the recommendations
-# of [charniga2024](@cite).
+# This implies a prior mean onset-to-death delay of
+# $\alpha\,\theta \approx 11$ days. The delay estimation in that
+# reanalysis follows the recommendations of [charniga2024](@cite).
 
 #md # ```@raw html
 #md # <details><summary>Submodel: delay_model</summary>
@@ -550,16 +554,34 @@ observations_table #hide
 # and a report-to-confirmation delay $f_{\text{lab}}$ (lab
 # turnaround).
 #
-# The onset-to-report prior is taken from the companion BDBV linelist
-# reanalysis of the 2012 Isiro outbreak [bdbv_linelist_analysis_2026](@cite),
-# whose Gamma-family posterior on the onset-to-notification delay has
-# median around $11$ days. We loosen this slightly to allow for
-# 2026-specific deviations.
+# Both delays are Gamma-distributed, with shape and scale given
+# truncated-Normal priors in the same way as the onset-to-death delay
+# above. The onset-to-report prior is taken from the companion BDBV
+# linelist reanalysis of the 2012 Isiro outbreak
+# [bdbv_linelist_analysis_2026](@cite), whose Gamma-family posterior on
+# the onset-to-notification delay has median around $11$ days, loosened
+# slightly to allow for 2026-specific deviations:
+#
+# ```math
+# \alpha_{\text{rep}} \sim \mathrm{Normal}^{+}(2.5,\ 1.0), \qquad
+# \theta_{\text{rep}} \sim \mathrm{Normal}^{+}(4.5,\ 1.5), \tag{5a}
+# ```
+#
+# a prior mean onset-to-report delay of about $11$ days.
 #
 # No per-sample lab turnaround is published for this outbreak that we
 # are aware of. We use a Gamma prior centred around $4$-$5$ days with
 # a heavy right tail to allow for sample shipment to a confirmatory
-# lab; can be tightened if data becomes available.
+# lab:
+#
+# ```math
+# \alpha_{\text{lab}} \sim \mathrm{Normal}^{+}(1.5,\ 1.0), \qquad
+# \theta_{\text{lab}} \sim \mathrm{Normal}^{+}(3.0,\ 2.0). \tag{5b}
+# ```
+#
+# Both shape/scale pairs are truncated at $0.1$ to keep the Gamma
+# well-defined under the sampler, and can be tightened if per-sample
+# timing data become available.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: report_delay_model</summary>
