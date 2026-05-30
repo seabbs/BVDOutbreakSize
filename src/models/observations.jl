@@ -349,10 +349,16 @@ first element is the cumulative at the first edge and a single edge
 reduces to the cumulative single-total mean. The exported-deaths stream
 passes its pre-death survival weight as `init`.
 """
-function daily_increment_kernel(Λ_at_edges::AbstractVector; init = nothing)
+function daily_increment_kernel(Λ_at_edges::AbstractVector, init = nothing)
     n = length(Λ_at_edges)
     Tt = eltype(Λ_at_edges)
     means = Vector{Tt}(undef, n)
+    ## `init` is positional, not a keyword: a keyword bundles it into a
+    ## `(; init)` NamedTuple, and when the caller's `init` is a constant
+    ## (e.g. the pre-death stretch collapses to `zero(T)` for extreme NUTS
+    ## proposals) that single-field struct is wholly inactive, which
+    ## Enzyme's reverse-mode struct rule rejects. A positional argument is
+    ## Const-annotated directly and avoids the mixed-activity struct.
     Λ_prev = init === nothing ? zero(Tt) : convert(Tt, init)
     @inbounds for i in 1:n
         raw = Λ_at_edges[i] - Λ_prev
@@ -400,7 +406,7 @@ likelihoods share person-time.
     ## streams but starting from the pre-death survival weight `pre`
     ## rather than zero.
     Λ_at_edges = [Λ(T - n + i) for i in 1:n]
-    μ_day = daily_increment_kernel(Λ_at_edges; init = pre)
+    μ_day = daily_increment_kernel(Λ_at_edges, pre)
     for i in 1:n
         export_deaths_daily[i] ~ Poisson(μ_day[i])
     end

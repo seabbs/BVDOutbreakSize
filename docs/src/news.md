@@ -27,27 +27,19 @@ each push to `main` also republishes the rendered analysis and the
 
 ### Modelling
 
-- Reparameterised the growth submodel to sample the exponential growth
-  rate `r` directly (the quantity McCabe et al. treat as their primary
-  assumption) with `LogNormal(log(log(2)/14), 0.4)`, recovering the
-  doubling time as the deterministic `τ = log(2)/r`. The prior is the
-  exact reciprocal pushforward of the previous `τ ~ LogNormal(log(14),
-  0.4)`, so the implied prior on `τ` and every derived quantity is
-  unchanged; `τ`, `m`, `T` and `C(T)` are still exposed as outputs.
-- Recentred the doubling-count prior `m` and widened it to SD 3, with a
-  centre that advances with the cut-off date to better align with McCabe
-  et al. The base assumption is their first report (18 May 2026): the
-  Method 2 central scenario of 501 cases is `m = log2(501) ≈ 9`. The
-  prior centre is `m_prior_centre(as_of_date) = 9 + (cut-off − 18 May)/14`
-  doublings (advancing at the central 14-day doubling time), so it tracks
-  data refreshes instead of being fixed at the report-date value, and a
-  McCabe-date fit recovers the base. The previous centre of 7 sat below
-  McCabe's entire headline range; the new centre starts the sampler
-  nearer the data-supported outbreak size and removes the divergent
-  transitions, but does not on its own resolve the joint fit's secondary
-  small-outbreak mode (worst R-hat roughly unchanged; the residual
-  multimodality is funded by the ascertainment / background priors,
-  tracked separately).
+- Reparameterised growth to sample the growth rate `r` directly
+  (`LogNormal(log(log(2)/14), 0.4)`, McCabe et al.'s primary assumption),
+  with the doubling time `τ = log(2)/r` and `m`, `T`, `C(T)` still
+  exposed. This is the exact reciprocal pushforward of the old `τ` prior,
+  so the implied priors are unchanged.
+- Recentred the doubling-count prior on a base that advances with the
+  cut-off: `m ~ Normal(m_prior_centre(as_of), 3)`, centre
+  `9 + (cut-off − 18 May)/14` doublings, based on McCabe et al.'s
+  first-report Method 2 central (501 cases, `log2 ≈ 9`) and the 14-day
+  doubling time, so it tracks data refreshes and better aligns with
+  McCabe. Removes the divergent transitions but not the residual
+  small-outbreak multimodality (tracked separately).
+- Lowered the NUTS default target acceptance from 0.95 to 0.9.
 - Added a laboratory pipeline coupling the cumulative tests-analysed and
   confirmed-case streams to the latent incidence, introducing a testing
   fraction, PCR sensitivity and a report-to-confirmation (lab-turnaround)
@@ -107,10 +99,13 @@ each push to `main` also republishes the rendered analysis and the
 
 ### Infrastructure
 
+- Added optional Enzyme reverse-mode AD, selected with `enzyme_adtype()`,
+  alongside the default Mooncake backend. Gradients match Mooncake across
+  every model including the full joint and fitting runs at the same speed,
+  so Mooncake stays the default.
 - Fixed a posterior-predictive grid regression under AlgebraOfGraphics
-  0.12 (an `isfinite` change) and widened the AoG compat bound to include
-  0.12.
-- Bumped the `softprops/action-gh-release` GitHub Action to v3.
+  0.12 and widened the AoG compat bound to include 0.12; bumped the
+  `softprops/action-gh-release` Action to v3.
 
 ## v1.2.0
 
