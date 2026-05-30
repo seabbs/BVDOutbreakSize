@@ -39,9 +39,11 @@ each push to `main` also republishes the rendered analysis and the
   back-calculation scenario (a 14-day doubling time implies a doubling
   count `m = log2(C_T)` of ≈ 9.1–9.8 across their CFR band, whereas the
   previous centre of 7 sat below their entire headline range). This
-  starts the sampler nearer the data-supported outbreak size, which the
-  prior under-centred, reducing the chance that a chain is stranded in
-  the secondary small-outbreak mode and improving joint-fit mixing.
+  starts the sampler nearer the data-supported outbreak size (the prior
+  previously under-centred it) and removes the divergent transitions, but
+  does not on its own resolve the joint fit's secondary small-outbreak
+  mode (worst R-hat is roughly unchanged; the remaining multimodality is
+  funded by the ascertainment / background priors, tracked separately).
 - Added a laboratory pipeline coupling the cumulative tests-analysed and
   confirmed-case streams to the latent incidence, introducing a testing
   fraction, PCR sensitivity and a report-to-confirmation (lab-turnaround)
