@@ -66,6 +66,11 @@ each push to `main` also republishes the rendered analysis and the
 - Added `forecast_vs_truth_trajectory`: scores the retrospective forecast
   against the observed cumulative at every sitrep date across the horizon,
   not just the endpoint.
+- Cut quadratures from the time-varying convolution: the laboratory
+  background tested-volume integral now uses a closed-form gamma-CDF
+  integral (`_gamma_cdf_integral`) instead of a per-draw quadrature, with
+  an analytic reverse-mode rule, speeding up the lab-pipeline likelihood
+  without changing the model.
 
 ### Outputs
 
@@ -95,6 +100,13 @@ each push to `main` also republishes the rendered analysis and the
 - Added limitations on the constant exponential growth-rate assumption
   holding beyond the report period, and on per-sitrep increments mixing
   true incidence with backfill and rising ascertainment.
+
+### Infrastructure
+
+- Fixed a posterior-predictive grid regression under AlgebraOfGraphics
+  0.12 (an `isfinite` change) and widened the AoG compat bound to include
+  0.12.
+- Bumped the `softprops/action-gh-release` GitHub Action to v3.
 
 ## v1.2.0
 
