@@ -10,14 +10,15 @@ parameterisation. Samples the exponential growth rate `r` and a
 doubling-count `m = T/τ`, then exposes `(τ, m, r, T, C_T, cumulative)`
 as deterministics for downstream submodels.
 
-The prior is placed on the growth rate `r` — the quantity McCabe et al.
-treat as the primary assumption (their doubling-time sweep) — rather than
-on the doubling time `τ`, which is recovered as the deterministic
-`τ = log(2)/r`. The default `r ~ LogNormal(log(log(2)/14), 0.4)` is the
-exact pushforward of the previous `τ ~ LogNormal(log(14), 0.4)`: because
-`r = log(2)/τ` is a reciprocal, the log-scale SD `0.4` is preserved, so
-the implied prior on `τ` (and hence on every derived quantity) is
-unchanged. Only the sampled coordinate differs.
+McCabe et al.'s primary assumption is the doubling time (their 7/14/21-day
+sweep); each doubling time implies a growth rate `r = log(2)/τ`, and the
+prior is placed on that implied `r` rather than on `τ`, which is recovered
+as the deterministic `τ = log(2)/r`. The default
+`r ~ LogNormal(log(log(2)/14), 0.4)` is exactly equivalent to the previous
+`τ ~ LogNormal(log(14), 0.4)`: because `r = log(2)/τ` is a reciprocal, the
+log-scale SD `0.4` is preserved, so the implied doubling-time prior (and
+hence every derived quantity) is unchanged. Only the sampled coordinate
+differs.
 
 The doubling-count prior `m ~ Normal(9, 2.5)` (truncated at 0) is centred
 on `m = 9` (`C_T = 2^9 = 512`), matching McCabe et al.'s central

@@ -473,11 +473,12 @@ vintage_table #hide
 # ```
 #
 # so that the cumulative case count at the cut-off is $C(T) = 2^m$
-# with $m = T/\tau$ the number of doublings since seeding. McCabe et al.
-# treat the growth rate (equivalently the doubling time) as the primary
-# assumption, varying it over a sensitivity sweep of 7 / 14 / 21 days;
-# we therefore place the prior on $r$ directly, centred at the main
-# scenario (14 d, $r = \log 2/14$) with log-SD 0.4:
+# with $m = T/\tau$ the number of doublings since seeding. McCabe et al.'s
+# primary assumption is the doubling time, which they vary over a
+# sensitivity sweep of 7 / 14 / 21 days; each choice of doubling time
+# implies a growth rate $r = \log 2/\tau$. We place the prior on that
+# implied growth rate $r$ directly, centred at the main-scenario doubling
+# time (14 d, so $r = \log 2/14$) with log-SD 0.4:
 #
 # ```math
 # r \sim \mathrm{LogNormal}(\log(\log 2 / 14),\ 0.4),
@@ -485,11 +486,13 @@ vintage_table #hide
 # \tau = \frac{\log 2}{r}. \tag{2}
 # ```
 #
-# Because $r = \log 2/\tau$ is a reciprocal, this is the exact
-# pushforward of a $\mathrm{LogNormal}(\log 14, 0.4)$ prior on $\tau$:
-# the log-scale SD 0.4 is preserved, so the implied prior on $\tau$ (95%
-# interval roughly $(6, 31)$ d, spanning the full sweep) and every
-# derived quantity are unchanged — only the sampled coordinate differs.
+# Because $r = \log 2/\tau$ is a reciprocal, putting this LogNormal on $r$
+# is exactly equivalent to a $\mathrm{LogNormal}(\log 14, 0.4)$ prior on
+# the doubling time: a reciprocal negates and shifts the log-scale mean
+# but preserves the log-scale SD 0.4, so the implied doubling-time prior
+# is unchanged (95% interval roughly $(6, 31)$ d, spanning the full
+# sweep), as is every derived quantity. Only the sampled coordinate
+# differs.
 #
 # Rather than sampling $T$ directly (ridge-correlated with $r$ through
 # $C(T) = \exp(r T)$), the model samples the *doubling count*
