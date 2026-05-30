@@ -503,13 +503,16 @@ vintage_table #hide
 # m \sim \mathrm{Normal}(9,\ 2.5)\ \text{on}\ (0, \infty). \tag{3}
 # ```
 #
-# The centre $m = 9$ matches McCabe et al.'s central back-calculation
-# scenario: a 14-day doubling time gives an implied doubling count
-# $m = \log_2 C(T)$ of $\approx 9.1$–$9.8$ across their CFR band (their
-# Method 2 derives $C(T)$ from the reported deaths, so $m$ is an output,
-# not a separate assumption). The SD 2.5 gives 95% prior support of
-# roughly $m \in (4, 14)$, i.e. $C(T) \in (16, 16000)$, bracketing their
-# full headline range on the log scale. The doubling time $\tau$, the
+# The centre $m = 9$ aligns the weakly-informative prior with McCabe et
+# al.'s central back-calculation scenario: a 14-day doubling time gives
+# an implied doubling count $m = \log_2 C(T)$ of $\approx 9.1$–$9.8$
+# across their CFR band (their Method 2 derives $C(T)$ from the reported
+# deaths). This is a prior-centring choice — the fit is dominated by the
+# likelihood, so it mainly affects where the joint sampler starts, not
+# the McCabe sense-check below (which is pinned by the deaths). The SD
+# 2.5 gives 95% prior support of roughly $m \in (4, 14)$, i.e.
+# $C(T) \in (16, 16000)$, bracketing their full headline range on the
+# log scale. The doubling time $\tau$, the
 # elapsed time $T = m\cdot\tau$ and $C(T)$ are exposed as deterministics
 # so they appear in posterior tables and pair plots.
 
@@ -2746,8 +2749,7 @@ posterior_C_joint_report_20may = vec(Array(chn_joint_report_20may[:cumulative_ca
 
 imperial_fixed = Turing.fix(
     imperial_only_model(missing, 88),       # exports missing → pure Method 2
-    ## Growth is now sampled as `r`; pin the τ=14 d scenario via
-    ## r = log(2)/14 (τ is the deterministic log(2)/r).
+    ## Pin the τ = 14 d scenario through the growth rate r = log(2)/14.
     (r = log(2) / 14, CFR = 0.30, α = 4.42, θ = 1/0.388,
         inv_sqrt_k = 1e-3)
 )
@@ -2756,7 +2758,7 @@ posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 
 imperial_fixed_20may = Turing.fix(
     imperial_only_model(missing, 131),      # exports missing → pure Method 2
-    ## Growth sampled as `r`; pin the τ=14 d scenario via r = log(2)/14.
+    ## Pin the τ = 14 d scenario through the growth rate r = log(2)/14.
     (r = log(2) / 14, CFR = 0.33, α = 4.42, θ = 1/0.388,
         inv_sqrt_k = 1e-3)
 )
