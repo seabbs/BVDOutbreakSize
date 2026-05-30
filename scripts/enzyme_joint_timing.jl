@@ -29,8 +29,8 @@ function build()
         genetic = genetic)
 end
 
-const SAMPLES = 1000
-const WARMUP = 1000
+const SAMPLES = parse(Int, get(ENV, "BVD_SAMPLES", "1000"))
+const WARMUP = parse(Int, get(ENV, "BVD_WARMUP", "1000"))
 
 function fit(adtype)
     sample(MersenneTwister(20260518), build(),
