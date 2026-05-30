@@ -6,16 +6,31 @@
 
 """
 Prior on the cumulative case count `C(T) = exp(r·T)` via a doublings
-parameterisation. Samples a doubling time `τ` and a doubling-time
-multiplier `m = T/τ`, then exposes `(τ, m, r, T, C_T, cumulative)` as
-deterministics for downstream submodels.
+parameterisation. Samples the exponential growth rate `r` and a
+doubling-count `m = T/τ`, then exposes `(τ, m, r, T, C_T, cumulative)`
+as deterministics for downstream submodels.
+
+The prior is placed on the growth rate `r` — the quantity McCabe et al.
+treat as the primary assumption (their doubling-time sweep) — rather than
+on the doubling time `τ`, which is recovered as the deterministic
+`τ = log(2)/r`. The default `r ~ LogNormal(log(log(2)/14), 0.4)` is the
+exact pushforward of the previous `τ ~ LogNormal(log(14), 0.4)`: because
+`r = log(2)/τ` is a reciprocal, the log-scale SD `0.4` is preserved, so
+the implied prior on `τ` (and hence on every derived quantity) is
+unchanged. Only the sampled coordinate differs.
+
+The doubling-count prior `m ~ Normal(9, 2.5)` (truncated at 0) is centred
+on `m = 9` (`C_T = 2^9 = 512`), matching McCabe et al.'s central
+back-calculation scenario (a 14-day doubling time gives `m = log2(C_T)`
+of ≈ 9.1–9.8 across their CFR band), with the SD 2.5 still bracketing
+their full headline range on the log scale.
 """
 @model function exponential_growth_model(;
-        tau_prior = LogNormal(log(14), 0.4),
-        m_prior = truncated(Normal(7.0, 2.5); lower = 0))
-    τ ~ tau_prior
+        r_prior = LogNormal(log(log(2) / 14), 0.4),
+        m_prior = truncated(Normal(9.0, 2.5); lower = 0))
+    r ~ r_prior
     m ~ m_prior
-    r := log(2) / τ
+    τ := log(2) / r
     T := m * τ
     C_T := 2.0 ^ m
     cumulative = s -> exp(r * s)

@@ -474,33 +474,41 @@ vintage_table #hide
 #
 # so that the cumulative case count at the cut-off is $C(T) = 2^m$
 # with $m = T/\tau$ the number of doublings since seeding. McCabe et al.
-# vary the doubling time over a sensitivity sweep of 7 / 14 / 21
-# days; here $\tau$ has a LogNormal prior centred at the main scenario
-# (14 d) with log-SD 0.4, giving a 95% prior interval of roughly
-# $(6, 31)$ d that encompasses the full sweep:
+# treat the growth rate (equivalently the doubling time) as the primary
+# assumption, varying it over a sensitivity sweep of 7 / 14 / 21 days;
+# we therefore place the prior on $r$ directly, centred at the main
+# scenario (14 d, $r = \log 2/14$) with log-SD 0.4:
 #
 # ```math
-# \tau \sim \mathrm{LogNormal}(\log 14,\ 0.4). \tag{2}
+# r \sim \mathrm{LogNormal}(\log(\log 2 / 14),\ 0.4),
+# \qquad
+# \tau = \frac{\log 2}{r}. \tag{2}
 # ```
 #
-# Rather than sampling $\tau$ and $T$ directly (which are ridge-
-# correlated through $C(T) = \exp(r T)$), the model samples $\tau$ and
-# the *doubling-time multiplier* $m = T/\tau$. Then $C(T) = 2^m$ is
-# near-orthogonal to $\tau$. $m$ is centred at 7 ($C(T) = 2^7 = 128$)
-# with SD 2.5, truncated below at zero:
+# Because $r = \log 2/\tau$ is a reciprocal, this is the exact
+# pushforward of a $\mathrm{LogNormal}(\log 14, 0.4)$ prior on $\tau$:
+# the log-scale SD 0.4 is preserved, so the implied prior on $\tau$ (95%
+# interval roughly $(6, 31)$ d, spanning the full sweep) and every
+# derived quantity are unchanged — only the sampled coordinate differs.
+#
+# Rather than sampling $T$ directly (ridge-correlated with $r$ through
+# $C(T) = \exp(r T)$), the model samples the *doubling count*
+# $m = T/\tau$. Then $C(T) = 2^m$ is near-orthogonal to $r$. $m$ is
+# centred at 9 ($C(T) = 2^9 = 512$) with SD 2.5, truncated below at zero:
 #
 # ```math
-# m \sim \mathrm{Normal}(7,\ 2.5)\ \text{on}\ (0, \infty). \tag{3}
+# m \sim \mathrm{Normal}(9,\ 2.5)\ \text{on}\ (0, \infty). \tag{3}
 # ```
 #
-# This gives 95% prior support of roughly $m \in (2, 12)$, i.e.
-# $C(T) \in (4, 4000)$. The range is chosen to span the number of
-# doublings plausible under the doubling times McCabe et al. sweep
-# (7–21 days) over a likely few weeks to months of spread since
-# seeding — it is motivated by their scenario *settings*. The growth
-# rate $r$ and the elapsed time
-# $T = m\cdot\tau$ are exposed as deterministics so they appear in
-# posterior tables and pair plots.
+# The centre $m = 9$ matches McCabe et al.'s central back-calculation
+# scenario: a 14-day doubling time gives an implied doubling count
+# $m = \log_2 C(T)$ of $\approx 9.1$–$9.8$ across their CFR band (their
+# Method 2 derives $C(T)$ from the reported deaths, so $m$ is an output,
+# not a separate assumption). The SD 2.5 gives 95% prior support of
+# roughly $m \in (4, 14)$, i.e. $C(T) \in (16, 16000)$, bracketing their
+# full headline range on the log scale. The doubling time $\tau$, the
+# elapsed time $T = m\cdot\tau$ and $C(T)$ are exposed as deterministics
+# so they appear in posterior tables and pair plots.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exponential_growth_model</summary>
@@ -1822,7 +1830,8 @@ diagnostics_table( #hide
 # cases. Each reproduction drops exports so only the deaths likelihood
 # is instantiated, conditions on that version's deaths ($88$ for 18 May,
 # $131$ for 20 May), and `Turing.fix`-pins the Method 2 main-scenario
-# values ($\tau = 14$ d, $\mathrm{CFR} = 30\%$ for 18 May and $33\%$ for
+# values (the growth rate to the $\tau = 14$ d scenario via
+# $r = \log 2/14$, $\mathrm{CFR} = 30\%$ for 18 May and $33\%$ for
 # 20 May, $\alpha = 4.42$, $\beta = 0.388$/d), with the deaths
 # NegBinomial made Poisson-like. The only sampled latent is $m$, the
 # number of doublings since seeding ($C(T) = 2^m$). A close match
@@ -1997,7 +2006,7 @@ start_date_fig #hide
 
 # The full posterior summary table reports equal-tailed 30%, 60% and
 # 90% credible intervals on the key joint-fit parameters: growth rate
-# $r$, doubling-time multiplier $m$, days since seeding $T$, CFR, the
+# $r$, doubling count $m$, days since seeding $T$, CFR, the
 # DRC and Uganda ascertainment fractions $p_{\text{DRC}}$ and $p_{\text{Uganda}}$, the
 # pooling SD $\tau_{\text{logit}}$, the surveillance dispersion on both
 # the sampled $1/\sqrt{k}$ scale and the more familiar $k$ scale, the
@@ -2734,7 +2743,9 @@ posterior_C_joint_report_20may = vec(Array(chn_joint_report_20may[:cumulative_ca
 
 imperial_fixed = Turing.fix(
     imperial_only_model(missing, 88),       # exports missing → pure Method 2
-    (τ = 14.0, CFR = 0.30, α = 4.42, θ = 1/0.388,
+    ## Growth is now sampled as `r`; pin the τ=14 d scenario via
+    ## r = log(2)/14 (τ is the deterministic log(2)/r).
+    (r = log(2) / 14, CFR = 0.30, α = 4.42, θ = 1/0.388,
         inv_sqrt_k = 1e-3)
 )
 chn_imperial = nuts_sample(imperial_fixed);
@@ -2742,7 +2753,8 @@ posterior_C_imperial = vec(Array(chn_imperial[:cumulative_cases]));
 
 imperial_fixed_20may = Turing.fix(
     imperial_only_model(missing, 131),      # exports missing → pure Method 2
-    (τ = 14.0, CFR = 0.33, α = 4.42, θ = 1/0.388,
+    ## Growth sampled as `r`; pin the τ=14 d scenario via r = log(2)/14.
+    (r = log(2) / 14, CFR = 0.33, α = 4.42, θ = 1/0.388,
         inv_sqrt_k = 1e-3)
 )
 chn_imperial_20may = nuts_sample(imperial_fixed_20may);

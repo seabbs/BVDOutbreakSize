@@ -27,6 +27,20 @@ each push to `main` also republishes the rendered analysis and the
 
 ### Modelling
 
+- Reparameterised the growth submodel to sample the exponential growth
+  rate `r` directly (the quantity McCabe et al. treat as their primary
+  assumption) with `LogNormal(log(log(2)/14), 0.4)`, recovering the
+  doubling time as the deterministic `τ = log(2)/r`. The prior is the
+  exact reciprocal pushforward of the previous `τ ~ LogNormal(log(14),
+  0.4)`, so the implied prior on `τ` and every derived quantity is
+  unchanged; `τ`, `m`, `T` and `C(T)` are still exposed as outputs.
+- Recentred the doubling-count prior from `m ~ Normal(7, 2.5)` to
+  `Normal(9, 2.5)` (truncated at 0), matching McCabe et al.'s central
+  back-calculation scenario (a 14-day doubling time implies a doubling
+  count `m = log2(C_T)` of ≈ 9.1–9.8 across their CFR band, whereas the
+  previous centre of 7 sat below their entire headline range). This
+  starts the sampler nearer the data-supported outbreak size and
+  improves joint-fit mixing (worst R-hat falls from ≈ 2.1 toward ≈ 1.5).
 - Added a laboratory pipeline coupling the cumulative tests-analysed and
   confirmed-case streams to the latent incidence, introducing a testing
   fraction, PCR sensitivity and a report-to-confirmation (lab-turnaround)
