@@ -78,6 +78,30 @@ end
     @test fig isa CairoMakie.Makie.Figure
 end
 
+@testitem "plot_posterior_predictive_grid floats vector draws" setup=[HeadlessMakie] begin
+    ## predict returns vector-valued observations (e.g. per-vintage
+    ## total_deaths) as a Vector{Vector{Int}}; rendering must not throw
+    ## isfinite(::Vector{Int}) under Makie 0.24 / AoG 0.12.
+    using Random: MersenneTwister
+    using BVDOutbreakSize
+    rng = MersenneTwister(23)
+    vecdraws(n, r) = [rand(rng, r, 1) for _ in 1:n]
+    streams = (; exports = rand(rng, 0:10, 300),
+        exports_deaths = rand(rng, 0:3, 300),
+        deaths = vecdraws(300, 0:60),
+        cases = vecdraws(300, 0:30))
+    observed = (; exports = 2, exports_deaths = 1,
+        deaths = 40, cases = 20)
+    fig = BVDOutbreakSize.plot_posterior_predictive_grid(;
+        individual = streams, joint = streams, observed = observed)
+    @test fig isa CairoMakie.Makie.Figure
+    ## Saving forces Makie to compute data limits, where the
+    ## isfinite regression manifested.
+    path = tempname() * ".png"
+    CairoMakie.save(path, fig)
+    @test isfile(path)
+end
+
 @testitem "plot_pair returns a renderable object" setup=[HeadlessMakie] begin
     using Distributions: Normal
     using Turing: @model, sample, Prior
