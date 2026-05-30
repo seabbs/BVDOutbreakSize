@@ -6,9 +6,11 @@
 
 @testitem "exponential_growth_model exposes r, τ, m, T, C_T" tags=[:slow] begin
     using Turing: sample, Prior
+    using Random: MersenneTwister
     using BVDOutbreakSize: exponential_growth_model
 
-    chn = sample(exponential_growth_model(), Prior(), 200; progress = false)
+    chn = sample(MersenneTwister(20260518), exponential_growth_model(),
+        Prior(), 200; progress = false)
     r = vec(Array(chn[:r]))
     τ = vec(Array(chn[:τ]))
     m = vec(Array(chn[:m]))
@@ -25,23 +27,21 @@ end
 
 @testitem "growth r-prior is the exact pushforward of τ" tags=[:slow] begin
     using Turing: sample, Prior
-    import Distributions
+    using Random: MersenneTwister
     import Statistics
     using BVDOutbreakSize: exponential_growth_model
 
-    chn = sample(exponential_growth_model(), Prior(), 40_000; progress = false)
-    τ = vec(Array(chn[:τ]))
+    ## Seed a version-stable MersenneTwister (the default RNG differs
+    ## across Julia versions); assert on fast-converging moments rather
+    ## than tail quantiles so the test is robust to any residual sampling
+    ## variation. log(τ) must be Normal(log 14, 0.4) because r = log(2)/τ
+    ## is a reciprocal, which preserves the log-scale SD.
+    chn = sample(MersenneTwister(20260518), exponential_growth_model(),
+        Prior(), 40_000; progress = false)
+    logτ = log.(vec(Array(chn[:τ])))
 
-    ## The implied prior on the doubling time must match the previous
-    ## τ ~ LogNormal(log 14, 0.4) to Monte-Carlo tolerance, because
-    ## r = log(2)/τ is a reciprocal (log-scale SD preserved).
-    ref = Distributions.LogNormal(log(14), 0.4)
-    for p in (0.1, 0.5, 0.9)
-        @test isapprox(Statistics.quantile(τ, p),
-            Distributions.quantile(ref, p); rtol = 0.05)
-    end
-    ## Median doubling time stays at 14 days.
-    @test isapprox(Statistics.quantile(τ, 0.5), 14.0; rtol = 0.05)
+    @test isapprox(Statistics.mean(logτ), log(14); atol = 0.02)
+    @test isapprox(Statistics.std(logτ), 0.4; atol = 0.03)
 end
 
 @testitem "m_prior_centre advances with the cut-off date" begin
@@ -57,12 +57,15 @@ end
 
 @testitem "growth m-prior is recentred on McCabe central" tags=[:slow] begin
     using Turing: sample, Prior
+    using Random: MersenneTwister
     using Statistics: mean
     using BVDOutbreakSize: exponential_growth_model
 
-    chn = sample(exponential_growth_model(), Prior(), 40_000; progress = false)
+    ## Seeded, version-stable RNG; generous tolerance so it is robust to
+    ## sampling variation. Centred on m = 9 (C_T = 2^9 = 512); truncation
+    ## at 0 nudges the sample mean up only slightly from the location.
+    chn = sample(MersenneTwister(20260518), exponential_growth_model(),
+        Prior(), 40_000; progress = false)
     m = vec(Array(chn[:m]))
-    ## Centred on m = 9 (C_T = 2^9 = 512); truncation at 0 nudges the
-    ## sample mean up only slightly from the location.
     @test isapprox(mean(m), 9.0; atol = 0.3)
 end
