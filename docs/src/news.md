@@ -102,7 +102,10 @@ each push to `main` also republishes the rendered analysis and the
 - Added optional Enzyme reverse-mode AD, selected with `enzyme_adtype()`,
   alongside the default Mooncake backend. Gradients match Mooncake across
   every model including the full joint and fitting runs at the same speed,
-  so Mooncake stays the default.
+  so Mooncake stays the default. The cross-AD gradient check is restricted
+  to stable Julia: Enzyme mis-differentiates the growth-rate
+  reparameterisation on Julia LTS / pre-release (Mooncake is correct
+  there), tracked in #153.
 - Fixed a posterior-predictive grid regression under AlgebraOfGraphics
   0.12 and widened the AoG compat bound to include 0.12; bumped the
   `softprops/action-gh-release` Action to v3.
