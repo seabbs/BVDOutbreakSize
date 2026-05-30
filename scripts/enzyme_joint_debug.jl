@@ -4,7 +4,7 @@
 
 using BVDOutbreakSize
 using BVDOutbreakSize: bvd_joint, load_observations, genetic_seeding_model,
-    enzyme_adtype
+                       enzyme_adtype
 using Turing
 using Turing: DynamicPPL, MCMCSerial, NUTS, sample
 using Enzyme
@@ -16,10 +16,12 @@ obs = load_observations()
 genetic = T -> genetic_seeding_model(T, obs.genetic_tmrca_days;
     tmrca_days_sd = obs.genetic_tmrca_days_sd)
 fa = joint_obs(obs)
-build() = bvd_joint(obs.exported_cases, fa.deaths, fa.reported,
-    fa.export_deaths; fa.kw...,
-    first_export_detection_delta = obs.first_export_detection_delta,
-    genetic = genetic)
+function build()
+    bvd_joint(obs.exported_cases, fa.deaths, fa.reported,
+        fa.export_deaths; fa.kw...,
+        first_export_detection_delta = obs.first_export_detection_delta,
+        genetic = genetic)
+end
 
 try
     rng = MersenneTwister(20260518)

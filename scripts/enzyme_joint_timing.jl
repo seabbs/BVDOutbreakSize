@@ -7,7 +7,7 @@
 #   julia -t1 --project=test scripts/enzyme_joint_timing.jl
 using BVDOutbreakSize
 using BVDOutbreakSize: bvd_joint, load_observations, genetic_seeding_model,
-    enzyme_adtype, default_adtype
+                       enzyme_adtype, default_adtype
 using Turing
 using Turing: DynamicPPL, MCMCSerial, NUTS, sample
 using ADTypes: AutoMooncake, AutoEnzyme
@@ -22,26 +22,32 @@ obs = load_observations()
 genetic = T -> genetic_seeding_model(T, obs.genetic_tmrca_days;
     tmrca_days_sd = obs.genetic_tmrca_days_sd)
 fa = joint_obs(obs)
-build() = bvd_joint(obs.exported_cases, fa.deaths, fa.reported,
-    fa.export_deaths; fa.kw...,
-    first_export_detection_delta = obs.first_export_detection_delta,
-    genetic = genetic)
+function build()
+    bvd_joint(obs.exported_cases, fa.deaths, fa.reported,
+        fa.export_deaths; fa.kw...,
+        first_export_detection_delta = obs.first_export_detection_delta,
+        genetic = genetic)
+end
 
 const SAMPLES = 1000
 const WARMUP = 1000
 
-fit(adtype) = sample(MersenneTwister(20260518), build(),
-    NUTS(WARMUP, 0.95; adtype), MCMCSerial(), SAMPLES, 1;
-    initial_params = fill(DynamicPPL.InitFromPrior(), 1), progress = false)
+function fit(adtype)
+    sample(MersenneTwister(20260518), build(),
+        NUTS(WARMUP, 0.95; adtype), MCMCSerial(), SAMPLES, 1;
+        initial_params = fill(DynamicPPL.InitFromPrior(), 1), progress = false)
+end
 
 # --- gradient agreement at a prior draw (correctness gate) -------------
 m = build()
 Random.seed!(20260518)
 vi = DynamicPPL.link(DynamicPPL.VarInfo(m), m)
 x0 = collect(vi[:])
-g(adtype) = last(LogDensityProblems.logdensity_and_gradient(
-    DynamicPPL.LogDensityFunction(m, DynamicPPL.getlogjoint, vi;
-        adtype = adtype), x0))
+function g(adtype)
+    last(LogDensityProblems.logdensity_and_gradient(
+        DynamicPPL.LogDensityFunction(m, DynamicPPL.getlogjoint, vi;
+            adtype = adtype), x0))
+end
 gm = g(default_adtype())
 ge = g(enzyme_adtype())
 println("joint dim: ", length(x0))
