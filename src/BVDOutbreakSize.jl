@@ -9,19 +9,17 @@ using Dates: Date, date2epochdays, epochdays2date
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
 using ChainRulesCore: ChainRulesCore, NoTangent
-using SpecialFunctions: digamma, loggamma
-import SpecialFunctions
-using Turing: @model, MCMCThreads, NUTS, sample, to_submodel, filldist
+using Turing: @model, MCMCThreads, NUTS, sample, to_submodel, filldist,
+              @addlogprob!
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
                            TYPEDFIELDS, TYPEDSIGNATURES
-using Distributions: Distribution, Gamma, cdf, ccdf, mgf, pdf, Poisson,
+using Distributions: Distribution, cdf, pdf, logpdf, Poisson,
                      NegativeBinomial, Normal, LogNormal, Beta,
-                     truncated, censored
+                     truncated, censored, product_distribution
+using CensoredDistributions: double_interval_censored
 using StatsFuns: logit, logistic
-using Integrals: IntegralProblem, GaussLegendre, solve
-import FastGaussQuadrature
 import CairoMakie
 import AlgebraOfGraphics as AoG
 import PairPlots
@@ -36,12 +34,6 @@ export REPORT_SCENARIOS,
        fit_diagnostics, diagnostics_table,
        streams_table, comparison_table,
        nuts_sample, default_adtype,
-       DEATH_INTEGRAL_ALG, CUMULATIVE_INTEGRAL_ALG,
-       integrate, delay_convolution,
-       integrate_cumulative, integrate_exports_deaths,
-       expected_exports, expected_exports_deaths,
-       ExportDeathDelay, EXPORT_DELAY_GRID_POINTS,
-       DailyBVDTrajectory, daily_increment_kernel,
        plot_cumulative_cases, plot_density_overlay, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
@@ -50,31 +42,30 @@ export REPORT_SCENARIOS,
        forecast_reported, forecast_table, plot_forecast,
        forecast_vs_truth, forecast_vs_truth_trajectory,
        plot_forecast_vs_truth,
-# prior submodels
-       exponential_growth_model, genetic_seeding_model, delay_model,
-       report_delay_model, lab_delay_model, test_sensitivity_model,
-       test_positivity_model,
-       cfr_model, detection_window_model, traveller_volume_model,
+# renewal helpers
+       renewal_infections, convolve_delay, discretise_censored,
+       euler_lotka_r, doubling_time, seed_infections, knot_days,
+       interpolate_knots, sigmoid_ramp, seeding_age, lognormal_meansd,
+       safe_rate,
+# prior / latent submodels
+       censored_delay_model, generation_interval_model, rt_walk_model,
+       seed_model, infection_model, onset_incidence_model,
+       genetic_seeding_model,
+       cfr_model, traveller_volume_model, test_positivity_model,
        surveillance_dispersion_model, pooled_ascertainment_model,
-       daily_ascertainment_model, deaths_ascertainment_model,
 # observation models
-       exports_model, deaths_model,
-       reported_cases_model, confirmed_cases_model,
-       exports_deaths_model,
-       exports_detection_timing_model,
+       deaths_model, reported_cases_model, confirmed_cases_model,
+       exports_model, exports_deaths_model,
 # joint composers
        exports_only_model, deaths_only_model, cases_only_model,
        confirmed_only_model,
-       exports_deaths_only_model, bvd_joint,
-       imperial_only_model
+       exports_deaths_only_model, bvd_joint
 
 include("docstrings.jl")
 include("constants.jl")
 include("data.jl")
 include("sampling.jl")
-include("gamma_cdf.jl")
-include("integrate.jl")
-include("expectations.jl")
+include("renewal.jl")
 include("summaries.jl")
 include("counterfactual.jl")
 include("forecast.jl")
