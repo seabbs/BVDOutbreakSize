@@ -32,7 +32,7 @@ function plot_cumulative_cases(
            AoG.mapping(:C_T => "Cumulative cases C_T",
                color = :stream => "Data stream") *
            AoG.AlgebraOfGraphics.density() *
-           AoG.visual(linewidth = 2)
+           AoG.subvisual(:line, linewidth = 2)
     fg = AoG.draw(spec;
         axis = (; ylabel = "Posterior density",
             title = "Posterior C_T by data stream",
@@ -69,7 +69,7 @@ function plot_density_overlay(
     spec = AoG.data(df) *
            AoG.mapping(:value => xlabel, color = :stream => "Fit") *
            AoG.AlgebraOfGraphics.density() *
-           AoG.visual(linewidth = 2)
+           AoG.subvisual(:line, linewidth = 2)
     return AoG.draw(spec;
         axis = (; ylabel = "Posterior density", title = title),
         figure = (; size = (760, 420))
@@ -79,56 +79,77 @@ end
 _panel_pos(pos::Integer) = (1, pos)
 _panel_pos(pos::Tuple) = pos
 
+# Makie 0.24 (pulled in by AlgebraOfGraphics 0.12) computes data
+# limits by calling `isfinite` elementwise, which has no method for
+# integer vectors. Predictions of vector-valued observations (e.g.
+# per-vintage `total_deaths`) arrive as a `Vector{Vector{Int}}`, so we
+# flatten any nesting and convert to `Float64` before plotting. Scalar
+# integer draws are floated for the same reason.
+_pp_floats(pp::AbstractVector{<:Real}) = float.(pp)
+function _pp_floats(pp::AbstractVector{<:AbstractVector})
+    return Float64[float(x) for v in pp for x in v]
+end
+_pp_floats(pp) = Float64[float(x) for x in Iterators.flatten(pp)]
+
+# Observed markers go through the same limit machinery, so float the
+# scalar (or each element of a vector-valued observation).
+_obs_floats(obs::Real) = Float64[float(obs)]
+_obs_floats(obs::AbstractVector{<:Real}) = float.(obs)
+
 function _panel_exports!(fig, pos, pp, obs; predictive_label = "Posterior")
     r, c = _panel_pos(pos)
-    upper = max(20, ceil(Int, quantile(pp, 0.99)))
+    ppf = _pp_floats(pp)
+    upper = max(20, ceil(Int, quantile(ppf, 0.99)))
     ax = Axis(fig[r, c];
         xlabel = "Replicated exported cases",
         ylabel = "$(predictive_label) predictive frequency",
         title = "Exports (cases)",
         limits = ((0, upper), nothing)
     )
-    hist!(ax, pp; bins = 0:1:upper, color = (:steelblue, 0.7))
-    vlines!(ax, [obs]; color = :red, linewidth = 2)
+    hist!(ax, ppf; bins = 0:1:upper, color = (:steelblue, 0.7))
+    vlines!(ax, _obs_floats(obs); color = :red, linewidth = 2)
     return ax
 end
 
 function _panel_exports_deaths!(fig, pos, pp, obs;
         predictive_label = "Posterior")
     r, c = _panel_pos(pos)
-    upper = max(3, ceil(Int, quantile(pp, 0.995)))
+    ppf = _pp_floats(pp)
+    upper = max(3, ceil(Int, quantile(ppf, 0.995)))
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths among exports",
         ylabel = "$(predictive_label) predictive frequency",
         title = "Exports (deaths)",
         limits = ((0, upper), nothing)
     )
-    hist!(ax, pp; bins = 0:1:upper, color = (:rebeccapurple, 0.7))
-    vlines!(ax, [obs]; color = :red, linewidth = 2)
+    hist!(ax, ppf; bins = 0:1:upper, color = (:rebeccapurple, 0.7))
+    vlines!(ax, _obs_floats(obs); color = :red, linewidth = 2)
     return ax
 end
 
 function _panel_deaths!(fig, pos, pp, obs; predictive_label = "Posterior")
     r, c = _panel_pos(pos)
-    upper = max(1.0, quantile(pp, 0.995))
+    ppf = _pp_floats(pp)
+    upper = max(1.0, quantile(ppf, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated deaths",
         ylabel = "$(predictive_label) predictive frequency",
         title = "Deaths (DRC)",
         limits = ((0, upper), nothing)
     )
-    hist!(ax, pp; bins = range(0, upper; length = 40),
+    hist!(ax, ppf; bins = range(0, upper; length = 40),
         color = (:firebrick, 0.7))
-    vlines!(ax, [obs]; color = :red, linewidth = 2)
+    vlines!(ax, _obs_floats(obs); color = :red, linewidth = 2)
     return ax
 end
 
 function _panel_confirmed!(fig, pos, pp, obs;
         predictive_label = "Posterior")
     r, c = _panel_pos(pos)
-    upper = max(1.0, quantile(pp, 0.995))
+    ppf = _pp_floats(pp)
+    upper = max(1.0, quantile(ppf, 0.995))
     if obs !== nothing
-        upper = max(upper, 1.05 * obs)
+        upper = max(upper, 1.05 * maximum(_obs_floats(obs)))
     end
     ax = Axis(fig[r, c];
         xlabel = "Replicated confirmed cases",
@@ -136,10 +157,10 @@ function _panel_confirmed!(fig, pos, pp, obs;
         title = "Confirmed cases (DRC)",
         limits = ((0, upper), nothing)
     )
-    hist!(ax, pp; bins = range(0, upper; length = 40),
+    hist!(ax, ppf; bins = range(0, upper; length = 40),
         color = (:goldenrod, 0.7))
     if obs !== nothing
-        vlines!(ax, [obs]; color = :red, linewidth = 2)
+        vlines!(ax, _obs_floats(obs); color = :red, linewidth = 2)
     end
     return ax
 end
@@ -147,9 +168,10 @@ end
 function _panel_tests!(fig, pos, pp, obs;
         predictive_label = "Posterior")
     r, c = _panel_pos(pos)
-    upper = max(1.0, quantile(pp, 0.995))
+    ppf = _pp_floats(pp)
+    upper = max(1.0, quantile(ppf, 0.995))
     if obs !== nothing
-        upper = max(upper, 1.05 * obs)
+        upper = max(upper, 1.05 * maximum(_obs_floats(obs)))
     end
     ax = Axis(fig[r, c];
         xlabel = "Replicated tests analysed",
@@ -157,27 +179,28 @@ function _panel_tests!(fig, pos, pp, obs;
         title = "Tests analysed (DRC)",
         limits = ((0, upper), nothing)
     )
-    hist!(ax, pp; bins = range(0, upper; length = 40),
+    hist!(ax, ppf; bins = range(0, upper; length = 40),
         color = (:teal, 0.7))
     if obs !== nothing
-        vlines!(ax, [obs]; color = :red, linewidth = 2)
+        vlines!(ax, _obs_floats(obs); color = :red, linewidth = 2)
     end
     return ax
 end
 
 function _panel_cases!(fig, pos, pp, obs; predictive_label = "Posterior")
     r, c = _panel_pos(pos)
-    upper = max(1.0, quantile(pp, 0.995))
+    ppf = _pp_floats(pp)
+    upper = max(1.0, quantile(ppf, 0.995))
     ax = Axis(fig[r, c];
         xlabel = "Replicated reported cases",
         ylabel = "$(predictive_label) predictive frequency",
         title = "Reported cases (DRC)",
         limits = ((0, upper), nothing)
     )
-    hist!(ax, pp; bins = range(0, upper; length = 40),
+    hist!(ax, ppf; bins = range(0, upper; length = 40),
         color = (:seagreen, 0.7))
     if obs !== nothing
-        vlines!(ax, [obs]; color = :red, linewidth = 2)
+        vlines!(ax, _obs_floats(obs); color = :red, linewidth = 2)
     end
     return ax
 end

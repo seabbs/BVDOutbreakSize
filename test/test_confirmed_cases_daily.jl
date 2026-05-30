@@ -136,16 +136,15 @@ end
 
     f_rep = Gamma(4.0, 3.0)
     edges = [6.0, 11.0, 17.0, 23.0, 28.0]
-    T = 28.0
-    ## The lab convolution sums over the precomputed trajectory and the
-    ## hoisted Gamma normalisation, with gradients flowing through the
-    ## lab-delay shape / scale (α, θ) and the growth rate `r` that builds
-    ## the trajectory. Check the composed rule against finite differences.
-    loss(α, θ, r) = sum(delay_convolution(
-        DailyBVDTrajectory(T, r, f_rep), edges, Gamma(α, θ)))
+    ## The trajectory is a fixed input here; the gradient under test flows
+    ## through the lab-delay shape / scale (α, θ) and the hoisted Gamma
+    ## normalisation of the convolution. Check the composed rule against
+    ## finite differences.
+    d = DailyBVDTrajectory(28.0, 0.12, f_rep)
+    loss(α, θ) = sum(delay_convolution(d, edges, Gamma(α, θ)))
     Mooncake.TestUtils.test_rule(
         MersenneTwister(20260520),
-        loss, 2.3, 1.4, 0.12;
+        loss, 2.3, 1.4;
         is_primitive = false,
         perf_flag = :none,
         mode = Mooncake.ReverseMode
