@@ -13,9 +13,9 @@ annotation, the configuration the joint model's analytical gamma-CDF
 rule needs (see `ext/BVDOutbreakSizeEnzymeExt.jl`). Returns an
 `ADTypes.AutoEnzyme`; pass to `nuts_sample(model; adtype = ...)`.
 
-This is a stub; loading Enzyme (`using Enzyme`) activates the method
-via `BVDOutbreakSizeEnzymeExt`. Calling it without Enzyme loaded
-raises a `MethodError`.
+`enzyme_adtype` is a stub; loading Enzyme (`using Enzyme`) activates
+the method via `BVDOutbreakSizeEnzymeExt`. Calling `enzyme_adtype`
+without Enzyme loaded raises a `MethodError`.
 """
 function enzyme_adtype end
 
