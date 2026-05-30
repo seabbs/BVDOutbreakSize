@@ -20,15 +20,19 @@ log-scale SD `0.4` is preserved, so the implied doubling-time prior (and
 hence every derived quantity) is unchanged. Only the sampled coordinate
 differs.
 
-The doubling-count prior `m ~ Normal(9, 2.5)` (truncated at 0) is centred
-on `m = 9` (`C_T = 2^9 = 512`), matching McCabe et al.'s central
-back-calculation scenario (a 14-day doubling time gives `m = log2(C_T)`
-of ≈ 9.1–9.8 across their CFR band), with the SD 2.5 still bracketing
-their full headline range on the log scale.
+The default doubling-count prior `m ~ Normal(9, 3)` (truncated at 0) is
+centred on `m = 9` (`C_T = 2^9 = 512`), the doubling count implied by
+McCabe et al.'s first-report (18 May 2026) Method 2 central scenario of
+501 cases (`log2(501) ≈ 9`). For a fit at a later cut-off, pass an
+`m_prior` whose centre advances from that base date via
+[`m_prior_centre`](@ref) so the prior tracks the elapsed time. This is a
+weakly-informative centring choice (SD 3 gives 95% support ≈ `m ∈ (3, 15)`,
+`C_T ∈ (8, 32000)`); the fit is dominated by the likelihood, so it mainly
+sets where the joint sampler starts.
 """
 @model function exponential_growth_model(;
         r_prior = LogNormal(log(log(2) / 14), 0.4),
-        m_prior = truncated(Normal(9.0, 2.5); lower = 0))
+        m_prior = truncated(Normal(9.0, 3.0); lower = 0))
     r ~ r_prior
     m ~ m_prior
     τ := log(2) / r

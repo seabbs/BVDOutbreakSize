@@ -44,6 +44,17 @@ end
     @test isapprox(Statistics.quantile(τ, 0.5), 14.0; rtol = 0.05)
 end
 
+@testitem "m_prior_centre advances with the cut-off date" begin
+    using BVDOutbreakSize: m_prior_centre
+    ## Base assumption: m = 9 at the 18 May 2026 report date.
+    @test m_prior_centre("2026-05-18") ≈ 9.0
+    ## Advances by one doubling per 14 days of elapsed time.
+    @test m_prior_centre("2026-05-20") ≈ 9.0 + 2 / 14
+    @test m_prior_centre("2026-06-01") ≈ 9.0 + 14 / 14
+    ## Base value is configurable.
+    @test m_prior_centre("2026-05-18"; m_base = 8.0) ≈ 8.0
+end
+
 @testitem "growth m-prior is recentred on McCabe central" tags=[:slow] begin
     using Turing: sample, Prior
     using Statistics: mean

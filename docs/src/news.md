@@ -34,16 +34,20 @@ each push to `main` also republishes the rendered analysis and the
   exact reciprocal pushforward of the previous `τ ~ LogNormal(log(14),
   0.4)`, so the implied prior on `τ` and every derived quantity is
   unchanged; `τ`, `m`, `T` and `C(T)` are still exposed as outputs.
-- Recentred the doubling-count prior from `m ~ Normal(7, 2.5)` to
-  `Normal(9, 2.5)` (truncated at 0), matching McCabe et al.'s central
-  back-calculation scenario (a 14-day doubling time implies a doubling
-  count `m = log2(C_T)` of ≈ 9.1–9.8 across their CFR band, whereas the
-  previous centre of 7 sat below their entire headline range). This
-  starts the sampler nearer the data-supported outbreak size (the prior
-  previously under-centred it) and removes the divergent transitions, but
-  does not on its own resolve the joint fit's secondary small-outbreak
-  mode (worst R-hat is roughly unchanged; the remaining multimodality is
-  funded by the ascertainment / background priors, tracked separately).
+- Recentred the doubling-count prior `m` and widened it to SD 3, with a
+  centre that advances with the cut-off date to better align with McCabe
+  et al. The base assumption is their first report (18 May 2026): the
+  Method 2 central scenario of 501 cases is `m = log2(501) ≈ 9`. The
+  prior centre is `m_prior_centre(as_of_date) = 9 + (cut-off − 18 May)/14`
+  doublings (advancing at the central 14-day doubling time), so it tracks
+  data refreshes instead of being fixed at the report-date value, and a
+  McCabe-date fit recovers the base. The previous centre of 7 sat below
+  McCabe's entire headline range; the new centre starts the sampler
+  nearer the data-supported outbreak size and removes the divergent
+  transitions, but does not on its own resolve the joint fit's secondary
+  small-outbreak mode (worst R-hat roughly unchanged; the residual
+  multimodality is funded by the ascertainment / background priors,
+  tracked separately).
 - Added a laboratory pipeline coupling the cumulative tests-analysed and
   confirmed-case streams to the latent incidence, introducing a testing
   fraction, PCR sensitivity and a report-to-confirmation (lab-turnaround)

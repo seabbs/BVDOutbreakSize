@@ -496,25 +496,32 @@ vintage_table #hide
 #
 # Rather than sampling $T$ directly (ridge-correlated with $r$ through
 # $C(T) = \exp(r T)$), the model samples the *doubling count*
-# $m = T/\tau$. Then $C(T) = 2^m$ is near-orthogonal to $r$. $m$ is
-# centred at 9 ($C(T) = 2^9 = 512$) with SD 2.5, truncated below at zero:
+# $m = T/\tau$. Then $C(T) = 2^m$ is near-orthogonal to $r$. We give $m$
+# a truncated-Normal prior with SD 3, centred on a base assumption that
+# advances with the cut-off date:
 #
 # ```math
-# m \sim \mathrm{Normal}(9,\ 2.5)\ \text{on}\ (0, \infty). \tag{3}
+# m \sim \mathrm{Normal}(m_0,\ 3)\ \text{on}\ (0, \infty),
+# \qquad
+# m_0 = 9 + \frac{\text{cut-off} - \text{18 May 2026}}{14}. \tag{3}
 # ```
 #
-# The centre $m = 9$ aligns the weakly-informative prior with McCabe et
-# al.'s central back-calculation scenario: a 14-day doubling time gives
-# an implied doubling count $m = \log_2 C(T)$ of $\approx 9.1$–$9.8$
-# across their CFR band (their Method 2 derives $C(T)$ from the reported
-# deaths). This is a prior-centring choice — the fit is dominated by the
-# likelihood, so it mainly affects where the joint sampler starts, not
-# the McCabe sense-check below (which is pinned by the deaths). The SD
-# 2.5 gives 95% prior support of roughly $m \in (4, 14)$, i.e.
-# $C(T) \in (16, 16000)$, bracketing their full headline range on the
-# log scale. The doubling time $\tau$, the
-# elapsed time $T = m\cdot\tau$ and $C(T)$ are exposed as deterministics
-# so they appear in posterior tables and pair plots.
+# The base assumption is McCabe et al.'s first report (18 May 2026): its
+# Method 2 central scenario of 501 cases is a doubling count
+# $m = \log_2 501 \approx 9$. Each day that the cut-off runs past that
+# report adds a fraction of a doubling at the central 14-day doubling
+# time, so the size prior stays centred on the plausible outbreak as the
+# data are refreshed rather than being fixed at the report-date value
+# (the current cut-off gives $m_0 \approx 9.6$). This better aligns the
+# prior with McCabe et al. while tracking elapsed time. It is a
+# weakly-informative centring choice: the fit is dominated by the
+# likelihood, so it mainly sets where the joint sampler starts, not the
+# McCabe sense-check below (which is pinned by the deaths). The SD 3
+# gives 95% prior support of roughly $m \in (3, 15)$, i.e.
+# $C(T) \in (8, 32000)$, spanning their full headline range on the log
+# scale. The doubling time $\tau$, the elapsed time $T = m\cdot\tau$ and
+# $C(T)$ are exposed as deterministics so they appear in posterior tables
+# and pair plots.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exponential_growth_model</summary>
@@ -1673,7 +1680,7 @@ prior_pair_fig #hide
 #
 # NUTS [hoffman2014nuts](@cite) with Mooncake [mooncake_jl](@cite)
 # reverse-mode automatic differentiation, four chains, 1000 post-warmup
-# draws each, with a target acceptance probability of 0.95. Chains
+# draws each, with a target acceptance probability of 0.9. Chains
 # initialise from the prior
 # to keep the sampler away from the boundary of $r$ and $m$. We fit
 # the joint model and the four single-stream models so the per-stream
@@ -1686,20 +1693,36 @@ prior_pair_fig #hide
 genetic_seeding = T -> genetic_seeding_model(T, obs.genetic_tmrca_days;
     tmrca_days_sd = obs.genetic_tmrca_days_sd)
 
+## Growth submodel whose doubling-count prior centre advances with the
+## cut-off date (base value at McCabe's first report; see
+## `m_prior_centre`), so every fit uses the size prior appropriate to its
+## own `as_of_date`.
+function growth_for(o)
+    exponential_growth_model(
+        m_prior = truncated(Normal(m_prior_centre(o.as_of_date), 3.0);
+        lower = 0))
+end
+growth_now = growth_for(obs)
+
 fit_args = joint_obs(obs)
 chn_joint = nuts_sample(
     bvd_joint(obs.exported_cases, fit_args.deaths, fit_args.reported,
     fit_args.export_deaths; fit_args.kw...,
+    growth = growth_now,
     first_export_detection_delta = obs.first_export_detection_delta,
     genetic = genetic_seeding));
 
-chn_exports = nuts_sample(exports_only_model(obs.exported_cases));
-chn_deaths = nuts_sample(deaths_only_model(obs.total_deaths));
-chn_cases = nuts_sample(cases_only_model(obs.reported_cases));
+chn_exports = nuts_sample(
+    exports_only_model(obs.exported_cases; growth = growth_now));
+chn_deaths = nuts_sample(
+    deaths_only_model(obs.total_deaths; growth = growth_now));
+chn_cases = nuts_sample(
+    cases_only_model(obs.reported_cases; growth = growth_now));
 chn_confirmed = nuts_sample(
-    confirmed_only_model(obs.confirmed_cases, obs.cumulative_tests_analysed));
+    confirmed_only_model(obs.confirmed_cases, obs.cumulative_tests_analysed;
+    growth = growth_now));
 chn_exports_deaths = nuts_sample(
-    exports_deaths_only_model(obs.export_deaths_daily));
+    exports_deaths_only_model(obs.export_deaths_daily; growth = growth_now));
 
 posterior_C_joint = vec(Array(chn_joint[:cumulative_cases]));
 posterior_C_exports = vec(Array(chn_exports[:cumulative_cases]));
@@ -2277,6 +2300,7 @@ report_args = joint_obs(obs_report)
 chn_joint_report = nuts_sample(
     bvd_joint(obs_report.exported_cases, report_args.deaths,
     report_args.reported, report_args.export_deaths; report_args.kw...,
+    growth = growth_for(obs_report),
     first_export_detection_delta =
     obs_report.first_export_detection_delta));
 posterior_C_joint_report = vec(Array(chn_joint_report[:cumulative_cases]));
@@ -2391,6 +2415,7 @@ community_delay = delay_model(;
 chn_joint_community = nuts_sample(
     bvd_joint(obs.exported_cases, fit_args.deaths, fit_args.reported,
     fit_args.export_deaths; fit_args.kw...,
+    growth = growth_now,
     first_export_detection_delta = obs.first_export_detection_delta,
     genetic = genetic_seeding,
     deaths = (total_deaths,
@@ -2475,6 +2500,7 @@ genetic_seeding_clock19 = T -> genetic_seeding_model(T,
 chn_joint_clock19 = nuts_sample(
     bvd_joint(obs.exported_cases, fit_args.deaths, fit_args.reported,
     fit_args.export_deaths; fit_args.kw...,
+    growth = growth_now,
     first_export_detection_delta = obs.first_export_detection_delta,
     genetic = genetic_seeding_clock19));
 
@@ -2743,6 +2769,7 @@ chn_joint_report_20may = nuts_sample(
     bvd_joint(obs_report_20may.exported_cases,
     report_20may_args.deaths, report_20may_args.reported,
     report_20may_args.export_deaths; report_20may_args.kw...,
+    growth = growth_for(obs_report_20may),
     first_export_detection_delta =
     obs_report_20may.first_export_detection_delta));
 posterior_C_joint_report_20may = vec(Array(chn_joint_report_20may[:cumulative_cases]));
