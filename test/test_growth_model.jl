@@ -23,7 +23,7 @@
     @test all(@. isapprox(C_T, 2.0^m; rtol = 1e-8))
 end
 
-@testitem "growth r-prior is the exact pushforward of the τ prior" tags=[:slow] begin
+@testitem "growth r-prior is the exact pushforward of τ" tags=[:slow] begin
     using Turing: sample, Prior
     import Distributions
     import Statistics
@@ -44,7 +44,7 @@ end
     @test isapprox(Statistics.quantile(τ, 0.5), 14.0; rtol = 0.05)
 end
 
-@testitem "growth m-prior is recentred on McCabe's central scenario" tags=[:slow] begin
+@testitem "growth m-prior is recentred on McCabe central" tags=[:slow] begin
     using Turing: sample, Prior
     using Statistics: mean
     using BVDOutbreakSize: exponential_growth_model
