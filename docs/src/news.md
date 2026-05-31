@@ -52,11 +52,16 @@ each push to `main` also republishes the rendered analysis and the
   streams per sitrep vintage: `bvd_joint` conditions on the
   between-vintage increments rather than a single cut-off total, and a
   single-vintage stream reduces exactly to the cumulative likelihood,
-  recovering the McCabe et al. configuration. Each case bin carries a
-  per-bin random-effect DRC ascertainment, confirmed cases enter as
+  recovering the McCabe et al. configuration. Confirmed cases enter as
   per-vintage NegBinomial increments with per-test positivity a derived
   quantity, and each stream carries its own vintage offsets so a lagging
   stream is not assumed to run to the cut-off.
+- Resolved a multimodal joint fit (one of four NUTS chains stranded in a
+  small-outbreak mode, worst R-hat ≈ 2.1) by applying a single fixed DRC
+  ascertainment fraction to every vintage (rather than a per-bin random
+  effect over the lab stream's edges) and giving each surveillance stream
+  its own independent dispersion `k` (`per_stream_dispersion_model`). The
+  chains now agree (worst R-hat ≈ 1.05).
 - Added `confirmed_only_model`, a single-stream composer that fits the
   laboratory pipeline in isolation for the per-stream comparison.
 - Added `forecast_vs_truth_trajectory`: scores the retrospective forecast

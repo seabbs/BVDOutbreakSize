@@ -12,13 +12,12 @@ as deterministics for downstream submodels.
 
 McCabe et al.'s primary assumption is the doubling time (their 7/14/21-day
 sweep); each doubling time implies a growth rate `r = log(2)/τ`, and the
-prior is placed on that implied `r` rather than on `τ`, which is recovered
-as the deterministic `τ = log(2)/r`. The default
-`r ~ LogNormal(log(log(2)/14), 0.4)` is exactly equivalent to the previous
-`τ ~ LogNormal(log(14), 0.4)`: because `r = log(2)/τ` is a reciprocal, the
-log-scale SD `0.4` is preserved, so the implied doubling-time prior (and
-hence every derived quantity) is unchanged. Only the sampled coordinate
-differs.
+prior is placed on that implied `r`, with `τ = log(2)/r` recovered as a
+deterministic. The default `r ~ LogNormal(log(log(2)/14), 0.4)` is
+exactly equivalent to a `LogNormal(log(14), 0.4)` prior on the doubling
+time: because `r = log(2)/τ` is a reciprocal, the log-scale SD `0.4` is
+preserved, so the implied doubling-time prior (and every derived
+quantity) matches that prior on `τ`.
 
 The default doubling-count prior `m ~ Normal(9, 3)` (truncated at 0) is
 centred on `m = 9` (`C_T = 2^9 = 512`), the doubling count implied by
@@ -182,6 +181,22 @@ following the Stan prior-choice recommendations.
         inv_sqrt_k_prior = truncated(Normal(0.6, 0.2); lower = 0))
     inv_sqrt_k ~ inv_sqrt_k_prior
     k := 1.0 / (inv_sqrt_k^2 + eps(typeof(inv_sqrt_k)))
+    return (; k, inv_sqrt_k)
+end
+
+"""
+Per-stream negative-binomial dispersion: each of the `n_streams`
+surveillance streams draws its own `k` independently from the same
+weakly-informative prior, sampled on the `1/sqrt(k)` scale (the Stan
+prior-choice recommended scale, where the parameter behaves like a
+standard deviation). Returns length-`n_streams` vectors `k` and
+`inv_sqrt_k`; [`bvd_joint`](@ref) indexes `k[1]`, `k[2]`, `k[3]` for the
+deaths, reported and confirmed streams respectively.
+"""
+@model function per_stream_dispersion_model(n_streams::Integer;
+        inv_sqrt_k_prior = truncated(Normal(0.6, 0.2); lower = 0))
+    inv_sqrt_k ~ filldist(inv_sqrt_k_prior, n_streams)
+    k := 1.0 ./ (inv_sqrt_k .^ 2 .+ eps(eltype(inv_sqrt_k)))
     return (; k, inv_sqrt_k)
 end
 

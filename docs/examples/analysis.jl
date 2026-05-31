@@ -61,11 +61,12 @@
 #   $\alpha$ and $\theta$ rather than collapsing onto Rosello's point
 #   estimate.
 # - *NegBinomial likelihood on deaths and reported cases* with a
-#   single shared surveillance dispersion $k$. McCabe et al. use
-#   Poisson for deaths and do not have a cases-ascertainment
-#   model at all. Exports stay Poisson because two observations
-#   would not identify a separate dispersion. The McCabe et al.
-#   "exact NegBinomial CIs" on Method 1 are the conventional
+#   surveillance dispersion $k$ partially pooled across the deaths,
+#   reported and confirmed streams: each takes its own $k$ from a shared
+#   hyperprior. McCabe et al. use Poisson for deaths and do not have a
+#   cases-ascertainment model at all. Exports stay Poisson because two
+#   observations would not identify a separate dispersion. The McCabe et
+#   al. "exact NegBinomial CIs" on Method 1 are the conventional
 #   binomial-inversion procedure, not an estimated dispersion.
 # - *Ascertainment extension* (not in McCabe et al.). A logit-scale
 #   hyperprior on the reporting fraction, applied to the latent
@@ -89,10 +90,8 @@
 #   to the cumulative single-total likelihood, recovering the McCabe et
 #   al. configuration. The confirmed convolution shares one quadrature
 #   across all sitrep edges rather than re-integrating at each. The case
-#   streams carry a *per-bin random-effect* DRC ascertainment, with each
-#   sitrep drawing its own $p_{\text{DRC},v}$ from the pooled hyperprior,
-#   so surveillance variation across the window is absorbed rather than
-#   baked into a single shared scalar.
+#   streams use a single DRC ascertainment fraction $p_{\text{DRC}}$
+#   applied to every sitrep vintage.
 # - *No-onward-transmission counterfactual* (not in McCabe et al.).
 #   Projects the future expected deaths from cases already infected
 #   by $T$, integrating $i(s)\cdot(1 - F_d(T - s))$ per draw — a
@@ -152,7 +151,7 @@
 #   earlier cases and add newly-reporting health zones, and ascertainment
 #   likely rose over the window as the response scaled up. The increments
 #   therefore mix true incidence with backfill and changing detection,
-#   which the per-bin ascertainment random effect only partly absorbs.
+#   which the single fixed ascertainment fraction does not absorb.
 #   The most recent sitrep's increment is also not corrected for
 #   right-truncation, so it is exposed as is, with the same caveat as the
 #   latest cumulative total.
@@ -794,12 +793,11 @@ cfr_prior_fig #hide
 
 # ##### Surveillance dispersion
 #
-# We assume the passive-surveillance counts are reported with negative
-# binomial observation error around their expected value, using the
-# same error model for both streams it applies to — suspected deaths
-# and reported cases in the DRC — with a single shared dispersion $k$
-# because they come from the same surveillance system. Under the
-# mean-$\mu$ / dispersion-$k$ parameterisation a count $Y$ has
+# We assume the surveillance counts are reported with negative binomial
+# observation error around their expected value. The suspected-death,
+# reported-case and confirmed-case streams each take their own
+# independent dispersion $k$. Under the mean-$\mu$ / dispersion-$k$
+# parameterisation a count $Y$ has
 #
 # ```math
 # Y \sim \mathrm{NegBinomial}(\mu,\ k), \qquad
@@ -813,11 +811,13 @@ cfr_prior_fig #hide
 # meaningful overdispersion rather than near-Poisson counts.
 # Following the Stan prior-choice recommendations
 # [stan_prior_choice](@cite), the dispersion is sampled on the
-# $1/\sqrt{k}$ scale, which behaves like a standard deviation, with a
-# weakly-informative prior centred on that expected overdispersion,
+# $1/\sqrt{k}$ scale, which behaves like a standard deviation. Each
+# stream $s \in \{\text{deaths}, \text{reported}, \text{confirmed}\}$
+# draws its dispersion independently from the same weakly-informative
+# prior centred on the overdispersion we expect,
 #
 # ```math
-# 1/\sqrt{k} \sim \mathrm{Normal}^{+}(0.6,\ 0.2), \tag{9}
+# 1/\sqrt{k_s} \sim \mathrm{Normal}^{+}(0.6,\ 0.2), \tag{9}
 # ```
 #
 # giving $k$ a prior median near $3$ with a 90% range of about $1$-$14$.
@@ -825,9 +825,9 @@ cfr_prior_fig #hide
 # many orders of magnitude, so the pair plots and summary table show
 # dispersion on both the sampled $1/\sqrt{k}$ scale, which is easier to
 # read, and the more familiar $k$ scale.
-# Because each stream contributes essentially one aggregate count, $k$
-# is only weakly identified, so this prior carries the inference and is
-# set to reflect the overdispersion we expect from passive surveillance.
+# Because each stream contributes few aggregate counts, $k$ is only
+# weakly identified, so this prior carries the inference and is set to
+# reflect the overdispersion we expect from passive surveillance.
 # This extends the McCabe et al. report, which uses a Poisson likelihood
 # for the Method 2 deaths and does not model the reported case counts at
 # all; the negative binomial adds overdispersion to absorb
@@ -1113,8 +1113,8 @@ cfr_prior_fig #hide
 # observation is included, from the testing-volume gate on the BVD and
 # background streams. Ideally it would also be informed by a known
 # background rate of non-BVD presentations from routine surveillance or
-# other data sources. The dispersion $k$ (equation (9)) is shared with
-# the deaths and tested likelihoods.
+# other data sources. The dispersion for this stream is its own
+# partially-pooled $k_{\text{rep}}$ (equation (9)).
 #
 # $\mu_{\text{bg}} = \lambda_{\text{bg}}\, T$ assumes the non-BVD
 # background rate is constant in time and independent of the outbreak.
@@ -1130,39 +1130,26 @@ cfr_prior_fig #hide
 # the implied positivity.
 #
 # As for the deaths, we model each sitrep's new suspected cases rather
-# than only the latest cumulative total.
-# Surveillance intensity varies across the window, so each sitrep draws
-# its own ascertainment as a per-bin random effect: with the pooled
-# ascertainment hyperparameters $\mu_{\text{logit}}, \tau_{\text{logit}}$
-# and IID offsets $z_{\text{DRC},v} \sim \mathrm{Normal}(0, 1)$,
-#
-# ```math
-# p_{\text{DRC},v} = \mathrm{logistic}(\mu_{\text{logit}}
-#     + \tau_{\text{logit}}\, z_{\text{DRC},v}), \tag{20a}
-# ```
-#
-# from the same population as the cumulative $p_{\text{DRC}}$, the
-# pooling shrinking sitreps toward the hyperprior mean where the data
-# are uninformative (an IID effect, not a random walk). Writing the
-# unit-ascertainment BVD-suspected cumulative
+# than only the latest cumulative total. The DRC ascertainment fraction
+# $p_{\text{DRC}}$ (equation (11)) is applied to every sitrep's
+# increment. Writing the unit-ascertainment BVD-suspected cumulative
 # $\mu_{\text{BVD},0}(s) = \int_0^s e^{r u} f_{\text{rep}}(s - u)\,du$,
 # the new suspected cases in sitrep $v$ have mean
 #
 # ```math
 # \mu_v^{\text{rep}}
-#   = p_{\text{DRC},v}\,\bigl(\mu_{\text{BVD},0}(s_v)
+#   = p_{\text{DRC}}\,\bigl(\mu_{\text{BVD},0}(s_v)
 #     - \mu_{\text{BVD},0}(s_{v-1})\bigr)
 #     + \lambda_{\text{bg}}\,(s_v - s_{v-1}),
 # \quad
-# \Delta Y_v^{\text{rep}} \sim \mathrm{NegBinomial}(\mu_v^{\text{rep}}, k). \tag{20b}
+# \Delta Y_v^{\text{rep}} \sim
+#     \mathrm{NegBinomial}(\mu_v^{\text{rep}}, k_{\text{rep}}). \tag{20}
 # ```
 #
-# Applying $p_{\text{DRC},v}$ to the new-case increment of the
+# Applying $p_{\text{DRC}}$ to the new-case increment of the
 # unit-ascertainment cumulative, rather than inside the integrand, keeps
-# the mean linear in the random-effect draw.
-# Reported and confirmed sitreps for the same date share their
-# $p_{\text{DRC},v}$ draw, the BVD pool being shared between the two
-# streams.
+# the mean linear in the trajectory. Reported and confirmed sitreps share
+# the same $p_{\text{DRC}}$.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_positivity_model</summary>
@@ -1278,15 +1265,16 @@ cfr_prior_fig #hide
 # $I_{\text{lab},0}(s) = \int_0^s \mu_{\text{BVD},0}(s')\,
 #     f_{\text{lab}}(s - s')\,ds'$ and gating by the testing fraction
 # $\tau$ and sensitivity $s$.
-# Reported and confirmed sitreps for the same date share their per-bin
-# ascertainment draw:
+# Reported and confirmed sitreps share the same ascertainment fraction
+# $p_{\text{DRC}}$:
 #
 # ```math
 # \mu_v^{\text{conf}}
-#   = p_{\text{DRC},v}\, s\, \tau\,
+#   = p_{\text{DRC}}\, s\, \tau\,
 #     \bigl(I_{\text{lab},0}(s_v) - I_{\text{lab},0}(s_{v-1})\bigr),
 # \quad
-# \Delta Y_v^{\text{conf}} \sim \mathrm{NegBinomial}(\mu_v^{\text{conf}}, k). \tag{25a}
+# \Delta Y_v^{\text{conf}} \sim
+#     \mathrm{NegBinomial}(\mu_v^{\text{conf}}, k_{\text{conf}}). \tag{25a}
 # ```
 #
 # The tested-volume and per-test positivity terms (equations (23)-(24))
@@ -1297,8 +1285,8 @@ cfr_prior_fig #hide
 #     $\mu_{\text{BVD},0}$ is evaluated once on a fixed quadrature node
 #     set over $[0, T]$ and reused across every sitrep edge, sweeping
 #     the lab-delay weight over the shared nodes.
-#     Per-bin ascertainment is applied to the returned increment, so
-#     this precomputation does not depend on the random-effect draws.
+#     The ascertainment fraction is applied to the returned increment, so
+#     this precomputation does not depend on it.
 #     The suspected and death convolutions use the gamma closed form
 #     and need no quadrature.
 

@@ -172,12 +172,13 @@ the McCabe et al. Method 2 configuration. Pass a vector of `missing`
 entries (with matching offsets) to drop a stream while keeping the model
 usable as a prior- and posterior-predictive generator.
 
-DRC ascertainment is a per-bin random effect drawn from the pooled
-hyperprior via [`daily_ascertainment_model`](@ref): each case bin sees
-its own `p_drc_t = logistic(μ_logit + τ_logit · z_drc_t)`. Reported and
-confirmed bins for the same vintage share their draw (the BVD pool is
-shared between the two streams). With a single bin the random effect is
-one draw from the same population as the pooled scalar `p_drc`.
+DRC ascertainment is a single fixed fraction `p_drc` (the pooled scalar
+from [`pooled_ascertainment_model`](@ref)) applied to every reported and
+confirmed vintage bin, shared between the two streams.
+
+The negative-binomial dispersion is per-stream via
+[`per_stream_dispersion_model`](@ref): the deaths, reported and confirmed
+likelihoods each take their own independent `k` (indices 1/2/3).
 
 `tests_analysed` is a single cumulative testing-volume count observed at
 its own elapsed time `tests_offset` before the cut-off, so it stays
@@ -209,9 +210,8 @@ disable the factor entirely.
         confirmed = confirmed_cases_model,
         exports_deaths_model = exports_deaths_model,
         exports_detection_timing = exports_detection_timing_model,
-        dispersion = surveillance_dispersion_model(),
+        dispersion = per_stream_dispersion_model(3),
         ascertainment = pooled_ascertainment_model(),
-        daily_ascertainment = daily_ascertainment_model,
         deaths_ascertainment = deaths_ascertainment_model(),
         p_deaths_fixed::Union{Nothing, Real} = nothing,
         test_positivity = test_positivity_model(),
@@ -229,10 +229,12 @@ disable the factor entirely.
     end
     dispersion_state ~ to_submodel(dispersion, false)
     asc_state ~ to_submodel(ascertainment, false)
-    k = dispersion_state.k
+    ## Per-stream dispersion: 1 = deaths, 2 = reported, 3 = confirmed,
+    ## each an independent k.
+    k_deaths = dispersion_state.k[1]
+    k_reported = dispersion_state.k[2]
+    k_confirmed = dispersion_state.k[3]
     p_uganda = asc_state.p_uganda
-    μ_logit = asc_state.μ_logit
-    τ_logit = asc_state.τ_logit
     if p_deaths_fixed === nothing
         deaths_asc_state ~ to_submodel(deaths_ascertainment, false)
         p_deaths = deaths_asc_state.p_deaths
@@ -246,25 +248,19 @@ disable the factor entirely.
 
     death_edges = [T - δ for δ in death_offsets]
     deaths_state ~ to_submodel(
-        deaths(total_deaths, growth_state, k, death_edges;
+        deaths(total_deaths, growth_state, k_deaths, death_edges;
             p_deaths = p_deaths), false)
 
-    ## Per-bin random-effect DRC ascertainment, shared between the
-    ## reported and confirmed case streams. One length-`max(n_rep,
-    ## n_conf)` block is drawn and a prefix is indexed for each stream;
-    ## this assumes the two streams are aligned on the same oldest-first
-    ## vintages (true here — both start 18 May), so bin `v` is the same
-    ## calendar vintage in each.
+    ## Fixed per-stream DRC ascertainment: every reported and confirmed
+    ## vintage bin uses the pooled scalar `p_drc`, shared between the two
+    ## streams.
     n_rep = length(reported_offsets)
     n_conf = length(confirmed_offsets)
-    n_asc = max(n_rep, n_conf)
-    daily_asc_state ~ to_submodel(
-        daily_ascertainment(n_asc, μ_logit, τ_logit), false)
-    p_drc_per_bin = daily_asc_state.p_drc_t
+    p_drc_per_bin = fill(asc_state.p_drc, max(n_rep, n_conf))
 
     reported_edges = [T - δ for δ in reported_offsets]
     reported_state ~ to_submodel(
-        reported_cases_submodel(reported_cases, growth_state, k,
+        reported_cases_submodel(reported_cases, growth_state, k_reported,
             p_drc_per_bin[1:n_rep], reported_edges;
             report_delay = report_delay,
             test_positivity = test_positivity), false)
@@ -273,8 +269,8 @@ disable the factor entirely.
         confirmed_edges = [T - δ for δ in confirmed_offsets]
         tests_edge = T - tests_offset
         confirmed_state ~ to_submodel(
-            confirmed(confirmed_cases, tests_analysed, growth_state, k,
-                p_drc_per_bin[1:n_conf], reported_state.λ_bg,
+            confirmed(confirmed_cases, tests_analysed, growth_state,
+                k_confirmed, p_drc_per_bin[1:n_conf], reported_state.λ_bg,
                 reported_state.τ_test, reported_state.report_delay_dist,
                 confirmed_edges, tests_edge;
                 lab_delay = lab_delay,
