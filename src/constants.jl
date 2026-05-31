@@ -1,5 +1,5 @@
 # Fixed package constants: published scenarios, Ituri population and
-# travel priors, observed counts, and the shared quadrature settings.
+# travel priors.
 
 """
     REPORT_SCENARIOS
@@ -49,40 +49,3 @@ point-of-entry-to-point-of-entry variation and reporting uncertainty
 in the underlying mobility survey.
 """
 const ITURI_DAILY_TRAVEL_SD = 200
-
-"""
-    DEATH_INTEGRAL_ALG
-
-Gauss-Legendre quadrature scheme (`n = 64`) used for the deaths
-onset-to-death convolution, the no-onward-transmission counterfactual,
-and the forecast deaths integral.
-"""
-const DEATH_INTEGRAL_ALG = GaussLegendre(; n = 64)
-
-"""
-    CUMULATIVE_INTEGRAL_ALG
-
-Gauss-Legendre quadrature scheme (`n = 32`) used for the at-risk
-person-time export integral and the deaths-among-exports convolution
-(outer and inner integrals).
-"""
-const CUMULATIVE_INTEGRAL_ALG = GaussLegendre(; n = 32)
-
-"""
-    DELAY_SUPPORT_K
-
-Number of standard deviations beyond the mean used as the clustering
-scale for a delay distribution in the onset-to-death convolution
-integrals. `mean + DELAY_SUPPORT_K · std` is the width near the cut-off
-over which the clustered [`integrate`](@ref) packs roughly half its
-nodes, so the quadrature tracks the delay's scale as it is sampled.
-"""
-const DELAY_SUPPORT_K = 10
-
-"""
-    EXPORT_DELAY_GRID_POINTS
-
-Number of evenly spaced grid points used to precompute the onset-to-death
-CDF in [`ExportDeathDelay`](@ref).
-"""
-const EXPORT_DELAY_GRID_POINTS = 256

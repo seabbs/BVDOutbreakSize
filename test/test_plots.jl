@@ -158,10 +158,11 @@ end
     rng = MersenneTwister(16)
     n = 200
     vals = hcat(abs.(randn(rng, n)) .+ 7, abs.(randn(rng, n)) .* 30)
+    ## :doubling_time replaces the removed :τ parameter
     chn = FlexiChains.FlexiChain{Symbol}(n,
         1,
         Dict(
-            FlexiChains.Parameter(:τ) => reshape(vals[:, 1], n, 1),
+            FlexiChains.Parameter(:doubling_time) => reshape(vals[:, 1], n, 1),
             FlexiChains.Parameter(:T) => reshape(vals[:, 2], n, 1)))
     fig = plot_start_date_pair(chn; as_of_date = "2026-05-20")
     @test fig isa CairoMakie.Makie.Figure
@@ -182,5 +183,63 @@ end
             replicates = reps, observed = observed, colour = :steelblue),
         (; title = "Confirmed", dates = dates,
             replicates = reps, observed = observed)])
+    @test fig isa CairoMakie.Makie.Figure
+end
+
+@testitem "plot_cfr_prior returns a Makie figure" setup=[HeadlessMakie] begin
+    using Distributions: Beta
+    using BVDOutbreakSize: plot_cfr_prior
+    prior = Beta(6.6, 13.4)
+    fig = plot_cfr_prior(prior)
+    @test fig isa CairoMakie.Makie.Figure
+end
+
+@testitem "plot_no_onward_deaths returns a Makie figure" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    using DataFrames: DataFrame
+    using BVDOutbreakSize: plot_no_onward_deaths
+    rng = MersenneTwister(31)
+    df = DataFrame(
+        delta_deaths = abs.(randn(rng, 300)) .* 5,
+        total_projected = abs.(randn(rng, 300)) .* 5 .+ 55
+    )
+    fig = plot_no_onward_deaths(df; obs_deaths = 55)
+    @test fig isa CairoMakie.Makie.Figure
+end
+
+@testitem "plot_forecast returns a Makie figure" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    using DataFrames: DataFrame
+    using BVDOutbreakSize: plot_forecast
+    rng = MersenneTwister(32)
+    n = 300
+    fc = DataFrame(
+        cases_cum = rand(rng, 50:150, n),
+        deaths_cum = rand(rng, 40:100, n),
+        exports_cum = rand(rng, 2:10, n),
+        cases_new = rand(rng, 0:30, n),
+        deaths_new = rand(rng, 0:20, n),
+        exports_new = rand(rng, 0:5, n)
+    )
+    fig = plot_forecast(fc)
+    @test fig isa CairoMakie.Makie.Figure
+end
+
+@testitem "plot_forecast_vs_truth returns a Makie figure" setup=[HeadlessMakie] begin
+    using Random: MersenneTwister
+    using DataFrames: DataFrame
+    using BVDOutbreakSize: plot_forecast_vs_truth
+    rng = MersenneTwister(33)
+    n = 300
+    fc = DataFrame(
+        cases_cum = rand(rng, 50:150, n),
+        deaths_cum = rand(rng, 40:100, n),
+        exports_cum = rand(rng, 2:10, n),
+        cases_new = rand(rng, 0:30, n),
+        deaths_new = rand(rng, 0:20, n),
+        exports_new = rand(rng, 0:5, n)
+    )
+    fig = plot_forecast_vs_truth(fc;
+        cases = 130, deaths = 80, exports = 7)
     @test fig isa CairoMakie.Makie.Figure
 end

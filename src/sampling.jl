@@ -8,14 +8,14 @@ the NUTS `adtype` keyword.
 default_adtype() = AutoMooncake(; config = Mooncake.Config())
 
 """
-Enzyme reverse-mode AD with runtime activity and `Duplicated` function
-annotation, the configuration the joint model's analytical gamma-CDF
-rule needs (see `ext/BVDOutbreakSizeEnzymeExt.jl`). Returns an
-`ADTypes.AutoEnzyme`; pass to `nuts_sample(model; adtype = ...)`.
-
-`enzyme_adtype` is a stub; loading Enzyme (`using Enzyme`) activates
-the method via `BVDOutbreakSizeEnzymeExt`. Calling `enzyme_adtype`
-without Enzyme loaded raises a `MethodError`.
+Enzyme reverse-mode AD type, an opt-in alternative to the default
+[`default_adtype`](@ref) (Mooncake). Defined by the package's Enzyme
+weak-dependency extension (`ext/BVDOutbreakSizeEnzymeExt.jl`); calling it
+without `Enzyme` loaded raises a `MethodError`. Load `Enzyme` to activate
+the extension, which also installs the `EnzymeRules` for
+`SpecialFunctions.gamma` that the Beta and NegativeBinomial normalising
+constants reach. Differentiating the full renewal joint under Enzyme is
+work in progress; Mooncake remains the package default.
 """
 function enzyme_adtype end
 
@@ -25,6 +25,16 @@ initialise from the prior (`InitFromPrior()`) to keep the sampler
 in regions with reasonable physical interpretation. Pass `init =
 Turing.DynamicPPL.InitFromUniform()` to fall back to unconstrained
 uniform initialisation.
+
+`check_model = false` disables Turing's pre-sampling model check. A
+composer that drops a stream (passes `missing`) leaves that stream's
+likelihood as a sampled discrete draw (`Poisson` / `NegativeBinomial`)
+whose value feeds nothing downstream. The check rejects any model with
+a sampled discrete variable, even a redundant one, so a composer that
+conditions on one stream while leaving another's count `missing` (e.g.
+[`exports_deaths_only_model`](@ref), which keeps the deaths and exports
+submodels only for their `CFR`, onset-to-death PMF and export onsets)
+cannot otherwise be fitted. The continuous parameters are unaffected.
 """
 function nuts_sample(model;
         samples::Integer = 1_000,
@@ -33,7 +43,8 @@ function nuts_sample(model;
         seed::Integer = 20260518,
         progress::Bool = false,
         adtype = default_adtype(),
-        init = InitFromPrior())
+        init = InitFromPrior(),
+        check_model::Bool = true)
     rng = MersenneTwister(seed)
     return sample(
         rng,
@@ -42,6 +53,7 @@ function nuts_sample(model;
         MCMCThreads(),
         samples, chains;
         initial_params = fill(init, chains),
-        progress = progress
+        progress = progress,
+        check_model = check_model
     )
 end

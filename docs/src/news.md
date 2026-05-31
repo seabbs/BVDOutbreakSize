@@ -81,8 +81,25 @@ each push to `main` also republishes the rendered analysis and the
 
 ### Infrastructure
 
-- Added optional Enzyme reverse-mode automatic differentiation, selected with `enzyme_adtype()`, alongside the default Mooncake backend.
-Gradients match Mooncake across every model including the full joint, and end-to-end fitting runs at the same speed, so Mooncake stays the default.
+- Replaced the integral exponential-growth generative core with a
+  discrete-time renewal model: a weekly random-walk reproduction number
+  drives daily latent infections through the renewal equation, the
+  infections are convolved to onsets and then to each observed stream by
+  daily delay convolutions, and the generation interval, incubation
+  period and every onset-to-event delay are sampled from priors and
+  discretised by double interval censoring. The full laboratory /
+  test-positivity pipeline is wired onto the renewal onsets, so the
+  renewal conditions on the same data streams and exposes the same
+  derived quantities (per-suspected and per-test positivity, testing
+  fraction, PCR sensitivity, lab delay) as the integral model.
+- Restored the optional Enzyme reverse-mode AD extension, selected with
+  `enzyme_adtype()`, alongside the default Mooncake backend. The
+  integral-model gamma-CDF Enzyme rule was dropped with its helpers; the
+  rule for `SpecialFunctions.gamma` (reached by the Beta and
+  NegativeBinomial normalising constants) is kept. The Enzyme gradient
+  matches Mooncake on the single-stream exports composer; differentiating
+  the full renewal joint under Enzyme is still work in progress, so
+  Mooncake remains the default.
 
 ## v1.2.0
 

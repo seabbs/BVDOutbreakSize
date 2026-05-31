@@ -421,9 +421,10 @@ end
 One-row, two-panel figure summarising when the outbreak began. The
 left panel is the posterior density of the outbreak start date,
 obtained by rescaling the days-since-seeding `T` to a calendar date
-(`as_of_date` minus `T`). The right panel is the joint `(τ, T)`
-posterior pair plot, which is positively correlated: slower growth
-(larger `τ`) needs a longer elapsed `T` to reach the same counts.
+(`as_of_date` minus `T`). The right panel is the joint
+`(doubling_time, T)` posterior pair plot: shorter doubling times
+correspond to faster early growth, which reaches the same epidemic
+size in less time (smaller `T`).
 """
 function plot_start_date_pair(chn;
         as_of_date::AbstractString, thin::Integer = 2)
@@ -448,7 +449,11 @@ function plot_start_date_pair(chn;
     ax.xticks = collect(lo:28:hi)
     ax.xtickformat = vals -> [string(epochdays2date(round(Int, v))) for v in vals]
 
-    pair_df = DataFrame(τ = _draws(chn, :τ), T = T_draws)
+    dt_draws = _draws(chn, :doubling_time)
+    ## Clip extreme doubling times (near-zero growth) to keep the pair
+    ## plot readable; a finite cap at 200 days covers the credible range.
+    dt_clipped = clamp.(dt_draws, -200.0, 200.0)
+    pair_df = DataFrame(doubling_time = dt_clipped, T = T_draws)
     PairPlots.pairplot(fig[1, 2], pair_df[1:thin:end, :])
     return fig
 end
@@ -567,8 +572,7 @@ function plot_forecast_vs_truth(fc::DataFrame;
             color = (colour, 0.7))
         vlines!(ax, [obs]; color = :black, linestyle = :dash, linewidth = 2)
     end
-    for (j, (ccol, ncol, name, colour, obs_cum, obs_new)) in
-        enumerate(streams)
+    for (j, (ccol, ncol, name, colour, obs_cum, obs_new)) in enumerate(streams)
         panel!(1, j, fc[!, ccol], obs_cum, "Cumulative $name", colour)
         panel!(2, j, fc[!, ncol], max(obs_new, 0.0), "New $name", colour)
     end

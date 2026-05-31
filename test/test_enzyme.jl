@@ -1,10 +1,15 @@
 ## Tests for the Enzyme AD extension (`ext/BVDOutbreakSizeEnzymeExt.jl`).
-## Loading Enzyme activates `enzyme_adtype()` and the EnzymeRules for the
-## gamma CDF. The gradient of a composer's unconstrained log-density under
-## Enzyme must match Mooncake (the package default) and, through it,
-## finite differences. Tagged `:slow` for the one-off Enzyme compilation.
+## Loading Enzyme activates `enzyme_adtype()` and the EnzymeRule for
+## `SpecialFunctions.gamma` (reached by the Beta / NegativeBinomial
+## normalising constants). The gradient of a single-stream composer's
+## unconstrained log-density under Enzyme must match Mooncake (the package
+## default). Differentiating the full renewal joint under Enzyme is still
+## work in progress, so the gradient match is checked on the single-stream
+## exports composer only. Tagged `:slow` for the one-off Enzyme
+## compilation.
 
-@testitem "enzyme_adtype is an AutoEnzyme with runtime activity" tags=[:slow, :ad] begin
+@testitem "enzyme_adtype is an AutoEnzyme with runtime activity" tags=[
+    :slow, :ad] begin
     using ADTypes: AutoEnzyme
     using Enzyme
     using BVDOutbreakSize: enzyme_adtype
@@ -16,7 +21,8 @@
     @test ad.mode === Enzyme.set_runtime_activity(Enzyme.Reverse)
 end
 
-@testitem "Enzyme gradient matches Mooncake on a single-stream model" tags=[:slow, :ad] begin
+@testitem "Enzyme gradient matches Mooncake on a single-stream model" tags=[
+    :slow, :ad] begin
     using Enzyme
     using Mooncake
     using Turing: DynamicPPL
@@ -24,7 +30,7 @@ end
     using Random: seed!
     using BVDOutbreakSize: exports_only_model, default_adtype, enzyme_adtype
 
-    model = exports_only_model(3)
+    model = exports_only_model(3, 2)
     seed!(20260518)
     vi = DynamicPPL.link(DynamicPPL.VarInfo(model), model)
     x0 = collect(vi[:])
