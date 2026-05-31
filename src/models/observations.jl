@@ -143,7 +143,13 @@ sitrep.
 
     raw_total = sum(reports_daily)
     expected_reports := safe_rate(raw_total)
-    reported_cases ~ safe_nbinomial(k, expected_reports)
+    ## Score the cut-off total only when supplied; a `missing` count makes
+    ## this submodel a predictive generator (it would otherwise add a
+    ## sampled discrete variable that the NUTS model check rejects). The
+    ## expected suspected total is still exposed deterministically.
+    if !ismissing(reported_cases)
+        reported_cases ~ safe_nbinomial(k, expected_reports)
+    end
 
     ## Implied per-suspected positivity at the cut-off: BVD share of the
     ## expected suspected total.
@@ -213,10 +219,19 @@ totals at the cut-off as derived quantities.
             lab_history.counts, k), false)
 
     expected_confirmed := safe_rate(sum(confirmed_daily))
-    confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
+    if !ismissing(confirmed_cases)
+        confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
+    end
 
     expected_tested := safe_rate(sum(tested_daily))
-    tests_analysed ~ safe_nbinomial(k, expected_tested)
+    ## Only score the tested-volume likelihood when the count is supplied.
+    ## Leaving it `missing` would otherwise add a redundant sampled
+    ## discrete variable that the NUTS model check rejects (the same reason
+    ## the dropped-stream composers pass `check_model = false`); the
+    ## expected tested volume is still exposed deterministically above.
+    if !ismissing(tests_analysed)
+        tests_analysed ~ safe_nbinomial(k, expected_tested)
+    end
 
     ## Per-test positivity: PCR sensitivity times the BVD share of the
     ## tested pool, for comparison with the sitrep positivity rate.

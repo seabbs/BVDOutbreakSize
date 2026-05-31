@@ -1,30 +1,42 @@
 @testitem "confirmed_cases_model exposes lab-pipeline positivity" begin
     using BVDOutbreakSize: confirmed_cases_model, reported_cases_model,
                            infection_model, onset_incidence_model
+    using Turing: @model, to_submodel, returned, VarInfo
     using Random: MersenneTwister
 
+    ## Build daily onsets and the shared report kernel / background /
+    ## testing fraction by running the latent + reported submodels and
+    ## reading their `returned` named tuples.
+    @model function _latent(n)
+        inf ~ to_submodel(infection_model(n), false)
+        ons ~ to_submodel(onset_incidence_model(inf.infections), false)
+        return ons.onsets
+    end
     n = 40
-    inf = infection_model(n)
-    onsets = rand(MersenneTwister(1), inf).infections
+    onsets = returned(_latent(n), rand(MersenneTwister(1), _latent(n)))
 
-    onset_pmf = onset_incidence_model(onsets)
-    onset_state = rand(MersenneTwister(2), onset_pmf)
-    daily_onsets = onset_state.onsets
+    @model function _rep(onsets)
+        st ~ to_submodel(
+            reported_cases_model(
+                (; days = Int[], counts = Int[]), missing, onsets, 5.0, 0.3),
+            false)
+        return st
+    end
+    rep_state = returned(_rep(onsets), rand(MersenneTwister(3), _rep(onsets)))
 
-    # Draw the shared report kernel / background / testing fraction.
-    rep = reported_cases_model(
-        (; days = Int[], counts = Int[]), missing, daily_onsets, 5.0, 0.3)
-    rep_state = rand(MersenneTwister(3), rep)
-
-    m = confirmed_cases_model(
-        (; days = [20, 40], counts = [3, 8]),
-        8, daily_onsets, 5.0, 0.3, rep_state.λ_bg, rep_state.τ_test,
-        rep_state.bvd_reports_daily;
-        lab_history = (; days = [20, 40], counts = [5, 8]),
-        tests_analysed = 8)
-    draw = rand(MersenneTwister(4), m)
-    @test haskey(draw, :p_positive)
-    @test 0 <= draw.p_positive <= 1
-    @test draw.expected_confirmed >= 0
-    @test draw.expected_tested >= 0
+    @model function _conf(onsets, rep)
+        st ~ to_submodel(
+            confirmed_cases_model(
+                (; days = [20, 40], counts = [3, 8]), 8, onsets, 5.0, 0.3,
+                rep.λ_bg, rep.τ_test, rep.bvd_reports_daily;
+                lab_history = (; days = [20, 40], counts = [5, 8]),
+                tests_analysed = 8),
+            false)
+        return st
+    end
+    m = _conf(onsets, rep_state)
+    st = returned(m, rand(MersenneTwister(4), m))
+    @test 0 <= st.p_positive <= 1
+    @test st.expected_confirmed >= 0
+    @test st.expected_tested >= 0
 end
