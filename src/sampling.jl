@@ -8,9 +8,12 @@ the NUTS `adtype` keyword.
 default_adtype() = AutoMooncake(; config = Mooncake.Config())
 
 """
-Enzyme reverse-mode AD with runtime activity and `Duplicated` function
-annotation, the configuration the joint model's analytical gamma-CDF
-rule needs (see `ext/BVDOutbreakSizeEnzymeExt.jl`). Returns an
+Enzyme reverse-mode AD with a `Duplicated` function annotation (so the
+closure over the observed data is differentiated), the configuration the
+joint model's analytical gamma-CDF rule needs (see
+`ext/BVDOutbreakSizeEnzymeExt.jl`). Runtime activity is not enabled:
+it is unnecessary now that `integrate` is type-stable, so Enzyme can
+resolve activity statically through the quadrature. Returns an
 `ADTypes.AutoEnzyme`; pass to `nuts_sample(model; adtype = ...)`.
 
 `enzyme_adtype` is a stub; loading Enzyme (`using Enzyme`) activates
