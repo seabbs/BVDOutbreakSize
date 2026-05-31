@@ -616,10 +616,12 @@ const _BREAKPOINT = obs.n - obs.who_first_sitrep_days
 chn_joint = nuts_sample(
     bvd_joint(
     obs.n, obs.exported_cases, obs.total_deaths,
-    obs.reported_cases, obs.exports_deaths, obs.confirmed_cases;
+    obs.reported_cases, obs.exports_deaths, obs.confirmed_cases,
+    obs.lab_history.counts[end];
     deaths_history = obs.deaths_history,
     reported_history = obs.reported_history,
     confirmed_history = obs.confirmed_history,
+    lab_history = obs.lab_history,
     breakpoint = _BREAKPOINT,
     genetic = genetic_seeding_model,
     tmrca_days = obs.tmrca_days));
@@ -830,6 +832,44 @@ joint_summary = summary_table(chn_joint,
 
 joint_summary #hide
 
+# The laboratory pipeline couples the confirmed-case and tests-analysed
+# streams to the latent incidence through the testing fraction
+# `tau_test`, the PCR sensitivity `s_test` and the report-to-confirmation
+# (lab-turnaround) delay. The implied per-suspected and per-test
+# positivity and the non-BVD background rate `lambda_bg` are surfaced for
+# comparison with the sitrep figures.
+
+#md # ```@raw html
+#md # <details><summary>Laboratory-pipeline posterior summary table</summary>
+#md # ```
+
+lab_summary = summary_table(chn_joint,
+    [:s_test, :tau_test, :lambda_bg, :suspected_positivity,
+        :test_positivity, :expected_confirmed_T, :expected_tested_T];
+    digits = 3);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+lab_summary #hide
+
+# A pair plot of the laboratory-pipeline parameters and the derived
+# per-test positivity shows their joint posterior and any trade-offs.
+
+#md # ```@raw html
+#md # <details><summary>Laboratory-pipeline pair plot</summary>
+#md # ```
+
+lab_pair_fig = plot_pair(chn_joint,
+    [:s_test, :tau_test, :lambda_bg, :test_positivity]);
+
+#md # ```@raw html
+#md # </details>
+#md # ```
+
+lab_pair_fig #hide
+
 # The posterior pair plot shows the joint distribution of the key
 # parameters, with the prior overlaid so the data's contribution to
 # each marginal is visible.
@@ -859,10 +899,11 @@ posterior_pair_fig #hide
 
 pp_joint = predict(
     bvd_joint(
-        obs.n, missing, missing, missing, missing, missing;
+        obs.n, missing, missing, missing, missing, missing, missing;
         deaths_history = obs.deaths_history,
         reported_history = obs.reported_history,
         confirmed_history = obs.confirmed_history,
+        lab_history = obs.lab_history,
         breakpoint = _BREAKPOINT),
     chn_joint);
 
