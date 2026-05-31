@@ -1047,7 +1047,8 @@ cfr_prior_fig #hide
 #md # ```@eval
 #md # using BVDOutbreakSize, CodeTracking, Markdown
 #md # Markdown.parse(string("```julia\n",
-#md #     (@code_string BVDOutbreakSize.deaths_model(1, nothing, 1.0)), "\n```"))
+#md #     (@code_string BVDOutbreakSize.deaths_model(
+#md #         Int[], nothing, 1.0, Float64[])), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1164,7 +1165,8 @@ cfr_prior_fig #hide
 #md # ```@eval
 #md # using BVDOutbreakSize, CodeTracking, Markdown
 #md # Markdown.parse(string("```julia\n",
-#md #     (@code_string BVDOutbreakSize.reported_cases_model( 1, nothing, 1.0, 0.25)), "\n```"))
+#md #     (@code_string BVDOutbreakSize.reported_cases_model(
+#md #         Int[], nothing, 1.0, Float64[], Float64[])), "\n```"))
 #md # ```
 
 #md # ```@raw html
@@ -1302,7 +1304,9 @@ cfr_prior_fig #hide
 #md # ```@eval
 #md # using BVDOutbreakSize, CodeTracking, Markdown
 #md # Markdown.parse(string("```julia\n",
-#md #     (@code_string BVDOutbreakSize.confirmed_cases_model( 1, 1, identity, nothing, 1.0, 1.0, 1.0)), "\n```"))
+#md #     (@code_string BVDOutbreakSize.confirmed_cases_model(
+#md #         Int[], missing, nothing, 1.0, Float64[], 1.0, 1.0,
+#md #         nothing, Float64[], 1.0)), "\n```"))
 #md # ```
 
 #md # ```@raw html
