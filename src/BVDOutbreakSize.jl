@@ -1,6 +1,6 @@
 module BVDOutbreakSize
 
-using Statistics: quantile, mean, std
+using Statistics: quantile
 using TOML: TOML
 using DataFrames: DataFrame, rename
 using Chain: @chain
@@ -8,14 +8,14 @@ using Random: MersenneTwister
 using Dates: Date, date2epochdays, epochdays2date
 using ADTypes: AutoMooncake
 using Mooncake: Mooncake
-using ChainRulesCore: ChainRulesCore, NoTangent
-using Turing: @model, MCMCThreads, NUTS, sample, to_submodel, filldist,
+using ChainRulesCore: ChainRulesCore
+using Turing: @model, MCMCThreads, NUTS, sample, to_submodel,
               @addlogprob!
 using Turing.DynamicPPL: InitFromPrior
 import FlexiChains
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
                            TYPEDFIELDS, TYPEDSIGNATURES
-using Distributions: Distribution, cdf, pdf, logpdf, Poisson,
+using Distributions: Distribution, pdf, logpdf, Poisson,
                      NegativeBinomial, Normal, LogNormal, Beta,
                      truncated, censored, product_distribution
 using CensoredDistributions: double_interval_censored
@@ -40,8 +40,7 @@ export REPORT_SCENARIOS,
        plot_cfr_prior, plot_vintage_ppc,
        predict_no_onward_deaths, plot_no_onward_deaths,
        forecast_reported, forecast_table, plot_forecast,
-       forecast_vs_truth, forecast_vs_truth_trajectory,
-       plot_forecast_vs_truth,
+       forecast_vs_truth, plot_forecast_vs_truth,
 # renewal helpers
        renewal_infections, convolve_delay, discretise_censored,
        euler_lotka_r, doubling_time, seed_infections, knot_days,
