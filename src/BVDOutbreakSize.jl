@@ -6,7 +6,7 @@ using DataFrames: DataFrame, rename
 using Chain: @chain
 using Random: MersenneTwister
 using Dates: Date, date2epochdays, epochdays2date
-using ADTypes: AutoMooncake
+using ADTypes: AutoMooncake, AutoEnzyme
 using Mooncake: Mooncake
 using ChainRulesCore: ChainRulesCore
 using Turing: @model, MCMCThreads, NUTS, sample, to_submodel,
@@ -33,7 +33,7 @@ export REPORT_SCENARIOS,
        summary_table, posterior_summary,
        fit_diagnostics, diagnostics_table,
        streams_table, comparison_table,
-       nuts_sample, default_adtype,
+       nuts_sample, default_adtype, enzyme_adtype,
        plot_cumulative_cases, plot_density_overlay, plot_prior_predictive,
        plot_posterior_predictive, plot_posterior_predictive_grid,
        plot_pair, plot_start_date_pair, plot_estimate_comparison,
