@@ -1,0 +1,42 @@
+'BvdProofs.affine_kernel_matches_integral' depends on axioms: [propext,
+ BvdProofs.affine_interval_integral,
+ Classical.choice,
+ Quot.sound]
+'BvdProofs.clustered_kernel_matches_integral' depends on axioms: [propext,
+ BvdProofs.clustered_interval_integral,
+ Classical.choice,
+ Quot.sound]
+'BvdProofs.expectedDeathsGamma_eq_closed_form' depends on axioms: [propext,
+ BvdProofs.gammaCDF,
+ BvdProofs.gammaMGF,
+ BvdProofs.gammaPDF,
+ BvdProofs.gamma_death_convolution,
+ Classical.choice,
+ Quot.sound]
+'BvdProofs.gammaCDF_x_partial' depends on axioms: [propext,
+ BvdProofs.gammaCDF,
+ BvdProofs.gammaCDF_hasDerivAt_x,
+ BvdProofs.gammaPDF,
+ Classical.choice,
+ Quot.sound]
+'BvdProofs.gammaCDF_theta_partial' depends on axioms: [propext,
+ BvdProofs.gammaCDF,
+ BvdProofs.gammaCDF_hasDerivAt_theta,
+ BvdProofs.gammaPDF,
+ Classical.choice,
+ Quot.sound]
+'BvdProofs.regularizedLowerGamma_alpha_partial_kummer' depends on axioms: [propext,
+ BvdProofs.kummerDigammaSeries,
+ BvdProofs.regularizedLowerGamma,
+ BvdProofs.regularizedLowerGamma_kummer_derivative,
+ Classical.choice,
+ Quot.sound]
+'BvdProofs.exponential_export_integral_closed' depends on axioms: [propext,
+ BvdProofs.exp_interval_integral_nonzero,
+ Classical.choice,
+ Quot.sound]
+'BvdProofs.exponential_export_integral_zero_growth' depends on axioms: [propext,
+ BvdProofs.exp_interval_integral_zero,
+ Classical.choice,
+ Quot.sound]
+'BvdProofs.negativeBinomial_mean_from_prob' depends on axioms: [propext, Classical.choice, Quot.sound]

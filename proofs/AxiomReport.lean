@@ -1,0 +1,11 @@
+import BvdProofs
+
+#print axioms BvdProofs.affine_kernel_matches_integral
+#print axioms BvdProofs.clustered_kernel_matches_integral
+#print axioms BvdProofs.expectedDeathsGamma_eq_closed_form
+#print axioms BvdProofs.gammaCDF_x_partial
+#print axioms BvdProofs.gammaCDF_theta_partial
+#print axioms BvdProofs.regularizedLowerGamma_alpha_partial_kummer
+#print axioms BvdProofs.exponential_export_integral_closed
+#print axioms BvdProofs.exponential_export_integral_zero_growth
+#print axioms BvdProofs.negativeBinomial_mean_from_prob
