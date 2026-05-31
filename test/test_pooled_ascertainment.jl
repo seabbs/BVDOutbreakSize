@@ -1,6 +1,7 @@
-## Smoke tests for the pooled DRC / Uganda ascertainment submodel.
+## Smoke tests for the per-stream DRC / Uganda ascertainment submodel.
 ## Exercises the real `pooled_ascertainment_model` from
-## `src/models/priors.jl`.
+## `src/models/priors.jl`, which samples each fraction independently from
+## its own Beta prior (the name is retained for API compatibility).
 
 @testsnippet PooledFixtures begin
     using Turing: @model, to_submodel
@@ -14,24 +15,22 @@
     end
 end
 
-@testitem "pooled_ascertainment prior draws produce p ∈ (0, 1)" tags=[:slow] setup=[PooledFixtures] begin
+@testitem "ascertainment prior draws produce p ∈ (0, 1)" tags=[:slow] setup=[PooledFixtures] begin
     using Turing: sample, Prior
     import FlexiChains
     chn=sample(pooled_ascertainment_model(), Prior(), 200;
         chain_type = FlexiChains.VNChain, progress = false)
     p_drc=vec(Array(chn[:p_drc]))
     p_uganda=vec(Array(chn[:p_uganda]))
-    τ_logit=vec(Array(chn[:τ_logit]))
     @test length(p_drc) == 200
     @test length(p_uganda) == 200
     @test all(0 .< p_drc .< 1)
     @test all(0 .< p_uganda .< 1)
-    @test all(τ_logit .>= 0)
     @test all(isfinite, p_drc)
     @test all(isfinite, p_uganda)
 end
 
-@testitem "pooled_ascertainment composes via to_submodel" tags=[:slow] setup=[PooledFixtures] begin
+@testitem "ascertainment composes via to_submodel" tags=[:slow] setup=[PooledFixtures] begin
     using Turing: sample, Prior
     import FlexiChains
     chn=sample(_pooled_test_compose(), Prior(), 100;
