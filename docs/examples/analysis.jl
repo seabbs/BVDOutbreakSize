@@ -588,7 +588,7 @@ prior_C_table #hide
 #md # ```
 
 prior_pair_fig = plot_pair(prior_chn,
-    [:C_T, :R_T, :r, :doubling_time, :T, :CFR, :inv_sqrt_k,
+    [:C_T, :R_T, :r, :doubling_time, :T, :CFR, :k,
         :p_drc, :p_uganda]);
 
 #md # ```@raw html
@@ -822,7 +822,7 @@ start_date_fig #hide
 
 joint_summary = summary_table(chn_joint,
     [:r, :r0, :doubling_time, :T, :R_T, :CFR,
-        :p_drc, :p_uganda, :inv_sqrt_k, :k, :C_T]; digits = 2);
+        :p_drc, :p_uganda, :k, :C_T]; digits = 2);
 
 #md # ```@raw html
 #md # </details>
@@ -839,7 +839,7 @@ joint_summary #hide
 #md # ```
 
 posterior_pair_fig = plot_pair(chn_joint,
-    [:C_T, :R_T, :r, :doubling_time, :T, :CFR, :inv_sqrt_k,
+    [:C_T, :R_T, :r, :doubling_time, :T, :CFR, :k,
         :p_drc, :p_uganda];
     prior = prior_chn);
 
