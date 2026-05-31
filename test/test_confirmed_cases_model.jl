@@ -1,35 +1,30 @@
-## Smoke tests for the confirmed-cases stream composer.
-## Exercises the real `confirmed_only_model` from `src/models/joint.jl`.
+@testitem "confirmed_cases_model exposes lab-pipeline positivity" begin
+    using BVDOutbreakSize: confirmed_cases_model, reported_cases_model,
+                           infection_model, onset_incidence_model
+    using Random: MersenneTwister
 
-@testitem "confirmed_only_model prior draws are finite and non-negative" tags=[:slow] begin
-    using Turing: sample, Prior
-    import FlexiChains
-    using BVDOutbreakSize: confirmed_only_model
+    n = 40
+    inf = infection_model(n)
+    onsets = rand(MersenneTwister(1), inf).infections
 
-    chn = sample(
-        confirmed_only_model(40, missing),
-        Prior(), 100;
-        chain_type = FlexiChains.VNChain, progress = false
-    )
+    onset_pmf = onset_incidence_model(onsets)
+    onset_state = rand(MersenneTwister(2), onset_pmf)
+    daily_onsets = onset_state.onsets
 
-    C_T = vec(Array(chn[:C_T]))
-    @test length(C_T) == 100
-    @test all(isfinite, C_T)
-    @test all(C_T .> 0)
-end
+    # Draw the shared report kernel / background / testing fraction.
+    rep = reported_cases_model(
+        (; days = Int[], counts = Int[]), missing, daily_onsets, 5.0, 0.3)
+    rep_state = rand(MersenneTwister(3), rep)
 
-@testitem "confirmed_only_model conditioned on an observation stays positive" tags=[:slow] begin
-    using Turing: sample, Prior
-    import FlexiChains
-    using BVDOutbreakSize: confirmed_only_model
-
-    chn = sample(
-        confirmed_only_model(40, 20),
-        Prior(), 100;
-        chain_type = FlexiChains.VNChain, progress = false
-    )
-    C_T = vec(Array(chn[:C_T]))
-    @test length(C_T) == 100
-    @test all(isfinite, C_T)
-    @test all(C_T .> 0)
+    m = confirmed_cases_model(
+        (; days = [20, 40], counts = [3, 8]),
+        8, daily_onsets, 5.0, 0.3, rep_state.λ_bg, rep_state.τ_test,
+        rep_state.bvd_reports_daily;
+        lab_history = (; days = [20, 40], counts = [5, 8]),
+        tests_analysed = 8)
+    draw = rand(MersenneTwister(4), m)
+    @test haskey(draw, :p_positive)
+    @test 0 <= draw.p_positive <= 1
+    @test draw.expected_confirmed >= 0
+    @test draw.expected_tested >= 0
 end

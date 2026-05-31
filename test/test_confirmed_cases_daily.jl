@@ -1,37 +1,28 @@
-## Smoke tests for the per-vintage confirmed-cases likelihood exercised
-## through `confirmed_only_model` with a history `(; days, counts)`.
+@testitem "lab pipeline daily likelihood runs and is finite" begin
+    using BVDOutbreakSize: confirmed_cases_model, reported_cases_model,
+                           infection_model, onset_incidence_model
+    using Turing: logjoint
+    using Random: MersenneTwister
 
-@testitem "confirmed_cases: prior draws are finite and non-negative" tags=[:slow] begin
-    using Turing: sample, Prior
-    import FlexiChains
-    using BVDOutbreakSize: confirmed_only_model
+    n = 40
+    inf = infection_model(n)
+    draw = rand(MersenneTwister(1), inf)
+    onsets = draw.infections
 
-    history = (; days = [13, 18, 23], counts = [9, 17, 27])
-    chn = sample(
-        confirmed_only_model(23, missing; confirmed_history = history),
-        Prior(), 100;
-        chain_type = FlexiChains.VNChain, progress = false
-    )
+    onset_state = rand(MersenneTwister(2),
+        onset_incidence_model(onsets))
+    daily_onsets = onset_state.onsets
 
-    C_T = vec(Array(chn[:C_T]))
-    @test length(C_T) == 100
-    @test all(isfinite, C_T)
-    @test all(C_T .> 0)
-end
+    rep = reported_cases_model(
+        (; days = Int[], counts = Int[]), missing, daily_onsets, 5.0, 0.3)
+    rep_state = rand(MersenneTwister(3), rep)
 
-@testitem "confirmed_cases: tiny fit with history and total stays positive" tags=[:slow] begin
-    using Turing: sample, Prior
-    import FlexiChains
-    using BVDOutbreakSize: confirmed_only_model
-
-    history = (; days = [13, 18, 23], counts = [9, 17, 27])
-    chn = sample(
-        confirmed_only_model(23, 27; confirmed_history = history),
-        Prior(), 100;
-        chain_type = FlexiChains.VNChain, progress = false
-    )
-    C_T = vec(Array(chn[:C_T]))
-    @test length(C_T) == 100
-    @test all(isfinite, C_T)
-    @test all(C_T .> 0)
+    m = confirmed_cases_model(
+        (; days = [20, 40], counts = [3, 8]),
+        8, daily_onsets, 5.0, 0.3, rep_state.λ_bg, rep_state.τ_test,
+        rep_state.bvd_reports_daily;
+        lab_history = (; days = [20, 40], counts = [5, 8]),
+        tests_analysed = 8)
+    lp = logjoint(m, rand(MersenneTwister(4), m))
+    @test isfinite(lp)
 end

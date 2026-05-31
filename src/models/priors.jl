@@ -196,13 +196,59 @@ truncated at zero. Sets the per-capita travel rate for the exports stream.
 end
 
 """
-Test-positivity submodel: the fraction of suspected cases that are
-laboratory confirmed, scaling the onsets in the confirmed-case stream.
-Returns `(; positivity)`.
+Test-positivity machinery shared by the suspected- and confirmed-case
+streams. Samples
+
+- `λ_bg` — the per-day non-BVD background suspected-case rate, on a
+  half-normal scale. Drives the suspected/confirmed contrast: suspected
+  cases mix the BVD onset-to-report signal with this additive background,
+  while the laboratory pipeline only confirms the BVD share.
+- `τ_test` — the fraction of suspected cases that are sampled and routed
+  to the laboratory pipeline.
+
+The derived per-suspected positivity is exposed inside
+[`reported_cases_model`](@ref); the per-test positivity is exposed inside
+[`confirmed_cases_model`](@ref). The prior centres follow integral
+`main`: a wide half-normal on the background rate and a `Beta(5, 2)`
+testing fraction (mean ≈ 0.71). Returns `(; λ_bg, τ_test)`.
 """
-@model function test_positivity_model(; positivity_prior = Beta(2, 5))
-    positivity ~ positivity_prior
-    return (; positivity)
+@model function test_positivity_model(;
+        lambda_prior = truncated(Normal(0.0, 10.0); lower = 0),
+        fraction_tested_prior = Beta(5.0, 2.0))
+    λ_bg ~ lambda_prior
+    τ_test ~ fraction_tested_prior
+    return (; λ_bg, τ_test)
+end
+
+"""
+PCR sensitivity prior for the GeneXpert Ebola assay. `Beta(30, 2)` has
+mean 0.94 and 95% interval 0.84–0.99, sitting just below the field whole
+blood clinical sensitivity reported in the Sierra Leone Zaire-ebolavirus
+field evaluation, leaving room for early-infection low-viral-load
+specimens and field handling. Scales the confirmed-case stream so the
+confirmed counts reflect imperfect detection of true BVD infections.
+Matches the integral `main` prior. Returns `(; s_test)`.
+"""
+@model function test_sensitivity_model(; sensitivity_prior = Beta(30.0, 2.0))
+    s_test ~ sensitivity_prior
+    return (; s_test)
+end
+
+"""
+Report-to-laboratory-confirmation (lab-turnaround) delay submodel. The
+delay from a suspected case being reported to its specimen being
+laboratory confirmed, discretised to a daily PMF over lags `0 … nmax`
+by [`censored_delay_model`](@ref) so it convolves cleanly onto the
+renewal onsets. The mean and SD carry weakly-informative priors centred
+on a short turnaround with a heavy right tail allowing for specimen
+shipment to a confirmatory lab; no per-sample outbreak data anchors this
+prior, matching integral `main`. Returns `(; pmf, dist, mean, sd)`.
+"""
+@model function lab_delay_model(nmax::Integer = 30;
+        mean_prior = truncated(Normal(4.5, 2.0); lower = 1),
+        sd_prior = truncated(Normal(4.0, 1.5); lower = 1))
+    d ~ to_submodel(censored_delay_model(nmax; mean_prior, sd_prior))
+    return (; pmf = d.pmf, dist = d.dist, mean = d.mean, sd = d.sd)
 end
 
 """

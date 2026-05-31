@@ -98,24 +98,44 @@ onset-to-death PMF and the CFR for reuse by [`exports_deaths_model`](@ref).
 end
 
 """
-DRC reported-cases ascertainment likelihood, per-vintage time series.
-Convolves the daily onsets with the sampled onset-to-report delay, scales
-by the DRC ascertainment fraction `p_drc`, and reads the modelled
-cumulative reported cases at each vintage day off the daily series,
-fitting the increments with a NegativeBinomial sharing `k`. The
+DRC suspected (reported) cases likelihood, per-vintage time series. The
+expected daily suspected cases are a BVD-driven onset-to-report
+convolution scaled by the DRC ascertainment fraction `p_drc`, plus an
+additive non-BVD background rate `λ_bg` per day (so a suspected case need
+not be a true BVD infection). Reads the modelled cumulative suspected
+cases at each vintage day off the daily series and fits the increments
+with a NegativeBinomial sharing `k`. The background and testing fraction
+are sampled by an injected [`test_positivity_model`](@ref), and the
 onset-to-report delay is injected, defaulting to a weakly-informative
 prior on the onset-to-notification delay (mean 4.5 d, SD 3.6 d),
 consistent with Ebola surveillance reporting delays.
+
+Returns the onset-to-report PMF and the BVD onset-to-report daily series
+(unit ascertainment, no background) so [`confirmed_cases_model`](@ref) can
+reuse the same report kernel, the sampled background rate and testing
+fraction, and the implied per-suspected positivity (the BVD share of the
+expected suspected total) as a derived quantity for comparison with the
+sitrep.
 """
 @model function reported_cases_model(
         reported_history,
         reported_cases::Union{Missing, Integer},
         onsets::AbstractVector, k::Real, p_drc::Real;
+        positivity = test_positivity_model(),
         onset_to_report = censored_delay_model(30;
             mean_prior = truncated(Normal(4.5, 1.5); lower = 1),
             sd_prior = truncated(Normal(3.6, 1.2); lower = 1)))
+    pos_state ~ to_submodel(positivity)
     report_state ~ to_submodel(onset_to_report)
-    reports_daily = p_drc .* convolve_delay(onsets, report_state.pmf)
+    λ_bg = pos_state.λ_bg
+    τ_test = pos_state.τ_test
+    report_pmf = report_state.pmf
+
+    ## Unit-ascertainment BVD onset-to-report daily series, reused by the
+    ## confirmed stream. Suspected daily cases add the p_drc-scaled BVD
+    ## signal and the constant non-BVD background.
+    bvd_reports_daily = convolve_delay(onsets, report_pmf)
+    reports_daily = p_drc .* bvd_reports_daily .+ λ_bg
 
     expected_cum = cumulative_at(reports_daily, reported_history.days)
     _inc ~ to_submodel(vintage_increments_model(expected_cum,
@@ -125,42 +145,87 @@ consistent with Ebola surveillance reporting delays.
     expected_reports := safe_rate(raw_total)
     reported_cases ~ safe_nbinomial(k, expected_reports)
 
-    return (; p_drc, reports_daily, expected_reports)
+    ## Implied per-suspected positivity at the cut-off: BVD share of the
+    ## expected suspected total.
+    bvd_total = p_drc * sum(bvd_reports_daily)
+    positivity := safe_rate(bvd_total) / expected_reports
+
+    return (; p_drc, λ_bg, τ_test, report_pmf, bvd_reports_daily,
+        reports_daily, expected_reports, positivity)
 end
 
 """
-DRC confirmed-cases likelihood, per-vintage time series. Convolves the
-daily onsets with the sampled laboratory-confirmation delay, scales by the
-test positivity (the fraction of suspected cases laboratory confirmed),
-and reads the modelled cumulative confirmed cases at each vintage day off
-the daily series, fitting the increments with a NegativeBinomial sharing
-`k`. Samples the lab delay and the positivity via injected submodels. The
-lab-confirmation delay defaults to a weakly-informative prior (mean 6.0 d,
-SD 4.0 d).
+Laboratory pipeline likelihood, per-vintage time series. Two coupled
+streams driven by the shared renewal onsets:
+
+- Confirmed cases. The BVD onset-to-report daily series (the unit
+  ascertainment `bvd_reports_daily` shared from
+  [`reported_cases_model`](@ref)) is convolved with the sampled
+  report-to-confirmation (lab-turnaround) delay, then scaled by the DRC
+  ascertainment `p_drc`, the PCR sensitivity `s_test` and the testing
+  fraction `τ_test`. The modelled cumulative confirmed cases are read off
+  at each `confirmed_history` vintage day and the increments fitted with a
+  NegativeBinomial sharing `k`. The cut-off total is fitted likewise.
+- Tests analysed. The tested daily volume is `τ_test` times the sum of the
+  `p_drc`-scaled BVD lab series and the non-BVD background `λ_bg` carried
+  through the same lab delay. Its cumulative is read off at the
+  `lab_history` vintage days (so a lab stream that lags the case cut-off is
+  right-truncated by reading the running cumulative at its own days) and
+  the increments fitted with a NegativeBinomial sharing `k`. Confirmed
+  counts are not re-observed conditional on the tested volume, so the two
+  lab streams are not double-counted.
+
+Samples the lab-turnaround delay and the PCR sensitivity via injected
+submodels; the testing fraction `τ_test` and background rate `λ_bg` come
+from [`reported_cases_model`](@ref) so the suspected and laboratory
+streams share them. Exposes the per-test positivity
+`s_test · BVD_tested / tested` and the expected confirmed and tested
+totals at the cut-off as derived quantities.
 """
 @model function confirmed_cases_model(
         confirmed_history,
         confirmed_cases::Union{Missing, Integer},
-        onsets::AbstractVector, k::Real;
-        positivity = test_positivity_model(),
-        onset_to_confirm = censored_delay_model(30;
-            mean_prior = truncated(Normal(6.0, 2.0); lower = 1),
-            sd_prior = truncated(Normal(4.0, 1.5); lower = 1)))
-    pos_state ~ to_submodel(positivity)
-    lab_state ~ to_submodel(onset_to_confirm)
-    positivity_val = pos_state.positivity
-    confirmed_daily = positivity_val .* convolve_delay(onsets, lab_state.pmf)
+        onsets::AbstractVector, k::Real, p_drc::Real,
+        λ_bg::Real, τ_test::Real, bvd_reports_daily::AbstractVector;
+        lab_history = (; days = Int[], counts = Int[]),
+        tests_analysed::Union{Missing, Integer} = missing,
+        sensitivity = test_sensitivity_model(),
+        report_to_confirm = lab_delay_model())
+    sens_state ~ to_submodel(sensitivity)
+    lab_state ~ to_submodel(report_to_confirm)
+    s_test = sens_state.s_test
+    lab_pmf = lab_state.pmf
 
-    expected_cum = cumulative_at(confirmed_daily, confirmed_history.days)
-    _inc ~ to_submodel(vintage_increments_model(expected_cum,
+    ## BVD report signal carried through the lab-turnaround delay (unit
+    ## ascertainment), and the non-BVD background carried likewise.
+    bvd_lab_daily = convolve_delay(bvd_reports_daily, lab_pmf)
+    bg_lab_daily = convolve_delay(fill(λ_bg, length(onsets)), lab_pmf)
+
+    confirmed_daily = (p_drc * s_test * τ_test) .* bvd_lab_daily
+    tested_daily = τ_test .* (p_drc .* bvd_lab_daily .+ bg_lab_daily)
+
+    confirmed_cum = cumulative_at(confirmed_daily, confirmed_history.days)
+    _cinc ~ to_submodel(vintage_increments_model(confirmed_cum,
             confirmed_history.counts, k), false)
 
-    raw_total = sum(confirmed_daily)
-    expected_confirmed := safe_rate(raw_total)
+    tested_cum = cumulative_at(tested_daily, lab_history.days)
+    _tinc ~ to_submodel(vintage_increments_model(tested_cum,
+            lab_history.counts, k), false)
+
+    expected_confirmed := safe_rate(sum(confirmed_daily))
     confirmed_cases ~ safe_nbinomial(k, expected_confirmed)
 
-    return (; positivity = positivity_val, confirmed_daily,
-        expected_confirmed)
+    expected_tested := safe_rate(sum(tested_daily))
+    tests_analysed ~ safe_nbinomial(k, expected_tested)
+
+    ## Per-test positivity: PCR sensitivity times the BVD share of the
+    ## tested pool, for comparison with the sitrep positivity rate.
+    bvd_tested = p_drc * sum(bvd_lab_daily)
+    p_positive := s_test * safe_rate(bvd_tested) /
+                  safe_rate(p_drc * sum(bvd_lab_daily) + sum(bg_lab_daily))
+
+    return (; s_test, τ_test, λ_bg, lab_pmf, confirmed_daily, tested_daily,
+        expected_confirmed, expected_tested, p_positive)
 end
 
 """
