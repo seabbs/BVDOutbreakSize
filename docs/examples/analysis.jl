@@ -1652,7 +1652,7 @@ prior_pair_fig #hide
 #
 # NUTS [hoffman2014nuts](@cite) with Mooncake [mooncake_jl](@cite)
 # reverse-mode automatic differentiation, four chains, 1000 post-warmup
-# draws each, with a target acceptance probability of 0.9. Chains
+# draws each, with a target acceptance probability of 0.95. Chains
 # initialise from the prior
 # to keep the sampler away from the boundary of $r$ and $m$. We fit
 # the joint model and the four single-stream models so the per-stream

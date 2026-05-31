@@ -37,7 +37,6 @@ each push to `main` also republishes the rendered analysis and the
   `9 + (cut-off − 18 May)/14` doublings, based on McCabe et al.'s
   first-report Method 2 central (501 cases, `log2 ≈ 9`) and the 14-day
   doubling time, so it tracks data refreshes.
-- Lowered the NUTS default target acceptance from 0.95 to 0.9.
 - Added a partially-pooled DRC and Uganda ascertainment extension: a
   logit-scale reporting fraction applied to the latent incidence, fitting
   the reported suspected-case count alongside the deaths and exports.

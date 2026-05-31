@@ -29,7 +29,7 @@ uniform initialisation.
 function nuts_sample(model;
         samples::Integer = 1_000,
         chains::Integer = 4,
-        target_accept::Real = 0.9,
+        target_accept::Real = 0.95,
         seed::Integer = 20260518,
         progress::Bool = false,
         adtype = default_adtype(),
