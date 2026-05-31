@@ -7,14 +7,20 @@ using Enzyme: Enzyme
 using Enzyme.EnzymeRules: EnzymeRules
 using SpecialFunctions: gamma, digamma
 
-# Reverse-mode Enzyme with runtime activity (so per-value activity is
-# resolved through the quadrature and distribution constructors) and a
-# `Duplicated` function annotation (so the closure over the observed data
-# is differentiated, not treated as read-only). This is the config the
-# `_gamma_cdf` / `gamma` rules below are validated against.
+# Reverse-mode Enzyme with a `Duplicated` function annotation (so the
+# closure over the observed data is differentiated, not treated as
+# read-only). Runtime activity is no longer enabled: it was previously
+# needed because the old `Integrals.solve`-based `integrate` returned
+# `Any`, defeating Enzyme's static activity analysis through the
+# quadrature. Now that `integrate` is type-stable, activity is resolved
+# statically and plain `Enzyme.Reverse` produces correct gradients
+# (validated against Mooncake and finite differences across the joint
+# and single-stream models). Dropping runtime activity is faster and
+# allocates less than the runtime-activity-on config. This is the config
+# the `_gamma_cdf` / `gamma` rules below are validated against.
 function BVDOutbreakSize.enzyme_adtype()
     return AutoEnzyme(;
-        mode = Enzyme.set_runtime_activity(Enzyme.Reverse),
+        mode = Enzyme.Reverse,
         function_annotation = Enzyme.Duplicated)
 end
 
