@@ -24,7 +24,7 @@
     @test std(p) > 0.01
 end
 
-@testitem "bvd_joint: fixed per-stream ascertainment, partially-pooled k" tags=[:slow] begin
+@testitem "bvd_joint: fixed DRC ascertainment fraction" tags=[:slow] begin
     using BVDOutbreakSize: bvd_joint, load_observations
     using Turing: sample, Prior
     import FlexiChains
@@ -44,14 +44,9 @@ end
         confirmed_offsets = conf.offsets)
     chn = sample(m, Prior(), 100;
         chain_type = FlexiChains.VNChain, progress = false)
-    ## DRC ascertainment is the fixed pooled scalar `p_drc` (no per-bin
-    ## random effect), in (0, 1).
+    ## DRC ascertainment is the fixed pooled scalar `p_drc`, applied to
+    ## every vintage bin, in (0, 1).
     @test all(0 .< vec(Array(chn[:p_drc])) .< 1)
-    ## Dispersion is partially pooled: `k` is a length-3 per-stream vector
-    ## (deaths, reported, confirmed), each strictly positive.
-    k_per_draw = vec(Array(chn[:k]))
-    @test all(length(v) == 3 for v in k_per_draw)
-    @test all(all(v .> 0) for v in k_per_draw)
 end
 
 @testitem "deaths_ascertainment_model: prior is centred near 1 with ~5% SD" tags=[:slow] begin

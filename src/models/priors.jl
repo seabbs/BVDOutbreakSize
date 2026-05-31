@@ -185,22 +185,6 @@ following the Stan prior-choice recommendations.
 end
 
 """
-Per-stream negative-binomial dispersion: each of the `n_streams`
-surveillance streams draws its own `k` independently from the same
-weakly-informative prior, sampled on the `1/sqrt(k)` scale (the Stan
-prior-choice recommended scale, where the parameter behaves like a
-standard deviation). Returns length-`n_streams` vectors `k` and
-`inv_sqrt_k`; [`bvd_joint`](@ref) indexes `k[1]`, `k[2]`, `k[3]` for the
-deaths, reported and confirmed streams respectively.
-"""
-@model function per_stream_dispersion_model(n_streams::Integer;
-        inv_sqrt_k_prior = truncated(Normal(0.6, 0.2); lower = 0))
-    inv_sqrt_k ~ filldist(inv_sqrt_k_prior, n_streams)
-    k := 1.0 ./ (inv_sqrt_k .^ 2 .+ eps(eltype(inv_sqrt_k)))
-    return (; k, inv_sqrt_k)
-end
-
-"""
 Partially pooled ascertainment fractions for the DRC and Uganda
 surveillance systems, sampled in non-centred form to avoid the funnel
 geometry. Both logit-scale fractions share a hyperprior with mean `μ`

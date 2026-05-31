@@ -36,10 +36,11 @@ each push to `main` also republishes the rendered analysis and the
   cut-off: `m ~ Normal(m_prior_centre(as_of), 3)`, centre
   `9 + (cut-off − 18 May)/14` doublings, based on McCabe et al.'s
   first-report Method 2 central (501 cases, `log2 ≈ 9`) and the 14-day
-  doubling time, so it tracks data refreshes and better aligns with
-  McCabe. Removes the divergent transitions but not the residual
-  small-outbreak multimodality (tracked separately).
+  doubling time, so it tracks data refreshes.
 - Lowered the NUTS default target acceptance from 0.95 to 0.9.
+- Added a partially-pooled DRC and Uganda ascertainment extension: a
+  logit-scale reporting fraction applied to the latent incidence, fitting
+  the reported suspected-case count alongside the deaths and exports.
 - Added a laboratory pipeline coupling the cumulative tests-analysed and
   confirmed-case streams to the latent incidence, introducing a testing
   fraction, PCR sensitivity and a report-to-confirmation (lab-turnaround)
@@ -56,12 +57,6 @@ each push to `main` also republishes the rendered analysis and the
   per-vintage NegBinomial increments with per-test positivity a derived
   quantity, and each stream carries its own vintage offsets so a lagging
   stream is not assumed to run to the cut-off.
-- Resolved a multimodal joint fit (one of four NUTS chains stranded in a
-  small-outbreak mode, worst R-hat ≈ 2.1) by applying a single fixed DRC
-  ascertainment fraction to every vintage (rather than a per-bin random
-  effect over the lab stream's edges) and giving each surveillance stream
-  its own independent dispersion `k` (`per_stream_dispersion_model`). The
-  chains now agree (worst R-hat ≈ 1.05).
 - Added `confirmed_only_model`, a single-stream composer that fits the
   laboratory pipeline in isolation for the per-stream comparison.
 - Added `forecast_vs_truth_trajectory`: scores the retrospective forecast
@@ -107,10 +102,7 @@ each push to `main` also republishes the rendered analysis and the
 - Added optional Enzyme reverse-mode AD, selected with `enzyme_adtype()`,
   alongside the default Mooncake backend. Gradients match Mooncake across
   every model including the full joint and fitting runs at the same speed,
-  so Mooncake stays the default. The cross-AD gradient check is restricted
-  to stable Julia: Enzyme mis-differentiates the growth-rate
-  reparameterisation on Julia LTS / pre-release (Mooncake is correct
-  there), tracked in #153.
+  so Mooncake stays the default.
 - Fixed a posterior-predictive grid regression under AlgebraOfGraphics
   0.12 and widened the AoG compat bound to include 0.12; bumped the
   `softprops/action-gh-release` Action to v3.

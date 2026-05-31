@@ -60,15 +60,13 @@
 #   so the priors carry the published 95% credible intervals on
 #   $\alpha$ and $\theta$ rather than collapsing onto Rosello's point
 #   estimate.
-# - *NegBinomial likelihood on deaths and reported cases* with a
-#   surveillance dispersion $k$ partially pooled across the deaths,
-#   reported and confirmed streams: each takes its own $k$ from a shared
-#   hyperprior. McCabe et al. use Poisson for deaths and do not have a
-#   cases-ascertainment model at all. Exports stay Poisson because two
-#   observations would not identify a separate dispersion. The McCabe et
-#   al. "exact NegBinomial CIs" on Method 1 are the conventional
-#   binomial-inversion procedure, not an estimated dispersion.
-# - *Ascertainment extension* (not in McCabe et al.). A logit-scale
+# - *NegBinomial likelihood on deaths and reported cases* with a shared
+#   surveillance dispersion $k$, to account for over-dispersion in the
+#   passive-surveillance counts. This differs from the Poisson likelihood
+#   McCabe et al. use for the Method 2 deaths, and they do not model the
+#   reported cases. We assume exports follow a Poisson distribution, as
+#   two observations would not identify a separate dispersion.
+# - *Ascertainment extension*. A logit-scale
 #   hyperprior on the reporting fraction, applied to the latent
 #   $C(T)$, gives a joint posterior over the reported suspected-case
 #   count alongside deaths and exports.
@@ -81,7 +79,7 @@
 #   handles right-truncation of the tested observation. PCR sensitivity
 #   and testing fraction are separately identified given both
 #   observations.
-# - *Per-vintage fit of the DRC streams* (not in McCabe et al.). The
+# - *Per-vintage fit of the DRC streams*. The
 #   suspected-case, confirmed-case and suspected-death likelihoods model
 #   the new cases and deaths reported in each sitrep, conditioning on the
 #   between-vintage increments against the same intensities as the
@@ -92,12 +90,12 @@
 #   across all sitrep edges rather than re-integrating at each. The case
 #   streams use a single DRC ascertainment fraction $p_{\text{DRC}}$
 #   applied to every sitrep vintage.
-# - *No-onward-transmission counterfactual* (not in McCabe et al.).
+# - *No-onward-transmission counterfactual*.
 #   Projects the future expected deaths from cases already infected
 #   by $T$, integrating $i(s)\cdot(1 - F_d(T - s))$ per draw — a
 #   lower bound on the eventual death toll if every onward
 #   transmission stopped today.
-# - *Posterior-predictive forecasts* (not in McCabe et al.). A
+# - *Posterior-predictive forecasts*. A
 #   one-week-ahead projection of each stream from the joint posterior,
 #   plus a retrospective check that refits the original report's data
 #   and projects it forward to the current cut-off to compare against
@@ -151,7 +149,7 @@
 #   earlier cases and add newly-reporting health zones, and ascertainment
 #   likely rose over the window as the response scaled up. The increments
 #   therefore mix true incidence with backfill and changing detection,
-#   which the single fixed ascertainment fraction does not absorb.
+#   which the ascertainment fraction does not absorb.
 #   The most recent sitrep's increment is also not corrected for
 #   right-truncation, so it is exposed as is, with the same caveat as the
 #   latest cumulative total.
@@ -510,17 +508,10 @@ vintage_table #hide
 # $m = \log_2 501 \approx 9$. Each day that the cut-off runs past that
 # report adds a fraction of a doubling at the central 14-day doubling
 # time, so the size prior stays centred on the plausible outbreak as the
-# data are refreshed rather than being fixed at the report-date value
-# (the current cut-off gives $m_0 \approx 9.6$). This better aligns the
-# prior with McCabe et al. while tracking elapsed time. It is a
-# weakly-informative centring choice: the fit is dominated by the
-# likelihood, so it mainly sets where the joint sampler starts, not the
-# McCabe sense-check below (which is pinned by the deaths). The SD 3
-# gives 95% prior support of roughly $m \in (3, 15)$, i.e.
-# $C(T) \in (8, 32000)$, spanning their full headline range on the log
-# scale. The doubling time $\tau$, the elapsed time $T = m\cdot\tau$ and
-# $C(T)$ are exposed as deterministics so they appear in posterior tables
-# and pair plots.
+# data are refreshed rather than being fixed at the report-date value.
+# The doubling time $\tau$, the elapsed time $T = m\cdot\tau$ and $C(T)$
+# are exposed as deterministics so they appear in posterior tables and
+# pair plots.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: exponential_growth_model</summary>
@@ -794,9 +785,9 @@ cfr_prior_fig #hide
 # ##### Surveillance dispersion
 #
 # We assume the surveillance counts are reported with negative binomial
-# observation error around their expected value. The suspected-death,
-# reported-case and confirmed-case streams each take their own
-# independent dispersion $k$. Under the mean-$\mu$ / dispersion-$k$
+# observation error around their expected value, with a single shared
+# dispersion $k$ for the suspected-death, reported-case and
+# confirmed-case streams. Under the mean-$\mu$ / dispersion-$k$
 # parameterisation a count $Y$ has
 #
 # ```math
@@ -811,13 +802,11 @@ cfr_prior_fig #hide
 # meaningful overdispersion rather than near-Poisson counts.
 # Following the Stan prior-choice recommendations
 # [stan_prior_choice](@cite), the dispersion is sampled on the
-# $1/\sqrt{k}$ scale, which behaves like a standard deviation. Each
-# stream $s \in \{\text{deaths}, \text{reported}, \text{confirmed}\}$
-# draws its dispersion independently from the same weakly-informative
-# prior centred on the overdispersion we expect,
+# $1/\sqrt{k}$ scale, which behaves like a standard deviation, with a
+# weakly-informative prior centred on that expected overdispersion,
 #
 # ```math
-# 1/\sqrt{k_s} \sim \mathrm{Normal}^{+}(0.6,\ 0.2), \tag{9}
+# 1/\sqrt{k} \sim \mathrm{Normal}^{+}(0.6,\ 0.2), \tag{9}
 # ```
 #
 # giving $k$ a prior median near $3$ with a 90% range of about $1$-$14$.
@@ -825,9 +814,6 @@ cfr_prior_fig #hide
 # many orders of magnitude, so the pair plots and summary table show
 # dispersion on both the sampled $1/\sqrt{k}$ scale, which is easier to
 # read, and the more familiar $k$ scale.
-# Because each stream contributes few aggregate counts, $k$ is only
-# weakly identified, so this prior carries the inference and is set to
-# reflect the overdispersion we expect from passive surveillance.
 # This extends the McCabe et al. report, which uses a Poisson likelihood
 # for the Method 2 deaths and does not model the reported case counts at
 # all; the negative binomial adds overdispersion to absorb
@@ -1114,8 +1100,8 @@ cfr_prior_fig #hide
 # observation is included, from the testing-volume gate on the BVD and
 # background streams. Ideally it would also be informed by a known
 # background rate of non-BVD presentations from routine surveillance or
-# other data sources. The dispersion for this stream is its own
-# partially-pooled $k_{\text{rep}}$ (equation (9)).
+# other data sources. The dispersion $k$ (equation (9)) is shared with
+# the deaths and confirmed likelihoods.
 #
 # $\mu_{\text{bg}} = \lambda_{\text{bg}}\, T$ assumes the non-BVD
 # background rate is constant in time and independent of the outbreak.
@@ -1144,13 +1130,8 @@ cfr_prior_fig #hide
 #     + \lambda_{\text{bg}}\,(s_v - s_{v-1}),
 # \quad
 # \Delta Y_v^{\text{rep}} \sim
-#     \mathrm{NegBinomial}(\mu_v^{\text{rep}}, k_{\text{rep}}). \tag{20}
+#     \mathrm{NegBinomial}(\mu_v^{\text{rep}}, k). \tag{20}
 # ```
-#
-# Applying $p_{\text{DRC}}$ to the new-case increment of the
-# unit-ascertainment cumulative, rather than inside the integrand, keeps
-# the mean linear in the trajectory. Reported and confirmed sitreps share
-# the same $p_{\text{DRC}}$.
 
 #md # ```@raw html
 #md # <details><summary>Submodel: test_positivity_model</summary>
@@ -1266,9 +1247,8 @@ cfr_prior_fig #hide
 # suspected cumulative with the lab-convolved
 # $I_{\text{lab},0}(s) = \int_0^s \mu_{\text{BVD},0}(s')\,
 #     f_{\text{lab}}(s - s')\,ds'$ and gating by the testing fraction
-# $\tau$ and sensitivity $s$.
-# Reported and confirmed sitreps share the same ascertainment fraction
-# $p_{\text{DRC}}$:
+# $\tau$ and sensitivity $s$. The new confirmed cases in sitrep $v$ have
+# mean
 #
 # ```math
 # \mu_v^{\text{conf}}
@@ -1276,7 +1256,7 @@ cfr_prior_fig #hide
 #     \bigl(I_{\text{lab},0}(s_v) - I_{\text{lab},0}(s_{v-1})\bigr),
 # \quad
 # \Delta Y_v^{\text{conf}} \sim
-#     \mathrm{NegBinomial}(\mu_v^{\text{conf}}, k_{\text{conf}}). \tag{25a}
+#     \mathrm{NegBinomial}(\mu_v^{\text{conf}}, k). \tag{25a}
 # ```
 #
 # The tested-volume and per-test positivity terms (equations (23)-(24))
@@ -1658,7 +1638,7 @@ prior_C_table #hide
 #md # ```
 
 prior_pair_fig = plot_pair(prior_chn,
-    [:τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k, :k,
+    [:r, :τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k, :k,
         :p_drc, :p_uganda, :τ_logit,
         :λ_bg, :τ_test, :s_test, :positivity, :p_positive]);
 
@@ -2043,7 +2023,7 @@ start_date_fig #hide
 #md # ```
 
 joint_summary = summary_table(chn_joint,
-    [:r, :m, :T, :CFR, :p_drc, :p_uganda, :τ_logit,
+    [:r, :τ, :m, :T, :CFR, :p_drc, :p_uganda, :τ_logit,
         :inv_sqrt_k, :k, :α_rep, :θ_rep, :α_lab, :θ_lab,
         :s_test, :τ_test, :λ_bg, :positivity, :p_positive,
         :cumulative_cases]; digits = 2);
@@ -2063,7 +2043,7 @@ joint_summary #hide
 #md # ```
 
 posterior_pair_fig = plot_pair(chn_joint,
-    [:τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k, :k,
+    [:r, :τ, :m, :cumulative_cases, :CFR, :w, :inv_sqrt_k, :k,
         :p_drc, :p_uganda, :τ_logit];
     prior = prior_chn);
 
