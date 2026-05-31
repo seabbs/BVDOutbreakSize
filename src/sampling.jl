@@ -8,6 +8,18 @@ the NUTS `adtype` keyword.
 default_adtype() = AutoMooncake(; config = Mooncake.Config())
 
 """
+Enzyme reverse-mode AD type, an opt-in alternative to the default
+[`default_adtype`](@ref) (Mooncake). Defined by the package's Enzyme
+weak-dependency extension (`ext/BVDOutbreakSizeEnzymeExt.jl`); calling it
+without `Enzyme` loaded raises a `MethodError`. Load `Enzyme` to activate
+the extension, which also installs the `EnzymeRules` for
+`SpecialFunctions.gamma` that the Beta and NegativeBinomial normalising
+constants reach. Differentiating the full renewal joint under Enzyme is
+work in progress; Mooncake remains the package default.
+"""
+function enzyme_adtype end
+
+"""
 NUTS on `model`, parallel chains via `MCMCThreads`. Chains
 initialise from the prior (`InitFromPrior()`) to keep the sampler
 in regions with reasonable physical interpretation. Pass `init =
