@@ -7,7 +7,6 @@ Coverage = "a2441757-f6aa-5fb2-8edb-039e3f45d037"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
-Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 FlexiChains = "4a37a8b9-6e57-4b92-8664-298d46e639f7"
@@ -27,7 +26,6 @@ Turing = "fce5fe82-541a-59a6-adf8-730c64b5f9a0"
 
 [compat]
 Coverage = "1"
-Enzyme = "0.13"
 
 [sources]
 BVDOutbreakSize = {path = ".."}

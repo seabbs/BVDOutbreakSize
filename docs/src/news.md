@@ -79,11 +79,6 @@ each push to `main` also republishes the rendered analysis and the
   holding beyond the report period, and on per-sitrep increments mixing
   true incidence with backfill and rising ascertainment.
 
-### Infrastructure
-
-- Added optional Enzyme reverse-mode automatic differentiation, selected with `enzyme_adtype()`, alongside the default Mooncake backend.
-Gradients match Mooncake across every model including the full joint, and end-to-end fitting runs at the same speed, so Mooncake stays the default.
-
 ## v1.2.0
 
 ### Modelling
